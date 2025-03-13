@@ -184,6 +184,9 @@ contract SavingCirclesIntegration is IntegrationBase {
     uint256 aliceBalanceBefore = token.balanceOf(alice);
     uint256 bobBalanceBefore = token.balanceOf(bob);
 
+    // Wait until after deposit interval
+    vm.warp(block.timestamp + DEPOSIT_INTERVAL + 1);
+
     // Decommission circle
     vm.prank(alice);
     circle.decommission(baseCircleId);
@@ -222,14 +225,6 @@ contract SavingCirclesIntegration is IntegrationBase {
     // Check circle was deleted
     vm.expectRevert(ISavingCircles.NotCommissioned.selector);
     circle.getCircle(baseCircleId);
-  }
-
-  function test_RevertWhen_NonMemberDecommissions() public {
-    createBaseCircle();
-
-    vm.prank(makeAddr('stranger'));
-    vm.expectRevert(abi.encodeWithSelector(ISavingCircles.NotMember.selector));
-    circle.decommission(baseCircleId);
   }
 
   function test_RevertWhen_NotEnoughContributions() public {

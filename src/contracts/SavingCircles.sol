@@ -114,26 +114,24 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @notice Decommission an existing saving circle
    * @dev Returns all deposits to members
+   * @dev No access control required because funds are stuck until a circle is decommissioned
    * @param _id Identifier of the circle
    */
-  function decommission(uint256 _id) external override {
+  function decommission(uint256 _id) external override nonReentrant {
     Circle storage _circle = circles[_id];
 
-    if (_circle.owner != msg.sender) {
-      if (!isMember[_id][msg.sender]) revert NotMember();
-      if (block.timestamp <= _circle.circleStart + (_circle.depositInterval * (_circle.currentIndex + 1))) {
-        revert NotDecommissionable();
-      }
-
-      bool hasIncompleteDeposits = false;
-      for (uint256 i = 0; i < _circle.members.length; i++) {
-        if (balances[_id][_circle.members[i]] < _circle.depositAmount) {
-          hasIncompleteDeposits = true;
-          break;
-        }
-      }
-      if (!hasIncompleteDeposits) revert NotDecommissionable();
+    if (block.timestamp <= _circle.circleStart + (_circle.depositInterval * (_circle.currentIndex + 1))) {
+      revert NotDecommissionable();
     }
+
+    bool hasIncompleteDeposits = false;
+    for (uint256 i = 0; i < _circle.members.length; i++) {
+      if (balances[_id][_circle.members[i]] < _circle.depositAmount) {
+        hasIncompleteDeposits = true;
+        break;
+      }
+    }
+    if (!hasIncompleteDeposits) revert NotDecommissionable();
 
     // Return deposits to members
     for (uint256 i = 0; i < _circle.members.length; i++) {

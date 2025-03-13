@@ -51,7 +51,7 @@
   <li>Example: `feat: added liquidation method to buttered-bread contract`</dt>
   <li>Example: `test: added unit tests`</dt>
   <li>List of commit types: `[build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test]`</dt>
-  <li>For more specific details, checkout `https://www.conventionalcommits.org/en/v1.0.0-beta.4/`</li>
+  <li>For more specific details, checkout `https://www.conventionalcommits.org/en/v1.0.0/`</li>
 </dl>
 
 <div align="center">End of Breadchain Notes</div>
