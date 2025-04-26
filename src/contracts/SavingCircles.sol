@@ -162,7 +162,6 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @notice Return the info of a specified saving circle
    * @param _id Identifier of the circle
-   * @return _circle Saving circle
    */
   function getCircle(uint256 _id) external view override returns (Circle memory _circle) {
     _circle = circles[_id];
@@ -174,7 +173,6 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @notice Get multiple circles in a single call
    * @param _ids Array of circle IDs to fetch
-   * @return _circles Array of circles
    */
   function getCircles(uint256[] calldata _ids) external view returns (Circle[] memory _circles) {
     _circles = new Circle[](_ids.length);
@@ -182,8 +180,6 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     for (uint256 i = 0; i < _ids.length; i++) {
       _circles[i] = circles[_ids[i]];
     }
-
-    return _circles;
   }
 
   /**
