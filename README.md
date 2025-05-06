@@ -45,7 +45,6 @@
   <li>Run `yarn lint:check`</li>
   <li>Check `package.json` for more linter commands</li>
   <li>Internal variables start with an underscore ('_exampleOfInternalVar').</li>
-  <li>Run `lint:natspec` to check contracts and interfaces for correct natspec.</li>
 
   <dt>Commit Messages</dt>
   <li>Example: `feat: added liquidation method to buttered-bread contract`</dt>
