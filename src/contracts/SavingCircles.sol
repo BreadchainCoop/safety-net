@@ -29,14 +29,19 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     _disableInitializers();
   }
 
+  /// @inheritdoc ISavingCircles
   function initialize(address _owner) external override initializer {
     __Ownable_init_unchained(_owner);
   }
 
-  /**
-   * @notice Create a new saving circle
-   * @param _circle A new saving circle
-   */
+  /// @inheritdoc ISavingCircles
+  function setTokenAllowed(address _token, bool _allowed) external override onlyOwner {
+    allowedTokens[_token] = _allowed;
+
+    emit TokenAllowed(_token, _allowed);
+  }
+
+  /// @inheritdoc ISavingCircles
   function create(Circle memory _circle) external override returns (uint256 _id) {
     _id = nextId++;
 
@@ -64,59 +69,27 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     return _id;
   }
 
-  /**
-   * @notice Make a deposit into a specified circle
-   * @param _id Identifier of the circle
-   * @param _value Amount of the token to deposit
-   */
+  /// @inheritdoc ISavingCircles
   function deposit(uint256 _id, uint256 _value) external override nonReentrant {
     _deposit(_id, _value, msg.sender);
   }
 
-  /**
-   * @notice Make a deposit on behalf of another member
-   * @param _id Identifier of the circle
-   * @param _value Amount of the token to deposit
-   * @param _member Address to make a deposit for
-   */
+  /// @inheritdoc ISavingCircles
   function depositFor(uint256 _id, uint256 _value, address _member) external override nonReentrant {
     _deposit(_id, _value, _member);
   }
 
-  /**
-   * @notice Make a withdrawal from a specified circle
-   * @param _id Identifier of the circle
-   */
+  /// @inheritdoc ISavingCircles
   function withdraw(uint256 _id) external override nonReentrant {
     _withdraw(_id, msg.sender);
   }
 
-  /**
-   * @notice Make a withdrawal from a specified circle on behalf of another member
-   * @param _id Identifier of the circle
-   * @param _member Address of the member to make a withdrawal for
-   */
+  /// @inheritdoc ISavingCircles
   function withdrawFor(uint256 _id, address _member) external override nonReentrant {
     _withdraw(_id, _member);
   }
 
-  /**
-   * @notice Set if a token can be used for saving circles
-   * @param _token Token to update the status of
-   * @param _allowed Can be used for saving circles
-   */
-  function setTokenAllowed(address _token, bool _allowed) external override onlyOwner {
-    allowedTokens[_token] = _allowed;
-
-    emit TokenAllowed(_token, _allowed);
-  }
-
-  /**
-   * @notice Decommission an existing saving circle
-   * @dev Returns all deposits to members
-   * @dev No access control required because funds are stuck until a circle is decommissioned
-   * @param _id Identifier of the circle
-   */
+  /// @inheritdoc ISavingCircles
   function decommission(uint256 _id) external override nonReentrant {
     Circle storage _circle = circles[_id];
 
@@ -150,29 +123,14 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     emit CircleDecommissioned(_id);
   }
 
-  /**
-   * @notice Return if a token is allowed to be used for saving circles
-   * @param _token Address of a token
-   * @return bool Token allowed
-   */
-  function isTokenAllowed(address _token) external view override returns (bool) {
-    return allowedTokens[_token];
-  }
-
-  /**
-   * @notice Return the info of a specified saving circle
-   * @param _id Identifier of the circle
-   */
+  /// @inheritdoc ISavingCircles
   function getCircle(uint256 _id) external view override returns (Circle memory _circle) {
     _circle = circles[_id];
 
     if (_isDecommissioned(_circle)) revert NotCommissioned();
   }
 
-  /**
-   * @notice Get multiple circles in a single call
-   * @param _ids Array of circle IDs to fetch
-   */
+  /// @inheritdoc ISavingCircles
   function getCircles(uint256[] calldata _ids) external view returns (Circle[] memory _circles) {
     _circles = new Circle[](_ids.length);
 
@@ -181,21 +139,12 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  /**
-   * @notice Get all circles for a specific member
-   * @param _member Address of the member
-   * @return _ids Array of circle IDs the member belongs to
-   */
+  /// @inheritdoc ISavingCircles
   function getMemberCircles(address _member) external view returns (uint256[] memory _ids) {
     return memberCircles[_member];
   }
 
-  /**
-   * @notice Return the balances of the members of a specified saving circle
-   * @param _id Identifier of the circle
-   * @return _members Members of the specified saving circle
-   * @return _balances Corresponding balances of the members of the circle
-   */
+  /// @inheritdoc ISavingCircles
   function getMemberBalances(uint256 _id)
     external
     view
@@ -214,12 +163,7 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     return (_circle.members, _balances);
   }
 
-  /**
-   * @notice Check membership status for multiple circles
-   * @param _member Address to check
-   * @param _ids Array of circle IDs to check
-   * @return _statuses Array of boolean membership statuses
-   */
+  /// @inheritdoc ISavingCircles
   function checkMemberships(address _member, uint256[] calldata _ids) external view returns (bool[] memory _statuses) {
     _statuses = new bool[](_ids.length);
 
@@ -230,26 +174,23 @@ contract SavingCircles is ISavingCircles, ReentrancyGuard, OwnableUpgradeable {
     return _statuses;
   }
 
-  /**
-   * @notice Return the member address which is currently able to withdraw from a specified circle
-   * @param _id Identifier of the circle
-   * @return address Member that is currently able to withdraw from the circle
-   */
+  /// @inheritdoc ISavingCircles
+  function isTokenAllowed(address _token) external view override returns (bool) {
+    return allowedTokens[_token];
+  }
+
+  /// @inheritdoc ISavingCircles
+  function isWithdrawable(uint256 _id) external view override returns (bool) {
+    return _withdrawable(_id);
+  }
+
+  /// @inheritdoc ISavingCircles
   function withdrawableBy(uint256 _id) external view override returns (address) {
     Circle memory _circle = circles[_id];
 
     if (_isDecommissioned(_circle)) revert NotCommissioned();
 
     return _circle.members[_circle.currentIndex];
-  }
-
-  /**
-   * @notice Return if a circle can currently be withdrawn from
-   * @param _id Identifier of the circle
-   * @return bool If the circle is able to be withdrawn from
-   */
-  function isWithdrawable(uint256 _id) external view override returns (bool) {
-    return _withdrawable(_id);
   }
 
   /**
