@@ -13,8 +13,8 @@ interface IBroodfonds {
     uint256 fixedDeposit;
     uint256 depositInterval;
     address[] members;
-    uint256 currentIndex;
-    uint256 broodfondsStart;
+    uint256[] depositAmount;
+    uint256 fondStart;
     uint256 maxwithdraws;
   }
 
@@ -51,13 +51,16 @@ interface IBroodfonds {
   error TokenNotAllowed();
   error InvalidDepositInterval();
   error InvalidDepositAmount();
-  error InvalidMaxDeposits();
   error InvalidBroodfondsStartTime();
   error InvalidCurrentIndex();
   error InvalidOwner();
   error InvalidMemberCount();
   error InvalidMemberAddress();
 
+  //Broodfonds specific errors
+  error InvalidInitialDeposit();
+  error InvalidFixedDeposit();
+  error InvalidMaxWithdraws();
   /*///////////////////////////////////////////////////////////////
                             VIEW
   //////////////////////////////////////////////////////////////*/
