@@ -8,14 +8,15 @@ interface IBroodfonds {
 
   struct Fond {
     address owner;
+    string name;
     address token;
     uint256 initialDeposit;
     uint256 fixedDeposit;
     uint256 depositInterval;
+    uint256 maxWithdraws;
     address[] members;
     uint256[] depositAmount;
     uint256 fondStart;
-    uint256 maxwithdraws;
   }
 
   /*///////////////////////////////////////////////////////////////
