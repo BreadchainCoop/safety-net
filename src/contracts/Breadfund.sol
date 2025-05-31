@@ -17,6 +17,8 @@ import {IBreadfund} from '../interfaces/IBreadfund.sol';
 contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant MINIMUM_MEMBERS = 25;
   uint256 public constant MAXIMUM_MEMBERS = 50;
+  uint256 public constant MINIMUM_CONTRIBUTE = 35;
+  uint356 public constant MAXIMUM_CONTRIBUTE = 115;
   uint256 public nextId;
   uint256 public nextIdRequest;
 
@@ -163,6 +165,42 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     emit RequestEnded(_requestId, _request.yesVotes, _request.noVotes);
   }
+
+  function register(uint256 _id, uint256 _contribute) external override {
+    _breadfund = breadfunds[_id];
+
+    if (_breadfund.owner == address(0)) revert NotExists();
+    if (isMember[_id][msg.sender]) revert AlreadyExists();
+    if (_breadfund.members.length == MAXIMUM_MEMBERS) revert InvalidMemberCount();
+    if (_contribute < MINIMUM_CONTRIBUTE) revert InvalidDeposit();
+    if (_contribute > MAXIMUM_CONTRIBUTE) revert InvalidDeposit();
+
+    //TBD
+    payFirstDeposit(_id);
+    deposit();
+
+    breadfunds[_id].members.push[msg.sender];
+
+    isMember[_id][msg.sender] = true;
+    memberBreadfunds[msg.sender].push[_id];
+    breadfundMemberContribute[_id][msg.sender] = _contribute;
+    breadfundMonthPayed[_id][msg.sender] = true;
+
+    emit NewBreadfundMember(_id, msg.sender, _contribute);
+  }
+	
+  function payFirstDeposit(uint256 _id) external override {
+    // TBD
+    //ERC20.transfer(msg.sender -> breadfunds[_id].token);
+  }
+
+  function deposit(uint256 _id, uint256 _value) external override {
+    // TBD
+    //ERC20.transfer(msg.sender -> breadfunds[_id].token);
+  }
+	
+
+
   /// @inheritdoc IBreadfund
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];

@@ -39,6 +39,8 @@ interface IBreadfund {
   event BreadfundWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
   event TokenAllowed(address indexed token, bool indexed allowed);
 
+  event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
+
   event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, string url);
   event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
 
@@ -50,6 +52,7 @@ interface IBreadfund {
 
   error AlreadyDeposited();
   error AlreadyExists();
+  error NotExists();
   error InvalidDeposit();
   error InvalidBreadfund();
   error NotCommissioned();
@@ -84,9 +87,11 @@ interface IBreadfund {
                             VIEW
   //////////////////////////////////////////////////////////////*/
 
-  function setTokenAllowed(address _token, bool _allowed) external;
+  function setTokenAllowed(address token, bool allowed) external;
   function create(Breadfund memory breadfund) external returns (uint256);
   function decommission(uint256 id) external;
+  function register(uint256 id, uint256 contribute) external;
+  function payFirstDeposit(uint256 id) external;
   function deposit(uint256 id, uint256 value) external;
 
   function createRequest(Request memory request) external returns (uint256);
