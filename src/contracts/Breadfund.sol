@@ -18,7 +18,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant MINIMUM_MEMBERS = 25;
   uint256 public constant MAXIMUM_MEMBERS = 50;
   uint256 public constant MINIMUM_CONTRIBUTE = 35;
-  uint256 public constant MAXIMUM_CONTRIBUTE = 115;
+  uint356 public constant MAXIMUM_CONTRIBUTE = 115;
   uint256 public nextId;
   uint256 public nextIdRequest;
 
@@ -31,20 +31,10 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 id => uint256 balance) public breadfundBalance;
   mapping(address token => bool status) public allowedTokens;
 
-  mapping(uint256 idReq => Request request) public requests;
-  mapping(uint256 idReq => mapping(address member => bool status)) public requestVotes;
+  mapping (uint256 idReq => Request request) public requests;
+  mapping (uint256 idReq => mapping (address member => bool status)) public requestVotes;
   // DIFFERENZA DA NON PAGARE IN CASO DI RICHIESTA NON COMMISSIONED
   mapping(uint256 id => mapping(address member => uint256 balance)) public balances;
-
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor() {
-    _disableInitializers();
-  }
-
-  /// @inheritdoc IBreadfund
-  function initialize(address _owner) external override initializer {
-    __Ownable_init_unchained(_owner);
-  }
 
   /// @inheritdoc IBreadfund
   function setTokenAllowed(address _token, bool _allowed) external override onlyOwner {
@@ -82,15 +72,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     breadfunds[_id] = _breadfund;
 
-    emit BreadfundCreated(
-      _id,
-      _breadfund.members,
-      _breadfund.token,
-      _breadfund.initialDeposit,
-      _breadfund.depositInterval,
-      _breadfund.fixedDeposit,
-      _breadfund.maxWithdraws
-    );
+    emit BreadfundCreated(_id, _breadfund.members, _breadfund.token, _breadfund.initialDeposit, _breadfund.depositInterval, _breadfund.fixedDeposit, _breadfund.maxWithdraws);
     return _id;
   }
 
@@ -108,7 +90,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       }
     }
     if (!hasIncompleteDeposits) revert NotDecommissionable();
-
+    
     uint256 _totalDeposits = 0;
     // Return deposits to members
     for (uint256 i = 0; i < _breadfundMembersLength; i++) {
@@ -117,7 +99,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     for (uint256 i = 0; i < _breadfundMembersLength; i++) {
       address _member = _breadfund.members[i];
-      uint256 _amount = breadfundMemberContribute[_id][_member] / _totalDeposits * breadfundBalance[_id];
+      uint256 _amount = breadfundMemberContribute[_id][_member]/_totalDeposits * breadfundBalance[_id];
       if (_amount > 0) {
         bool success = IERC20(_breadfund.token).transfer(_member, _amount);
         if (!success) revert TransferFailed();
@@ -129,12 +111,13 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   function createRequest(Request memory _request) external override nonReentrant returns (uint256 _id) {
+
     // AGGIORNIAMO I PRELIEVVI?
     if (breadfundMemberWithdrawals[_request.breadfundId][_request.owner] == 24) revert MaxWithdrawsReached();
 
     uint256 _idRequest = nextIdRequest++;
 
-    if (requests[_idRequest].owner != address(0)) revert AlreadyExists();
+    if (requests[_idRequest].owner != address(0) ) revert AlreadyExists();
     if (breadfunds[_request.breadfundId].owner == address(0)) revert InvalidBreadfund();
     if (!isMember[_request.breadfundId][_request.owner]) revert NotMember();
 
@@ -146,6 +129,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   function vote(uint256 _requestId, bool _vote) external override nonReentrant {
+
     if (requests[_requestId].owner == address(0)) revert InvalidRequest();
     if (!isMember[requests[_requestId].breadfundId][msg.sender]) revert NotMember();
     if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
@@ -166,10 +150,10 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     Breadfund memory _breadfund = breadfunds[requests[_requestId].breadfundId];
 
     if (_request.yesVotes > _breadfund.members.length / 2) {
-      uint256 _amount = breadfundMemberContribute[_request.breadfundId][_request.owner] * 200 / 9; // FISSIAMO I FIXED E INIZIAL DEPOSITS?
+      uint256 _amount = breadfundMemberContribute[_request.breadfundId][_request.owner]*200/9;  // FISSIAMO I FIXED E INIZIAL DEPOSITS?
       address _token = _breadfund.token;
-      if (_amount > 0) {
-        breadfundBalance[_request.breadfundId] -= _amount;
+      if (_amount > 0)
+      {
         bool _success = IERC20(_token).transfer(_request.owner, _amount);
         if (!_success) revert TransferFailed();
       }
@@ -182,110 +166,58 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     emit RequestEnded(_requestId, _request.yesVotes, _request.noVotes);
   }
 
-  function deposit(uint256 _id, uint256 _value) external override nonReentrant {
-    _deposit(_id, _value, msg.sender);
-  }
-
   function register(uint256 _id, uint256 _contribute) external override {
-    Breadfund memory _breadfund = breadfunds[_id];
+    _breadfund = breadfunds[_id];
 
-    if (_isDecommissioned(_breadfund)) revert NotCommissioned();
+    if (_breadfund.owner == address(0)) revert NotExists();
     if (isMember[_id][msg.sender]) revert AlreadyExists();
     if (_breadfund.members.length == MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_contribute < MINIMUM_CONTRIBUTE) revert InvalidDeposit();
     if (_contribute > MAXIMUM_CONTRIBUTE) revert InvalidDeposit();
 
-    _payInitialDeposit(_id);
-    _deposit(_id, _contribute, msg.sender);
+    //TBD
+    payFirstDeposit(_id);
+    deposit();
 
-    breadfunds[_id].members.push(msg.sender);
+    breadfunds[_id].members.push[msg.sender];
+
     isMember[_id][msg.sender] = true;
-    memberBreadfunds[msg.sender].push(_id);
+    memberBreadfunds[msg.sender].push[_id];
     breadfundMemberContribute[_id][msg.sender] = _contribute;
     breadfundMonthPayed[_id][msg.sender] = true;
 
     emit NewBreadfundMember(_id, msg.sender, _contribute);
   }
+	
+  function payFirstDeposit(uint256 _id) external override {
+    // TBD
+    //ERC20.transfer(msg.sender -> breadfunds[_id].token);
+  }
+
+  function deposit(uint256 _id, uint256 _value) external override {
+    // TBD
+    //ERC20.transfer(msg.sender -> breadfunds[_id].token);
+  }
+	
+
 
   /// @inheritdoc IBreadfund
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
-
-  /// @inheritdoc IBreadfund
-  function getBreadfund(uint256 _id) external view override returns (Breadfund memory _breadfund) {
-    _breadfund = breadfunds[_id];
-
-    if (_isDecommissioned(_breadfund)) revert NotCommissioned();
-  }
-
-  /// @inheritdoc IBreadfund
-  function getBreadfunds(uint256[] calldata _ids) external view returns (Breadfund[] memory _breadfunds) {
-    _breadfunds = new Breadfund[](_ids.length);
-
-    for (uint256 i = 0; i < _ids.length; i++) {
-      _breadfunds[i] = breadfunds[_ids[i]];
-    }
-  }
-
-  /// @inheritdoc IBreadfund
-  function getMemberBreadfunds(address _member) external view returns (uint256[] memory _ids) {
-    return memberBreadfunds[_member];
-  }
-
-  /// @inheritdoc IBreadfund
-  function getMemberBalances(uint256 _id)
-    external
-    view
-    override
-    returns (address[] memory _members, uint256[] memory _balances)
-  {
-    Breadfund memory _breadfund = breadfunds[_id];
-
-    if (_isDecommissioned(_breadfund)) revert NotCommissioned();
-
-    _balances = new uint256[](_breadfund.members.length);
-    for (uint256 i = 0; i < _breadfund.members.length; i++) {
-      _balances[i] = balances[_id][_breadfund.members[i]];
-    }
-
-    return (_breadfund.members, _balances);
-  }
-
-  function _payInitialDeposit(uint256 _id) internal nonReentrant {
-    Breadfund memory _breadfund = breadfunds[_id];
-    breadfundBalance[_id] += _breadfund.initialDeposit;
-    bool _success = IERC20(msg.sender).transfer(_breadfund.token, _breadfund.initialDeposit);
-    if (!_success) revert TransferFailed();
-  }
-
-  function _deposit(uint256 _id, uint256 _value, address _member) internal {
-    Breadfund memory _breadfund = breadfunds[_id];
-
-    if (_breadfund.owner == address(0)) revert NotCommissioned();
-    if (!isMember[_id][msg.sender]) revert NotMember();
-    if (_value <= 0) revert InvalidDepositAmount();
-    if (block.timestamp < _breadfund.breadfundStart) revert DepositBeforeBreadfundStart();
-
-    breadfundBalance[_id] += _value + _breadfund.fixedDeposit;
-    bool _success = IERC20(_member).transfer(_breadfund.token, _value + _breadfund.fixedDeposit);
-    if (!_success) revert TransferFailed();
-  }
-
-  function _allVoted(uint256 _requestId) internal view returns (bool) {
+  
+  /// Deve essere view?
+  function _allVoted(uint256 _requestId) internal returns (bool) {
     if (requests[_requestId].owner == address(0)) revert InvalidRequest();
     bool _status = true;
     Breadfund memory _breadfund = breadfunds[requests[_requestId].breadfundId];
-    for (uint256 i = 0; i < _breadfund.members.length; i++) {
-      if (!requestVotes[_requestId][_breadfund.members[i]]) {
-        _status = false;
-        break;
+      for (uint256 i = 0; i < _breadfund.members.length; i++) {
+          if (!requestVotes[_requestId][_breadfund.members[i]]) {
+              _status = false;
+              break;
+          }
       }
-    }
-    return _status;
+      return _status;
   }
 
-  function _isDecommissioned(Breadfund memory _breadfund) internal pure returns (bool) {
-    return _breadfund.owner == address(0);
-  }
 }

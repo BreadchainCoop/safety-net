@@ -5,7 +5,7 @@ import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
 import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {Script} from 'forge-std/Script.sol';
 
-import {Breadfund} from '../src/contracts/Breadfund.sol';
+import {SavingCircles} from '../src/contracts/SavingCircles.sol';
 
 /**
  * @title Common Contract
@@ -16,8 +16,8 @@ import {Breadfund} from '../src/contracts/Breadfund.sol';
 contract Common is Script {
   function setUp() public virtual {}
 
-  function _deployBreadfund() internal returns (Breadfund) {
-    return new Breadfund();
+  function _deploySavingCircles() internal returns (SavingCircles) {
+    return new SavingCircles();
   }
 
   function _deployProxyAdmin(address _admin) internal returns (ProxyAdmin) {
@@ -34,9 +34,9 @@ contract Common is Script {
 
   function _deployContracts(address _admin) internal returns (TransparentUpgradeableProxy) {
     return _deployTransparentProxy(
-      address(_deployBreadfund()),
+      address(_deploySavingCircles()),
       address(_deployProxyAdmin(_admin)),
-      abi.encodeWithSelector(Breadfund.initialize.selector, _admin)
+      abi.encodeWithSelector(SavingCircles.initialize.selector, _admin)
     );
   }
 }

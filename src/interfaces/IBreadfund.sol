@@ -31,13 +31,8 @@ interface IBreadfund {
   //////////////////////////////////////////////////////////////*/
 
   event BreadfundCreated(
-    uint256 indexed id,
-    address[] members,
-    address token,
-    uint256 initialDeposit,
-    uint256 depositInterval,
-    uint256 fixedDeposit,
-    uint256 maxwithdraws
+    uint256 indexed id, address[] members, address token, uint256 initialDeposit, 
+    uint256 depositInterval, uint256 fixedDeposit, uint256 maxwithdraws
   );
   event BreadfundDecommissioned(uint256 indexed id);
   event BreadfundDeposited(uint256 indexed id, address indexed member, uint256 amount);
@@ -57,6 +52,7 @@ interface IBreadfund {
 
   error AlreadyDeposited();
   error AlreadyExists();
+  error NotExists();
   error InvalidDeposit();
   error InvalidBreadfund();
   error NotCommissioned();
@@ -86,15 +82,16 @@ interface IBreadfund {
   error NotAllVoted();
   error MaxWithdrawsReached();
 
+
   /*///////////////////////////////////////////////////////////////
-                            EXTERNAL
+                            VIEW
   //////////////////////////////////////////////////////////////*/
 
-  function initialize(address owner) external;
   function setTokenAllowed(address token, bool allowed) external;
   function create(Breadfund memory breadfund) external returns (uint256);
   function decommission(uint256 id) external;
   function register(uint256 id, uint256 contribute) external;
+  function payFirstDeposit(uint256 id) external;
   function deposit(uint256 id, uint256 value) external;
 
   function createRequest(Request memory request) external returns (uint256);
@@ -108,6 +105,9 @@ interface IBreadfund {
   function getBreadfund(uint256 id) external view returns (Breadfund memory);
   function getBreadfunds(uint256[] calldata ids) external view returns (Breadfund[] memory);
   function getMemberBreadfunds(address member) external view returns (uint256[] memory);
-  function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
+  function getMemberBalances(uint256 id) external view returns (address[] memory, uint256[] memory);
+  function checkMemberships(address member, uint256[] calldata ids) external view returns (bool[] memory);
   function isTokenAllowed(address token) external view returns (bool);
+  function isWithdrawable(uint256 id) external view returns (bool);
+  function withdrawableBy(uint256 id) external view returns (address);
 }
