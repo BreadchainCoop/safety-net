@@ -4,6 +4,9 @@ pragma solidity ^0.8.28;
 /// @title Breadfund Collective Savings Contract Interface
 /// @notice This interface defines the structure and interaction logic for Breadfunds, a group savings and voting system.
 /// @dev All function inputs/outputs are documented via NatSpec for external visibility.
+/// @author @exo404
+/// @author @valeriooconte
+/// @author @RonTuretzky
 interface IBreadfund {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
