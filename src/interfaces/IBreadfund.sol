@@ -33,14 +33,12 @@ interface IBreadfund {
   /// @param owner The request initiator
   /// @param breadfundId ID of the related Breadfund
   /// @param timestamp Creation time of the request
-  /// @param url Additional request information 
   /// @param yesVotes Number of yes votes received
   /// @param noVotes Number of no votes received
   struct Request {
     address owner;
     uint256 breadfundId;
     uint256 timestamp;
-    string url;
     uint256 yesVotes;
     uint256 noVotes;
   }
@@ -76,7 +74,7 @@ interface IBreadfund {
   event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a new request is created
-  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, string url);
+  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp);
 
   /// @notice Emitted when voting on a request is completed
   event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
