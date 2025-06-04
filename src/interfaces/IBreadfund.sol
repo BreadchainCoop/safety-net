@@ -16,6 +16,15 @@ interface IBreadfund {
     uint256 maxWithdraws;
   }
 
+  struct Request {
+    address owner;
+    uint256 breadfundId;
+    uint256 timestamp;
+    string url;
+    uint256 yesVotes;
+    uint256 noVotes;
+  }
+
   /*///////////////////////////////////////////////////////////////
                             EVENTS
   //////////////////////////////////////////////////////////////*/
@@ -35,6 +44,9 @@ interface IBreadfund {
   event TokenAllowed(address indexed token, bool indexed allowed);
   event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
 
+  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, string url);
+  event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
+  event Voted(uint256 indexed requestId, address indexed voter, bool vote);
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
@@ -67,6 +79,10 @@ interface IBreadfund {
   error InvalidMaxWithdraws();
   error MaxWithdrawsReached();
 
+  error InvalidRequest();
+  error AlreadyVoted();
+  error NotAllVoted();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -77,6 +93,10 @@ interface IBreadfund {
   function decommission(uint256 id) external;
   function register(uint256 id, uint256 contribute) external;
   function deposit(uint256 id, uint256 value) external;
+
+  function createRequest(Request memory request) external returns (uint256);
+  function endRequest(uint256 requestId) external;
+  function vote(uint256 requestId, bool voteValue) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW
