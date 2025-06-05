@@ -13,20 +13,46 @@ import {IBreadfund} from '../interfaces/IBreadfund.sol';
 /// @author @valeriooconte
 /// @author @RonTuretzky
 contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
+  /// @notice Minimum number of members required to create a Breadfund
   uint256 public constant MINIMUM_MEMBERS = 25;
+
+  /// @notice Maximum number of members allowed in a Breadfund
   uint256 public constant MAXIMUM_MEMBERS = 50;
+
+  /// @notice Minimum contribution amount allowed as personal saving per member
   uint256 public constant MINIMUM_CONTRIBUTE = 35;
+
+  /// @notice Maximum contribution amount allowed as personal saving per member
   uint256 public constant MAXIMUM_CONTRIBUTE = 115;
+
+  /// @notice ID counter used to assign unique identifiers to each Breadfund
   uint256 public nextId;
 
+  /// @notice Stores all created Breadfunds indexed by their unique ID
   mapping(uint256 id => Breadfund breadfund) public breadfunds;
+
+  /// @notice Indicates whether a specific address is a member of the Breadfund with the given ID
   mapping(uint256 id => mapping(address member => bool status)) public isMember;
+
+  /// @notice Lists all Breadfund IDs that a given member has joined
   mapping(address member => uint256[] ids) public memberBreadfunds;
+
+  /// @notice Tracks the total withdrawals made by each member in a given Breadfund
   mapping(uint256 id => mapping(address member => uint256 withdrawals)) public breadfundMemberWithdrawals;
+
+  /// @notice Tracks personal savings of each member in a given Breadfund
   mapping(uint256 id => mapping(address member => uint256 contribute)) public breadfundMemberContribute;
+
+  /// @notice Tracks whether each member has paid their monthly contribution for a specific Breadfund
   mapping(uint256 id => mapping(address member => bool status)) public breadfundMonthPayed;
+
+  /// @notice Holds the total balance of each Breadfund
   mapping(uint256 id => uint256 balance) public breadfundBalance;
+
+  /// @notice Indicates whether a specific ERC20 token is allowed for use in Breadfunds
   mapping(address token => bool status) public allowedTokens;
+
+  /// @notice Records the current balance of each member within a specific Breadfund
   mapping(uint256 id => mapping(address member => uint256 balance)) public balances;
   
   /// @custom:oz-upgrades-unsafe-allow constructor
