@@ -65,10 +65,10 @@ interface IBreadfund {
   event BreadfundDecommissioned(uint256 indexed id);
 
   /// @notice Emitted when a member deposits to a Breadfund
-  event BreadfundDeposited(uint256 indexed id, address indexed member, uint256 amount);
+  event FundsDeposited(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a member withdraws from a Breadfund
-  event BreadfundWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
+  event FundsWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a token is allowed or disallowed for Breadfund use
   event TokenAllowed(address indexed token, bool indexed allowed);

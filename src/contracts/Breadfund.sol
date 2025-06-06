@@ -222,6 +222,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     bool _success = IERC20(_breadfund.token).transferFrom(_member, address(this), totalDeposit);
     if (!_success) revert TransferFailed();
+
+    emit FundsDeposited(_id, _member, _value);
   }
 
   /// @dev Return if a specified Breadfund is decomissioned by checking if an owner is set
