@@ -228,7 +228,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     breadfundBalance[_id] += _totalDeposit;
 
-    bool _success = IERC20(_breadfund.token).transferFrom(_member, address(this), totalDeposit);
+    bool _success = IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit);
     if (!_success) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _totalDeposit);
