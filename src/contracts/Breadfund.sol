@@ -157,6 +157,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
+  function withdraw(uint256 _id) external override nonReentrant {
+    _withdraw(_id, msg.sender);
+  }
+
+  /// @inheritdoc IBreadfund
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
@@ -204,7 +209,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit amount is added to the total amount
-   *      The method "transferFrom()" Requires "approve()" front-end side
+   *      The method "transferFrom()" requires "approve()" front-end side
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     Breadfund memory _breadfund = breadfunds[_id];
@@ -217,8 +222,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     uint256 _totalDeposit = _value + _breadfund.fixedDeposit;
 
     if (!hasMadeFirstDeposit[_id][_member]) {
-        _totalDeposit += _breadfund.initialDeposit;
-        hasMadeFirstDeposit[_id][_member] = true;
+      _totalDeposit += _breadfund.initialDeposit;
+      hasMadeFirstDeposit[_id][_member] = true;
     }
 
     breadfundBalance[_id] += _totalDeposit;
@@ -226,7 +231,25 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     bool _success = IERC20(_breadfund.token).transferFrom(_member, address(this), totalDeposit);
     if (!_success) revert TransferFailed();
 
-    emit FundsDeposited(_id, _member, _value);
+    emit FundsDeposited(_id, _member, _totalDeposit);
+  }
+
+  /**
+   * @dev Make a withdrawal
+   *      
+   *      
+   */
+  function _withdraw(uint256 _id, address _member) internal {
+    Breadfund memory _breadfund = breadfunds[_id];
+
+    if (_breadfund.owner == address(0)) revert NotCommissioned();
+    if (!isMember[_id][_member]) revert NotMember();
+
+    uint256 _withdrawAmount = _getDailyWithdrawalAmount(_id, _member);
+
+    /// TBD
+
+    emit FundsWithdrawn(_id, _member, _withdrawAmount);
   }
 
   /// @dev Calculates the daily withdrawal for a member in a Breadfund

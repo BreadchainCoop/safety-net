@@ -200,6 +200,10 @@ interface IBreadfund {
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
+  /// @notice Makes a withdrawal from a Breadfund
+  /// @param id The Breadfund ID
+  function withdraw(uint256 id) external;
+
   /// @notice Creates a new request for withdraw from a Breadfund
   /// @param request The withdraw request details
   /// @return id The request ID
