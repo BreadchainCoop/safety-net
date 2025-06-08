@@ -25,6 +25,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Maximum contribution amount allowed as personal saving per member
   uint256 public constant MAXIMUM_CONTRIBUTE = 115;
 
+  /// @notice Maximum number of days each member can have to withdraw
+  uint256 public constant MAXIMUM_CLAIMABLE_DAYS = 720;
+
   /// @notice ID counter used to assign unique identifiers to each Breadfund
   uint256 public nextId;
 
@@ -37,11 +40,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Lists all Breadfund IDs that a given member has joined
   mapping(address member => uint256[] ids) public memberBreadfunds;
 
-  /// @notice Tracks the total withdrawals made by each member in a given Breadfund
-  mapping(uint256 id => mapping(address member => uint256 withdrawals)) public breadfundMemberWithdrawals;
+  /// @notice Tracks the number of days a member has made withdrawals in a given Breadfund
+  mapping(uint256 id => mapping(address member => uint256 withdrawals)) public claimedDays;
 
   /// @notice Tracks personal savings of each member in a given Breadfund
-  mapping(uint256 id => mapping(address member => uint256 contribute)) public breadfundMemberContribute;
+  mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public breadfundMemberContribute;
 
   /// @notice Tracks whether each member has paid their monthly contribution for a specific Breadfund
   mapping(uint256 id => mapping(address member => bool status)) public breadfundMonthPayed;
@@ -166,7 +169,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function getBreadfunds(uint256[] calldata _ids) external view returns (Breadfund[] memory _breadfunds) {
+  function getBreadfunds(uint256[] calldata _ids) external view override returns (Breadfund[] memory _breadfunds) {
     _breadfunds = new Breadfund[](_ids.length);
 
     for (uint256 i = 0; i < _ids.length; i++) {
@@ -175,7 +178,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function getMemberBreadfunds(address _member) external view returns (uint256[] memory _ids) {
+  function getMemberBreadfunds(address _member) external view override returns (uint256[] memory _ids) {
     return memberBreadfunds[_member];
   }
 
@@ -224,6 +227,17 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (!_success) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _value);
+  }
+
+  /// @dev Calculates the daily withdrawal for a member in a Breadfund
+  function _getDailyWithdrawalAmount(uint256 _id, address _member) internal view returns (uint256) {
+    uint256 _memberContribute = breadfundMemberContribute[_id][_member];
+
+    uint256 _monthlyWithdrawalAmount = (_memberContribute * 200) / 9;
+
+    // Potremmo salvare il monthlyWithdrawalAmount (oppure il dailyWithdrawalAmount) in un mapping?
+
+    return _monthlyWithdrawalAmount / 30;
   }
 
   /// @dev Return if a specified Breadfund is decomissioned by checking if an owner is set
