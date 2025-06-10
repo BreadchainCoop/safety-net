@@ -20,7 +20,9 @@ interface IBreadfund {
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
   /// @param depositInterval Minimum time between deposits
-  /// @param maxWithdraws Max allowed withdrawals during fund's lifetime
+  /// @param maxWithdrawals Max allowed withdrawals during fund's lifetime
+  /// @param ratio Ratio between monthly contribute and monthly withdrawable amount
+  /// @param autoThreshold Threshold for automatic withdrawals
   struct Breadfund {
     address owner;
     uint256 breadfundStart;
@@ -29,7 +31,9 @@ interface IBreadfund {
     uint256 initialDeposit;
     uint256 fixedDeposit;
     uint256 depositInterval;
-    uint256 maxWithdraws;
+    uint256 maxWithdrawals;
+    uint256 ratio;
+    uint256 autoThreshold;
   }
 
   /// @notice Struct defining a withdraw request within a Breadfund
@@ -58,7 +62,9 @@ interface IBreadfund {
     uint256 initialDeposit,
     uint256 depositInterval,
     uint256 fixedDeposit,
-    uint256 maxwithdraws
+    uint256 maxWithdrawals,
+    uint256 ratio,
+    uint256 autoThreshold
   );
 
   /// @notice Emitted when a Breadfund is decommissioned
@@ -158,8 +164,14 @@ interface IBreadfund {
   /// @notice Thrown for bad fixed deposit configuration
   error InvalidFixedDeposit();
 
-  /// @notice Thrown when `maxWithdraws` is invalid
-  error InvalidMaxWithdraws();
+  /// @notice Thrown when `maxWithdrawals` is invalid
+  error InvalidMaxWithdrawals();
+
+  /// @notice Thrown when `ratio` is invalid
+  error InvalidRatio();
+
+  /// @notice Thrown when `autoThreshold` is invalid
+  error InvalidThreshold();
 
   /// @notice Thrown when no further withdrawals are allowed
   error MaxWithdrawsReached();
@@ -202,7 +214,8 @@ interface IBreadfund {
 
   /// @notice Makes a withdrawal from a Breadfund
   /// @param id The Breadfund ID
-  function withdraw(uint256 id) external;
+  /// @param daysRequested Number of days for calculating withdrawal amount
+  function withdraw(uint256 id, uint256 daysRequested) external;
 
   /// @notice Creates a new request for withdraw from a Breadfund
   /// @param request The withdraw request details

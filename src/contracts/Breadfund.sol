@@ -6,27 +6,19 @@ import {IERC20} from '@openzeppelin/token/ERC20/IERC20.sol';
 import {ReentrancyGuard} from '@openzeppelin/utils/ReentrancyGuard.sol';
 
 import {IBreadfund} from '../interfaces/IBreadfund.sol';
+import {BokkyPooBahsDateTimeContract} from '../utility/BokkyPooBahsDateTimeContract_flattened_v1.00.sol';
 
 /// @title Breadfund
 /// @notice Simple implementation of a Broodfond for ERC20 tokens
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
-contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
+contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable, BokkyPooBahsDateTimeContract {
   /// @notice Minimum number of members required to create a Breadfund
   uint256 public constant MINIMUM_MEMBERS = 25;
 
   /// @notice Maximum number of members allowed in a Breadfund
   uint256 public constant MAXIMUM_MEMBERS = 50;
-
-  /// @notice Minimum contribution amount allowed as personal saving per member
-  uint256 public constant MINIMUM_CONTRIBUTE = 35;
-
-  /// @notice Maximum contribution amount allowed as personal saving per member
-  uint256 public constant MAXIMUM_CONTRIBUTE = 115;
-
-  /// @notice Maximum number of days each member can have to withdraw
-  uint256 public constant MAXIMUM_CLAIMABLE_DAYS = 720;
 
   /// @notice ID counter used to assign unique identifiers to each Breadfund
   uint256 public nextId;
@@ -39,9 +31,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Lists all Breadfund IDs that a given member has joined
   mapping(address member => uint256[] ids) public memberBreadfunds;
-
-  /// @notice Tracks the number of days a member has made withdrawals in a given Breadfund
-  mapping(uint256 id => mapping(address member => uint256 withdrawals)) public claimedDays;
 
   /// @notice Tracks personal savings of each member in a given Breadfund
   mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public breadfundMemberContribute;
@@ -94,8 +83,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_breadfund.members.length > MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
-    if (_breadfund.maxWithdraws <= 0) revert InvalidMaxWithdraws();
-    if (_breadfund.maxWithdraws > 24) revert InvalidMaxWithdraws();
+    if (_breadfund.maxWithdrawals <= 0) revert InvalidMaxWithdrawals();
+    if (_breadfund.ratio <= 1) revert InvalidRatio();
+    if (_breadfund.ratio <= 0) revert InvalidThreshold();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
@@ -115,7 +105,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       _breadfund.initialDeposit,
       _breadfund.depositInterval,
       _breadfund.fixedDeposit,
-      _breadfund.maxWithdraws
+      _breadfund.maxWithdrawals,
+      _breadfund.ratio
     );
     return _id;
   }
@@ -160,8 +151,13 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function withdraw(uint256 _id) external override nonReentrant {
-    _withdraw(_id, msg.sender);
+  function withdraw(uint256 _id, uint256 _daysRequested) external override nonReentrant {
+    _withdraw(_id, msg.sender, _daysRequested);
+  }
+
+  /// @inheritdoc IBreadfund
+  function createRequest(Request memory request) external override returns (uint256) {
+    return _createRequest(request);
   }
 
   /// @inheritdoc IBreadfund
@@ -232,7 +228,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     breadfundBalance[_id] += _totalDeposit;
 
-    memberWithdrawableBalance[_id][_member] += (_value * 200) / 9
+    memberWithdrawableBalance[_id][_member] += _value * _breadfund.ratio;
 
     bool _success = IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit);
     if (!_success) revert TransferFailed();
@@ -245,33 +241,56 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
    *      
    *      
    */
-  function _withdraw(uint256 _id, address _member) internal {
+  function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     Breadfund memory _breadfund = breadfunds[_id];
 
     if (_breadfund.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (claimedDays[_id][_member] == MAXIMUM_CLAIMABLE_DAYS) revert NotWithdrawable();
     
-    uint256 _withdrawAmount = _getDailyWithdrawalAmount(_id, _member);
+    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _breadfund.ratio);
+
+    uint256 _withdrawAmount = _dailyWithdrawableAmount * _daysRequested;
 
     if (_withdrawAmount > memberWithdrawableBalance[_id][_member]) revert NotWithdrawable();
 
-    claimedDays[_id][_member] += 1;
-    memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
+    if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
+      memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
 
-    bool success = IERC20(_breadfund.token).transfer(_member, _withdrawAmount);
-    if (!success) revert TransferFailed();
+      bool success = IERC20(_breadfund.token).transfer(_member, _withdrawAmount);
+      if (!success) revert TransferFailed();
 
-    emit FundsWithdrawn(_id, _member, _withdrawAmount);
+      emit FundsWithdrawn(_id, _member, _withdrawAmount);
+    } else {
+      // TBD
+
+      emit WithdrawalPending()
+    }
   }
 
   /// @dev Calculates the daily withdrawal for a member in a Breadfund
-  function _getDailyWithdrawalAmount(uint256 _id, address _member) internal view returns (uint256) {
+  function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
     uint256 _memberContribute = breadfundMemberContribute[_id][_member];
 
-    uint256 _monthlyWithdrawalAmount = (_memberContribute * 200) / 9;
+    uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
 
-    return _monthlyWithdrawalAmount / 30;
+    uint _timestamp = block.timestamp;
+
+    uint _currentYear = getYear(_timestamp);
+    uint _currentMonth = getMonth(_timestamp);
+
+    uint _daysInCurrentMonth = _getDaysInMonth(_currentYear, _currentMonth);
+
+    return _monthlyWithdrawalAmount / _daysInCurrentMonth;
+  }
+
+  /// @dev
+  function _createRequest(Request memory request) internal returns (uint256) {
+    // TBD
+  }
+
+  /// @dev
+  function _isSmall(uint256 _autoThreshold, uint256 _withdrawAmount) internal pure returns (bool) {
+    return _withdrawAmount <= _autoThreshold;
   }
 
   /// @dev Return if a specified Breadfund is decomissioned by checking if an owner is set
