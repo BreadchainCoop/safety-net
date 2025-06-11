@@ -256,7 +256,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable, BokkyPooB
     if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
 
-      bool success = IERC20(_breadfund.token).transfer(_member, _withdrawAmount);
+      require(IERC20(_breadfund.token).transfer(_member, _withdrawAmount),TransferFailed());
       if (!success) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
