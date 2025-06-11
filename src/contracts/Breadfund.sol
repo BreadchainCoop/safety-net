@@ -85,7 +85,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable, BokkyPooB
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
     if (_breadfund.maxWithdrawals <= 0) revert InvalidMaxWithdrawals();
     if (_breadfund.ratio <= 1) revert InvalidRatio();
-    if (_breadfund.ratio <= 0) revert InvalidThreshold();
+    if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
@@ -257,14 +257,18 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable, BokkyPooB
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
 
       require(IERC20(_breadfund.token).transfer(_member, _withdrawAmount),TransferFailed());
-      if (!success) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       // TBD
 
-      emit WithdrawalPending()
+      emit WithdrawalPending();
     }
+  }
+
+  /// @dev
+  function _createRequest(Request memory request) internal returns (uint256) {
+    // TBD
   }
 
   /// @dev Calculates the daily withdrawal for a member in a Breadfund
@@ -273,19 +277,14 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable, BokkyPooB
 
     uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
 
-    uint _timestamp = block.timestamp;
+    uint256 _timestamp = block.timestamp;
 
-    uint _currentYear = getYear(_timestamp);
-    uint _currentMonth = getMonth(_timestamp);
+    uint256 _currentYear = getYear(_timestamp);
+    uint256 _currentMonth = getMonth(_timestamp);
 
-    uint _daysInCurrentMonth = _getDaysInMonth(_currentYear, _currentMonth);
+    uint256 _daysInCurrentMonth = _getDaysInMonth(_currentYear, _currentMonth);
 
     return _monthlyWithdrawalAmount / _daysInCurrentMonth;
-  }
-
-  /// @dev
-  function _createRequest(Request memory request) internal returns (uint256) {
-    // TBD
   }
 
   /// @dev
