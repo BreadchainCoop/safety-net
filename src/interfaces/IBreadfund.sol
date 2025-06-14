@@ -36,7 +36,7 @@ interface IBreadfund {
     uint256 maxWithdrawals;
     uint256 ratio;
     uint256 autoThreshold;
-    uint256 constestWindow;
+    uint256 contestWindow;
     uint256 votingWindow;
   }
 
@@ -105,6 +105,12 @@ interface IBreadfund {
 
   /// @notice Emitted when a request is auto-executed after contest period
   event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
+
+  /// @notice Emitted when a request is approved and funds are withdrawn
+  event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when a request is rejected and funds are withdrawn
+  event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -197,11 +203,17 @@ interface IBreadfund {
   /// @notice Thrown if a voter has already voted
   error AlreadyVoted();
 
+  /// @notice Thrown if the request is already contested
+  error AlreadyContested();
+
   /// @notice Thrown if not all required votes have been cast
   error NotAllVoted();
 
   /// @notice Thrown if the request is not contestable
   error ContestWindowClosed();
+
+  /// @notice Thrown if the request is not votable
+  error VotingWindowClosed();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
@@ -252,6 +264,10 @@ interface IBreadfund {
   /// @param requestId The ID of the request
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
+
+  /// @notice Checks if a request can be voted on
+  /// @param requestId The ID of the request to check
+  function checkVotingWindow(uint256 requestId) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW
