@@ -186,7 +186,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function checkContestWindow(uint256 _idRequest) external override {
+  function checkContestWindow(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
     if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
       Breadfund memory _breadfund = breadfunds[_request.breadfundId];
@@ -213,7 +213,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
   /// @inheritdoc IBreadfund
 
-  function checkVotingWindow(uint256 _idRequest) external override {
+  function checkVotingWindow(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
     if (!_isVotingOngoing(_idRequest) && !isVoted[_idRequest]) {
       isVoted[_idRequest] = true;
