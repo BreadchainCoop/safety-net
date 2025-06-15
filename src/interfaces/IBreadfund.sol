@@ -81,9 +81,6 @@ interface IBreadfund {
   /// @notice Emitted when a token is allowed or disallowed for Breadfund use
   event TokenAllowed(address indexed token, bool indexed allowed);
 
-  /// @notice Emitted when a new member joins a Breadfund
-  event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
-
   /// @notice Emitted when a new request is created
   event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
