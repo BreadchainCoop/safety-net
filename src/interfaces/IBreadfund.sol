@@ -19,8 +19,6 @@ interface IBreadfund {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param depositInterval Minimum time between deposits
-  /// @param maxWithdrawals Max allowed withdrawals during fund's lifetime
   /// @param ratio Ratio between monthly contribute and monthly withdrawable amount
   /// @param autoThreshold Threshold for automatic withdrawals
   struct Breadfund {
@@ -30,8 +28,6 @@ interface IBreadfund {
     address[] members;
     uint256 initialDeposit;
     uint256 fixedDeposit;
-    uint256 depositInterval;
-    uint256 maxWithdrawals;
     uint256 ratio;
     uint256 autoThreshold;
   }
@@ -60,9 +56,7 @@ interface IBreadfund {
     address[] members,
     address token,
     uint256 initialDeposit,
-    uint256 depositInterval,
     uint256 fixedDeposit,
-    uint256 maxWithdrawals,
     uint256 ratio,
     uint256 autoThreshold
   );
@@ -137,9 +131,6 @@ interface IBreadfund {
   /// @notice Thrown if the specified token is not whitelisted
   error TokenNotAllowed();
 
-  /// @notice Thrown for invalid deposit interval
-  error InvalidDepositInterval();
-
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
 
@@ -163,9 +154,6 @@ interface IBreadfund {
 
   /// @notice Thrown for bad fixed deposit configuration
   error InvalidFixedDeposit();
-
-  /// @notice Thrown when `maxWithdrawals` is invalid
-  error InvalidMaxWithdrawals();
 
   /// @notice Thrown when `ratio` is invalid
   error InvalidRatio();

@@ -19,6 +19,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Maximum number of members allowed in a Breadfund
   uint256 public constant MAXIMUM_MEMBERS = 50;
 
+  /// @notice 
+  uint256 public constant DAYS_IN_A_MONTH = 30;
+
   /// @notice ID counter used to assign unique identifiers to each Breadfund
   uint256 public nextId;
 
@@ -39,9 +42,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Tracks withdrawable amount for each member in a given Breadfund
   mapping(uint256 id => mapping(address member => uint256 withdrawableBalance)) public memberWithdrawableBalance;
-
-  /// @notice Tracks whether each member has paid their monthly contribution for a specific Breadfund
-  mapping(uint256 id => mapping(address member => bool status)) public breadfundMonthPayed;
 
   /// @notice Holds the total balance of each Breadfund
   mapping(uint256 id => uint256 balance) public breadfundBalance;
@@ -87,14 +87,12 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     if (breadfunds[_id].owner != address(0)) revert AlreadyExists();
     if (!allowedTokens[_breadfund.token]) revert TokenNotAllowed();
-    if (_breadfund.depositInterval <= 0) revert InvalidDepositInterval();
     if (_breadfund.breadfundStart == 0) revert InvalidBreadfundStartTime();
     if (_breadfund.owner == address(0)) revert InvalidOwner();
     if (_breadfund.members.length < MINIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.members.length > MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
-    if (_breadfund.maxWithdrawals <= 0) revert InvalidMaxWithdrawals();
     if (_breadfund.ratio <= 1) revert InvalidRatio();
     if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
 
@@ -114,9 +112,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       _breadfund.members,
       _breadfund.token,
       _breadfund.initialDeposit,
-      _breadfund.depositInterval,
       _breadfund.fixedDeposit,
-      _breadfund.maxWithdrawals,
       _breadfund.ratio,
       _breadfund.autoThreshold
     );
@@ -129,30 +125,32 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
-    bool hasIncompleteDeposits = false;
-    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-      if (breadfundMonthPayed[_id][_breadfund.members[i]] == false) {
-        hasIncompleteDeposits = true;
-        break;
-      }
-    }
-    if (!hasIncompleteDeposits) revert NotDecommissionable();
+    uint256 _balance = breadfundBalance[_id];
 
-    uint256 _totalDeposits = 0;
-    // Return deposits to members
-    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-      _totalDeposits += breadfundMemberContribute[_id][_breadfund.members[i]];
-    }
+    breadfundBalance[_id] = 0;
 
     for (uint256 i = 0; i < _breadfundMembersLength; i++) {
       address _member = _breadfund.members[i];
-      uint256 _amount = breadfundMemberContribute[_id][_member] / _totalDeposits * breadfundBalance[_id];
+      uint256 _amount = memberWithdrawableBalance[_id][_member];
       if (_amount > 0) {
+        memberWithdrawableBalance[_id][_member] = 0;
+        _balance -= _amount;
+
+        require(IERC20(_breadfund.token).transfer(_member, _amount), TransferFailed());
+      }
+    }
+
+    if (_balance > 0) {
+      uint256 _amount = _balance / _breadfundMembersLength;
+
+      for (uint256 i = 0; i < _breadfundMembersLength; i++) {
+        address _member = _breadfund.members[i];
         require(IERC20(_breadfund.token).transfer(_member, _amount), TransferFailed());
       }
     }
 
     delete breadfunds[_id];
+
     emit BreadfundDecommissioned(_id);
   }
 
@@ -355,7 +353,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
     uint256 _memberContribute = breadfundMemberContribute[_id][_member];
     uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
-    return _monthlyWithdrawalAmount / 30;
+    return _monthlyWithdrawalAmount / DAYS_IN_A_MONTH;
   }
 
   /// @dev Check if a request is contestable by comparing the current timestamp with the request's timestamp and the contest window
