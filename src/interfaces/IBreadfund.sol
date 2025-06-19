@@ -19,8 +19,8 @@ interface IBreadfund {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param ratio Ratio between monthly contribute and monthly withdrawable amount
-  /// @param autoThreshold Threshold for automatic withdrawals
+  /// @param depositInterval Minimum time between deposits
+  /// @param maxWithdraws Max allowed withdrawals during fund's lifetime
   struct Breadfund {
     address owner;
     uint256 breadfundStart;
@@ -30,6 +30,8 @@ interface IBreadfund {
     uint256 fixedDeposit;
     uint256 ratio;
     uint256 autoThreshold;
+    uint256 contestWindow;
+    uint256 votingWindow;
   }
 
   /// @notice Struct defining a withdraw request within a Breadfund
@@ -38,12 +40,14 @@ interface IBreadfund {
   /// @param timestamp Creation time of the request
   /// @param yesVotes Number of yes votes received
   /// @param noVotes Number of no votes received
+  /// @param amount Amount requested for withdrawal
   struct Request {
     address owner;
     uint256 breadfundId;
     uint256 timestamp;
     uint256 yesVotes;
     uint256 noVotes;
+    uint256 amount;
   }
 
   /*///////////////////////////////////////////////////////////////
@@ -73,17 +77,29 @@ interface IBreadfund {
   /// @notice Emitted when a token is allowed or disallowed for Breadfund use
   event TokenAllowed(address indexed token, bool indexed allowed);
 
-  /// @notice Emitted when a new member joins a Breadfund
-  event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
-
   /// @notice Emitted when a new request is created
-  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp);
+  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
   /// @notice Emitted when voting on a request is completed
   event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
 
   /// @notice Emitted when a vote is cast on a request
   event Voted(uint256 indexed requestId, address indexed voter, bool vote);
+
+  /// @notice Emitted when a withdraw request is pending
+  event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
+
+  /// @notice Emitted when a request is contested
+  event WithdrawalContested(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when a request is auto-executed after contest period
+  event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
+
+  /// @notice Emitted when a request is approved and funds are withdrawn
+  event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when a request is rejected and funds are withdrawn
+  event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -94,9 +110,6 @@ interface IBreadfund {
 
   /// @notice Thrown when trying to create a duplicate Breadfund
   error AlreadyExists();
-
-  /// @notice Thrown on invalid deposit attempt
-  error InvalidDeposit();
 
   /// @notice Thrown when the Breadfund ID is not found
   error InvalidBreadfund();
@@ -112,9 +125,6 @@ interface IBreadfund {
 
   /// @notice Thrown if the Breadfund cannot be withdrawn from
   error NotWithdrawable();
-
-  /// @notice Thrown on ERC20 transfer failure
-  error TransferFailed();
 
   /// @notice Thrown when the deposit window is closed
   error DepositWindowClosed();
@@ -155,14 +165,11 @@ interface IBreadfund {
   /// @notice Thrown for bad fixed deposit configuration
   error InvalidFixedDeposit();
 
-  /// @notice Thrown when `ratio` is invalid
-  error InvalidRatio();
+  /// @notice Thrown when `maxWithdraws` is invalid
+  error InvalidMaxWithdraws();
 
   /// @notice Thrown when `autoThreshold` is invalid
   error InvalidThreshold();
-
-  /// @notice Thrown when no further withdrawals are allowed
-  error MaxWithdrawsReached();
 
   /// @notice Thrown for invalid request
   error InvalidRequest();
@@ -170,8 +177,17 @@ interface IBreadfund {
   /// @notice Thrown if a voter has already voted
   error AlreadyVoted();
 
+  /// @notice Thrown if the request is already contested
+  error AlreadyContested();
+
   /// @notice Thrown if not all required votes have been cast
   error NotAllVoted();
+
+  /// @notice Thrown if the request is not contestable
+  error ContestWindowClosed();
+
+  /// @notice Thrown if the request is not votable
+  error VotingWindowClosed();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
@@ -210,14 +226,22 @@ interface IBreadfund {
   /// @return id The request ID
   function createRequest(Request memory request) external returns (uint256);
 
-  /// @notice Ends the voting on a request and records results
-  /// @param requestId The ID of the request
-  function endRequest(uint256 requestId) external;
+  /// @notice Contests a request
+  /// @param requestId The ID of the request to contest
+  function contest(uint256 requestId) external;
+
+  /// @notice Checks if a request can be contested
+  /// @param requestId The ID of the request to check
+  function checkContestWindow(uint256 requestId) external;
 
   /// @notice Casts a vote on a request
   /// @param requestId The ID of the request
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
+
+  /// @notice Checks if a request can be voted on
+  /// @param requestId The ID of the request to check
+  function checkVotingWindow(uint256 requestId) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW

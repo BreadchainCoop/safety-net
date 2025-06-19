@@ -64,6 +64,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been verified (voting phase is over)
   mapping(uint256 id => bool voted) public isVoted;
 
+  error TransferFailed();
+
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -93,7 +95,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_breadfund.members.length > MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
-    if (_breadfund.ratio <= 1) revert InvalidRatio();
     if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
@@ -123,7 +124,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   function decommission(uint256 _id) external override nonReentrant {
     Breadfund memory _breadfund = breadfunds[_id];
 
-    require(condition(_breadfund.owner == msg.sender), NotDecommissionable());
+    if (_breadfund.owner != msg.sender) revert NotDecommissionable();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
@@ -138,7 +139,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
         memberWithdrawableBalance[_id][_member] = 0;
         _balance -= _amount;
 
-        require(IERC20(_breadfund.token).transfer(_member, _amount), TransferFailed());
+        if (!IERC20(_breadfund.token).transfer(_member, _amount)) revert TransferFailed();
       }
     }
 
@@ -147,7 +148,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
       for (uint256 i = 0; i < _breadfundMembersLength; i++) {
         address _member = _breadfund.members[i];
-        require(IERC20(_breadfund.token).transfer(_member, _amount), TransferFailed());
+        if (!IERC20(_breadfund.token).transfer(_member, _amount)) revert TransferFailed();
       }
     }
 
@@ -190,7 +191,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     Request memory _request = requests[_idRequest];
     if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
       Breadfund memory _breadfund = breadfunds[_request.breadfundId];
-      require(IERC20(_breadfund.token).transfer(_request.owner, _request.amount), TransferFailed());
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
     } else if (isContested[_idRequest]) {
       emit WithdrawalContested(_idRequest, _request.owner, block.timestamp);
@@ -219,7 +220,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       isVoted[_idRequest] = true;
       Breadfund memory _breadfund = breadfunds[_request.breadfundId];
       if (_request.yesVotes > _breadfund.members.length * 66 / 100) {
-        require(IERC20(_breadfund.token).transfer(_request.owner, _request.amount), TransferFailed());
+        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
         emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
       } else {
         emit WithdrawalRejected(_idRequest, _request.owner, _request.amount);
@@ -297,7 +298,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     memberWithdrawableBalance[_id][_member] += _value * _breadfund.ratio;
 
-    require(IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit), TransferFailed());
+    if (!IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _totalDeposit);
   }
@@ -321,11 +322,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /**
    * @dev Make a withdrawal
-    * @param _id The ID of the Breadfund
-    * @param _member The address of the member making the withdrawal
-    * @param _daysRequested The number of days for which the member is requesting a withdrawal
-    * @notice If the requested amount is small, it is transferred directly to the member
-    *         If the requested amount is large, a request is created for approval
+   * @param _id The ID of the Breadfund
+   * @param _member The address of the member making the withdrawal
+   * @param _daysRequested The number of days for which the member is requesting a withdrawal
+   * @notice If the requested amount is small, it is transferred directly to the member
+   *         If the requested amount is large, a request is created for approval
    */
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     Breadfund memory _breadfund = breadfunds[_id];
@@ -342,7 +343,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
 
-      require(IERC20(_breadfund.token).transfer(_member, _withdrawAmount), TransferFailed());
+      if (!IERC20(_breadfund.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
