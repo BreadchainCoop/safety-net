@@ -19,8 +19,8 @@ interface IBreadfund {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param depositInterval Minimum time between deposits
-  /// @param maxWithdraws Max allowed withdrawals during fund's lifetime
+  /// @param constestWindow Duration of the contest period for requests
+  /// @param votingWindow Duration of the voting period for requests
   struct Breadfund {
     address owner;
     uint256 breadfundStart;
