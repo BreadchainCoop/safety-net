@@ -14,6 +14,9 @@ interface IBreadfund {
 
   /// @notice Struct defining a Breadfund group
   /// @param owner The creator of the Breadfund
+  /// @param minimumMembers Minimum number of members required to create a Breadfund
+  /// @param maximumMembers Maximum number of members allowed in the Breadfund
+  /// @param consensusThreshold Percentage of members required to approve a request
   /// @param breadfundStart Timestamp when the fund becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
@@ -23,6 +26,9 @@ interface IBreadfund {
   /// @param votingWindow Duration of the voting period for requests
   struct Breadfund {
     address owner;
+    uint256 minimumMembers;
+    uint256 maximumMembers;
+    uint256 consensusThreshold;
     uint256 breadfundStart;
     address token;
     address[] members;
@@ -57,6 +63,9 @@ interface IBreadfund {
   /// @notice Emitted when a new Breadfund is created
   event BreadfundCreated(
     uint256 indexed id,
+    uint256 minimumMembers,
+    uint256 maximumMembers,
+    uint256 consensusThreshold,
     address[] members,
     address token,
     uint256 initialDeposit,
@@ -104,6 +113,12 @@ interface IBreadfund {
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
+
+  /// @notice Thrown when the minimum members is less than 2
+  error InvalidMinimumMembers();
+
+  /// @notice Thrown when the maximum members is less than the minimum members
+  error InvalidMaximumMembers();
 
   /// @notice Thrown when a deposit has already been made for the period
   error AlreadyDeposited();
@@ -216,6 +231,12 @@ interface IBreadfund {
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
+  /// @notice Makes a deposit into a Breadfund for another member
+  /// @param id The Breadfund ID
+  /// @param value Amount to deposit
+  /// @param member The member address making the deposit
+  function depositFor(uint256 id, uint256 value, address member) external;
+
   /// @notice Makes a withdrawal from a Breadfund
   /// @param id The Breadfund ID
   /// @param daysRequested Number of days for calculating withdrawal amount
@@ -232,7 +253,7 @@ interface IBreadfund {
 
   /// @notice Checks if a request can be contested
   /// @param requestId The ID of the request to check
-  function checkContestWindow(uint256 requestId) external;
+  function executeWithdrawal(uint256 requestId) external;
 
   /// @notice Casts a vote on a request
   /// @param requestId The ID of the request
