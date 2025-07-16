@@ -22,7 +22,7 @@ interface IBreadfund {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param constestWindow Duration of the contest period for requests
+  /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   struct Breadfund {
     address owner;
