@@ -195,6 +195,9 @@ interface IBreadfund {
   /// @notice Thrown if the request is already contested
   error AlreadyContested();
 
+  /// @notice Thrown if the request has already been executed
+  error AlreadyExecuted();
+
   /// @notice Thrown if not all required votes have been cast
   error NotAllVoted();
 

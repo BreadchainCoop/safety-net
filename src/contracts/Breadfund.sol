@@ -64,6 +64,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been verified (voting phase is over)
   mapping(uint256 id => bool voted) public isVoted;
 
+  /// @notice Tracks if a request has been executed
+  mapping(uint256 id => bool executed) public isExecuted;
+
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
@@ -199,9 +202,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc IBreadfund
   function executeWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
+    if (isExecuted[_idRequest]) revert AlreadyExecuted();
     if (!_isContestable(_idRequest)) {
       if (!isContested[_idRequest]) {
         Breadfund memory _breadfund = breadfunds[_request.breadfundId];
+        isExecuted[_idRequest] = true;
         if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
         emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
       } else {
