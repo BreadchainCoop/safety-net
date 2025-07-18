@@ -236,6 +236,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       isVoted[_idRequest] = true;
       Breadfund memory _breadfund = breadfunds[_request.breadfundId];
       if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
+        isExecuted[_idRequest] = true;
         if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
         emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
       } else {
