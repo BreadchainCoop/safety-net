@@ -246,6 +246,66 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
   /// @inheritdoc IBreadfund
 
+  function getUserTotalBalance(address _user) external view override returns (uint256 _totalBalance) {
+    uint256[] memory _userBreadfunds = memberBreadfunds[_user];
+
+    for (uint256 i = 0; i < _userBreadfunds.length; i++) {
+      uint256 _breadfundId = _userBreadfunds[i];
+      Breadfund memory _breadfund = breadfunds[_breadfundId];
+
+      if (!_isDecommissioned(_breadfund)) {
+        _totalBalance += memberWithdrawableBalance[_breadfundId][_user];
+      }
+    }
+  }
+
+  /// @inheritdoc IBreadfund
+  function getUserInfo(address _user)
+    external
+    view
+    override
+    returns (
+      uint256[] memory breadfundIds,
+      uint256[] memory withdrawableBalances,
+      uint256[] memory monthlyContributions,
+      bool[] memory hasDeposited,
+      uint256 totalBalance
+    )
+  {
+    uint256[] memory _userBreadfunds = memberBreadfunds[_user];
+    uint256 _activeBreadfundsCount = 0;
+
+    for (uint256 i = 0; i < _userBreadfunds.length; i++) {
+      uint256 _breadfundId = _userBreadfunds[i];
+      Breadfund memory _breadfund = breadfunds[_breadfundId];
+
+      if (!_isDecommissioned(_breadfund)) {
+        _activeBreadfundsCount++;
+      }
+    }
+
+    breadfundIds = new uint256[](_activeBreadfundsCount);
+    withdrawableBalances = new uint256[](_activeBreadfundsCount);
+    monthlyContributions = new uint256[](_activeBreadfundsCount);
+    hasDeposited = new bool[](_activeBreadfundsCount);
+
+    uint256 _index = 0;
+    for (uint256 i = 0; i < _userBreadfunds.length; i++) {
+      uint256 _breadfundId = _userBreadfunds[i];
+      Breadfund memory _breadfund = breadfunds[_breadfundId];
+
+      if (!_isDecommissioned(_breadfund)) {
+        breadfundIds[_index] = _breadfundId;
+        withdrawableBalances[_index] = memberWithdrawableBalance[_breadfundId][_user];
+        monthlyContributions[_index] = breadfundMemberContribute[_breadfundId][_user];
+        hasDeposited[_index] = hasMadeFirstDeposit[_breadfundId][_user];
+        totalBalance += withdrawableBalances[_index];
+        _index++;
+      }
+    }
+  }
+
+  /// @inheritdoc IBreadfund
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }

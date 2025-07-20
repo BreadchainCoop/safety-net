@@ -292,6 +292,29 @@ interface IBreadfund {
   /// @return balances Array of corresponding balances
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
 
+  /// @notice Gets the total balances of a user across all breadfunds they are a member of
+  /// @param user Address of the user
+  /// @return totalBalance Total withdrawable balance across all breadfunds
+  function getUserTotalBalance(address user) external view returns (uint256 totalBalance);
+
+  /// @notice Gets comprehensive information about a user across all their active breadfunds
+  /// @param user Address of the user
+  /// @return breadfundIds Array of active breadfund IDs the user is a member of
+  /// @return withdrawableBalances Array of withdrawable balances for each breadfund
+  /// @return monthlyContributions Array of monthly contribution amounts for each breadfund
+  /// @return hasDeposited Array indicating if user has made first deposit in each breadfund
+  /// @return totalBalance Total withdrawable balance across all active breadfunds
+  function getUserInfo(address user)
+    external
+    view
+    returns (
+      uint256[] memory breadfundIds,
+      uint256[] memory withdrawableBalances,
+      uint256[] memory monthlyContributions,
+      bool[] memory hasDeposited,
+      uint256 totalBalance
+    );
+
   /// @notice Checks if a token is allowed
   /// @param token ERC20 token address
   /// @return allowed True if the token is allowed, false otherwise
