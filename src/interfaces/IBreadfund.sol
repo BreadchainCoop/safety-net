@@ -297,22 +297,24 @@ interface IBreadfund {
   /// @return totalBalance Total withdrawable balance across all breadfunds
   function getUserTotalBalance(address user) external view returns (uint256 totalBalance);
 
-  /// @notice Gets comprehensive information about a user across all their active breadfunds
+  /// @notice Gets comprehensive information about a user across all their breadfunds
   /// @param user Address of the user
-  /// @return breadfundIds Array of active breadfund IDs the user is a member of
-  /// @return withdrawableBalances Array of withdrawable balances for each breadfund
-  /// @return monthlyContributions Array of monthly contribution amounts for each breadfund
-  /// @return hasDeposited Array indicating if user has made first deposit in each breadfund
+  /// @return activeBreadfunds Array of active breadfund structs the user is a member of
+  /// @return withdrawableBalances Array of withdrawable balances for each active breadfund
+  /// @return monthlyContributions Array of monthly contribution amounts for each active breadfund
+  /// @return hasDeposited Array indicating if user has made first deposit in each active breadfund
   /// @return totalBalance Total withdrawable balance across all active breadfunds
+  /// @return decommissionedBreadfunds Array of decommissioned breadfund structs the user was a member of
   function getUserInfo(address user)
     external
     view
     returns (
-      uint256[] memory breadfundIds,
+      Breadfund[] memory activeBreadfunds,
       uint256[] memory withdrawableBalances,
       uint256[] memory monthlyContributions,
       bool[] memory hasDeposited,
-      uint256 totalBalance
+      uint256 totalBalance,
+      Breadfund[] memory decommissionedBreadfunds
     );
 
   /// @notice Checks if a token is allowed

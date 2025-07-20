@@ -265,15 +265,17 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     view
     override
     returns (
-      uint256[] memory breadfundIds,
+      Breadfund[] memory activeBreadfunds,
       uint256[] memory withdrawableBalances,
       uint256[] memory monthlyContributions,
       bool[] memory hasDeposited,
-      uint256 totalBalance
+      uint256 totalBalance,
+      Breadfund[] memory decommissionedBreadfunds
     )
   {
     uint256[] memory _userBreadfunds = memberBreadfunds[_user];
     uint256 _activeBreadfundsCount = 0;
+    uint256 _decommissionedBreadfundsCount = 0;
 
     for (uint256 i = 0; i < _userBreadfunds.length; i++) {
       uint256 _breadfundId = _userBreadfunds[i];
@@ -281,26 +283,33 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
       if (!_isDecommissioned(_breadfund)) {
         _activeBreadfundsCount++;
+      } else {
+        _decommissionedBreadfundsCount++;
       }
     }
 
-    breadfundIds = new uint256[](_activeBreadfundsCount);
+    activeBreadfunds = new Breadfund[](_activeBreadfundsCount);
     withdrawableBalances = new uint256[](_activeBreadfundsCount);
     monthlyContributions = new uint256[](_activeBreadfundsCount);
     hasDeposited = new bool[](_activeBreadfundsCount);
+    decommissionedBreadfunds = new Breadfund[](_decommissionedBreadfundsCount);
 
-    uint256 _index = 0;
+    uint256 _activeIndex = 0;
+    uint256 _decommissionedIndex = 0;
     for (uint256 i = 0; i < _userBreadfunds.length; i++) {
       uint256 _breadfundId = _userBreadfunds[i];
       Breadfund memory _breadfund = breadfunds[_breadfundId];
 
       if (!_isDecommissioned(_breadfund)) {
-        breadfundIds[_index] = _breadfundId;
-        withdrawableBalances[_index] = memberWithdrawableBalance[_breadfundId][_user];
-        monthlyContributions[_index] = breadfundMemberContribute[_breadfundId][_user];
-        hasDeposited[_index] = hasMadeFirstDeposit[_breadfundId][_user];
-        totalBalance += withdrawableBalances[_index];
-        _index++;
+        activeBreadfunds[_activeIndex] = _breadfund;
+        withdrawableBalances[_activeIndex] = memberWithdrawableBalance[_breadfundId][_user];
+        monthlyContributions[_activeIndex] = breadfundMemberContribute[_breadfundId][_user];
+        hasDeposited[_activeIndex] = hasMadeFirstDeposit[_breadfundId][_user];
+        totalBalance += withdrawableBalances[_activeIndex];
+        _activeIndex++;
+      } else {
+        decommissionedBreadfunds[_decommissionedIndex] = _breadfund;
+        _decommissionedIndex++;
       }
     }
   }
