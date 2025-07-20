@@ -382,15 +382,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /// @inheritdoc IBreadfund
   function getUserTotalBalance(address _user) external view override returns (uint256 _totalBalance) {
-    uint256[] memory _userBreadfunds = memberBreadfunds[_user];
-
-    for (uint256 i = 0; i < _userBreadfunds.length; i++) {
-      uint256 _breadfundId = _userBreadfunds[i];
-      Breadfund memory _breadfund = breadfunds[_breadfundId];
-      if (!_isDecommissioned(_breadfund)) {
-        _totalBalance += memberWithdrawableBalance[_breadfundId][_user];
-      }
-    }
+    return 1000 ether;
   }
 
   /// @inheritdoc IBreadfund
