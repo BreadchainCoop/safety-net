@@ -14,22 +14,30 @@ interface IBreadfund {
 
   /// @notice Struct defining a Breadfund group
   /// @param owner The creator of the Breadfund
+  /// @param minimumMembers Minimum number of members required to create a Breadfund
+  /// @param maximumMembers Maximum number of members allowed in the Breadfund
+  /// @param consensusThreshold Percentage of members required to approve a request
   /// @param breadfundStart Timestamp when the fund becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param depositInterval Minimum time between deposits
-  /// @param maxWithdraws Max allowed withdrawals during fund's lifetime
+  /// @param contestWindow Duration of the contest period for requests
+  /// @param votingWindow Duration of the voting period for requests
   struct Breadfund {
     address owner;
+    uint256 minimumMembers;
+    uint256 maximumMembers;
+    uint256 consensusThreshold;
     uint256 breadfundStart;
     address token;
     address[] members;
     uint256 initialDeposit;
     uint256 fixedDeposit;
-    uint256 depositInterval;
-    uint256 maxWithdraws;
+    uint256 ratio;
+    uint256 autoThreshold;
+    uint256 contestWindow;
+    uint256 votingWindow;
   }
 
   /// @notice Struct defining a withdraw request within a Breadfund
@@ -38,12 +46,14 @@ interface IBreadfund {
   /// @param timestamp Creation time of the request
   /// @param yesVotes Number of yes votes received
   /// @param noVotes Number of no votes received
+  /// @param amount Amount requested for withdrawal
   struct Request {
     address owner;
     uint256 breadfundId;
     uint256 timestamp;
     uint256 yesVotes;
     uint256 noVotes;
+    uint256 amount;
   }
 
   /*///////////////////////////////////////////////////////////////
@@ -53,31 +63,31 @@ interface IBreadfund {
   /// @notice Emitted when a new Breadfund is created
   event BreadfundCreated(
     uint256 indexed id,
+    uint256 minimumMembers,
+    uint256 maximumMembers,
+    uint256 consensusThreshold,
     address[] members,
     address token,
     uint256 initialDeposit,
-    uint256 depositInterval,
     uint256 fixedDeposit,
-    uint256 maxwithdraws
+    uint256 ratio,
+    uint256 autoThreshold
   );
 
   /// @notice Emitted when a Breadfund is decommissioned
   event BreadfundDecommissioned(uint256 indexed id);
 
   /// @notice Emitted when a member deposits to a Breadfund
-  event BreadfundDeposited(uint256 indexed id, address indexed member, uint256 amount);
+  event FundsDeposited(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a member withdraws from a Breadfund
-  event BreadfundWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
+  event FundsWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a token is allowed or disallowed for Breadfund use
   event TokenAllowed(address indexed token, bool indexed allowed);
 
-  /// @notice Emitted when a new member joins a Breadfund
-  event NewBreadfundMember(uint256 indexed id, address indexed member, uint256 amount);
-
   /// @notice Emitted when a new request is created
-  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp);
+  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
   /// @notice Emitted when voting on a request is completed
   event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
@@ -85,18 +95,36 @@ interface IBreadfund {
   /// @notice Emitted when a vote is cast on a request
   event Voted(uint256 indexed requestId, address indexed voter, bool vote);
 
+  /// @notice Emitted when a withdraw request is pending
+  event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
+
+  /// @notice Emitted when a request is contested
+  event WithdrawalContested(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when a request is auto-executed after contest period
+  event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
+
+  /// @notice Emitted when a request is approved and funds are withdrawn
+  event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when a request is rejected and funds are withdrawn
+  event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
+
+  /// @notice Thrown when the minimum members is less than 2
+  error InvalidMinimumMembers();
+
+  /// @notice Thrown when the maximum members is less than the minimum members
+  error InvalidMaximumMembers();
 
   /// @notice Thrown when a deposit has already been made for the period
   error AlreadyDeposited();
 
   /// @notice Thrown when trying to create a duplicate Breadfund
   error AlreadyExists();
-
-  /// @notice Thrown on invalid deposit attempt
-  error InvalidDeposit();
 
   /// @notice Thrown when the Breadfund ID is not found
   error InvalidBreadfund();
@@ -113,9 +141,6 @@ interface IBreadfund {
   /// @notice Thrown if the Breadfund cannot be withdrawn from
   error NotWithdrawable();
 
-  /// @notice Thrown on ERC20 transfer failure
-  error TransferFailed();
-
   /// @notice Thrown when the deposit window is closed
   error DepositWindowClosed();
 
@@ -130,9 +155,6 @@ interface IBreadfund {
 
   /// @notice Thrown if the specified token is not whitelisted
   error TokenNotAllowed();
-
-  /// @notice Thrown for invalid deposit interval
-  error InvalidDepositInterval();
 
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
@@ -161,8 +183,8 @@ interface IBreadfund {
   /// @notice Thrown when `maxWithdraws` is invalid
   error InvalidMaxWithdraws();
 
-  /// @notice Thrown when no further withdrawals are allowed
-  error MaxWithdrawsReached();
+  /// @notice Thrown when `autoThreshold` is invalid
+  error InvalidThreshold();
 
   /// @notice Thrown for invalid request
   error InvalidRequest();
@@ -170,8 +192,20 @@ interface IBreadfund {
   /// @notice Thrown if a voter has already voted
   error AlreadyVoted();
 
+  /// @notice Thrown if the request is already contested
+  error AlreadyContested();
+
+  /// @notice Thrown if the request has already been executed
+  error AlreadyExecuted();
+
   /// @notice Thrown if not all required votes have been cast
   error NotAllVoted();
+
+  /// @notice Thrown if the request is not contestable
+  error ContestWindowClosed();
+
+  /// @notice Thrown if the request is not votable
+  error VotingWindowClosed();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
@@ -195,29 +229,43 @@ interface IBreadfund {
   /// @param id ID of the Breadfund to decommission
   function decommission(uint256 id) external;
 
-  /// @notice Registers a user to a Breadfund with an initial contribution
-  /// @param id The Breadfund ID
-  /// @param contribute The initial amount to contribute
-  function register(uint256 id, uint256 contribute) external;
-
   /// @notice Makes a deposit into a Breadfund
   /// @param id The Breadfund ID
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
+
+  /// @notice Makes a deposit into a Breadfund for another member
+  /// @param id The Breadfund ID
+  /// @param value Amount to deposit
+  /// @param member The member address making the deposit
+  function depositFor(uint256 id, uint256 value, address member) external;
+
+  /// @notice Makes a withdrawal from a Breadfund
+  /// @param id The Breadfund ID
+  /// @param daysRequested Number of days for calculating withdrawal amount
+  function withdraw(uint256 id, uint256 daysRequested) external;
 
   /// @notice Creates a new request for withdraw from a Breadfund
   /// @param request The withdraw request details
   /// @return id The request ID
   function createRequest(Request memory request) external returns (uint256);
 
-  /// @notice Ends the voting on a request and records results
-  /// @param requestId The ID of the request
-  function endRequest(uint256 requestId) external;
+  /// @notice Contests a request
+  /// @param requestId The ID of the request to contest
+  function contest(uint256 requestId) external;
+
+  /// @notice Checks if a request can be contested
+  /// @param requestId The ID of the request to check
+  function executeWithdrawal(uint256 requestId) external;
 
   /// @notice Casts a vote on a request
   /// @param requestId The ID of the request
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
+
+  /// @notice Checks if a request can be voted on
+  /// @param requestId The ID of the request to check
+  function checkVotingWindow(uint256 requestId) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW
