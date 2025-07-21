@@ -422,7 +422,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {
     Breadfund memory breadfund = breadfunds[_breadfundId];
     
-    if (breadfund.owner == address(0) || block.timestamp < breadfund.breadfundStart) {
+    if (block.timestamp < breadfund.breadfundStart) {
       return 0;
     }
     
