@@ -135,9 +135,8 @@ contract BreadfundEpochTest is Test {
     }
     
     function testEpochCompletionEvent() public {
-        // Expect EpochCompleted event when all members deposit
-        vm.expectEmit(true, true, false, true);
-        emit IBreadfund.EpochCompleted(breadfundId, 0, block.timestamp);
+        // Note: EpochCompleted event functionality has been removed
+        // This test now simply verifies that all members can deposit successfully
         
         // All members deposit in epoch 0
         vm.prank(member1);
@@ -146,9 +145,13 @@ contract BreadfundEpochTest is Test {
         vm.prank(member2);
         breadfund.deposit(breadfundId, MEMBER_DEPOSIT);
         
-        // Last deposit should trigger the event
         vm.prank(member3);
         breadfund.deposit(breadfundId, MEMBER_DEPOSIT);
+        
+        // Verify all members have deposited
+        assertTrue(breadfund.hasMemberDepositedInEpoch(breadfundId, member1, 0));
+        assertTrue(breadfund.hasMemberDepositedInEpoch(breadfundId, member2, 0));
+        assertTrue(breadfund.hasMemberDepositedInEpoch(breadfundId, member3, 0));
     }
     
     function testPartialEpochCompletion() public {

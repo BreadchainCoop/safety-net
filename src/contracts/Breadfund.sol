@@ -327,8 +327,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     epochMemberDeposits[_id][currentEpochIndex][_member] = true;
 
-    _checkAndEmitEpochCompletion(_id, currentEpochIndex);
-
     if (!IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _totalDeposit);
@@ -421,22 +419,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return _breadfund.owner == address(0);
   }
 
-  /// @dev Checks if all members have deposited in an epoch and emits completion event
-  function _checkAndEmitEpochCompletion(uint256 _id, uint256 _epochIndex) internal {
-    Breadfund memory _breadfund = breadfunds[_id];
-    
-    bool allDeposited = true;
-    for (uint256 i = 0; i < _breadfund.members.length; i++) {
-      if (!epochMemberDeposits[_id][_epochIndex][_breadfund.members[i]]) {
-        allDeposited = false;
-        break;
-      }
-    }
-    
-    if (allDeposited) {
-      emit EpochCompleted(_id, _epochIndex, block.timestamp);
-    }
-  }
 
   /// @inheritdoc IBreadfund
   function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {

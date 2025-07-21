@@ -116,8 +116,6 @@ interface IBreadfund {
   /// @notice Emitted when a request is rejected and funds are withdrawn
   event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
-  /// @notice Emitted when all members complete an epoch
-  event EpochCompleted(uint256 indexed breadfundId, uint256 indexed epochIndex, uint256 completionTime);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS

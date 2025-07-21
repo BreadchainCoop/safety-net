@@ -17,7 +17,7 @@ This document describes the comprehensive test suite for the epoch/round functio
 - `testDepositInDifferentEpochs()` - Confirms members can deposit in different epochs
 
 #### ✅ **Epoch Completion Tests**
-- `testEpochCompletionEvent()` - Verifies `EpochCompleted` event emission
+- `testEpochCompletionEvent()` - Verifies all members can deposit successfully (EpochCompleted event removed)
 - `testPartialEpochCompletion()` - Tests incomplete epochs (not all members deposited)
 
 #### ✅ **Historical Verification Tests**
@@ -34,7 +34,7 @@ This document describes the comprehensive test suite for the epoch/round functio
 
 ### Scenario 1: Normal Epoch Progression
 ```solidity
-// All members deposit in epoch 0 -> EpochCompleted event
+// All members deposit in epoch 0 -> All deposits tracked
 // Time advances to epoch 1 -> hasAllMembersDepositedForAllEpochs() returns false
 // All members deposit in epoch 1 -> hasAllMembersDepositedForAllEpochs() returns true
 ```
@@ -67,7 +67,7 @@ All tests should pass, confirming:
 
 1. **Epoch Calculation**: Accurate time-based epoch indexing
 2. **Deposit Tracking**: Per-member, per-epoch deposit recording
-3. **Completion Detection**: Event emission when all members participate
+3. **Completion Detection**: Proper tracking when all members participate
 4. **Historical Verification**: Complete participation tracking across all epochs
 5. **Error Handling**: Proper rejection of invalid operations
 
