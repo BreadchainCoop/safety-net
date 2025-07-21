@@ -13,6 +13,7 @@ interface IBreadfund {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Struct defining a Breadfund group
+  /// @param id Unique identifier for the Breadfund
   /// @param owner The creator of the Breadfund
   /// @param minimumMembers Minimum number of members required to create a Breadfund
   /// @param maximumMembers Maximum number of members allowed in the Breadfund
@@ -25,6 +26,7 @@ interface IBreadfund {
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   struct Breadfund {
+    uint256 id;
     address owner;
     uint256 minimumMembers;
     uint256 maximumMembers;
