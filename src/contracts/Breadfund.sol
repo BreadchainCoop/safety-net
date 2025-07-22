@@ -305,52 +305,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return (_breadfund.members, _balances);
   }
 
-  /// @inheritdoc IBreadfund
-  function getBreadfundsWithApprovedRequests() external view override returns (uint256[] memory) {
-    uint256[] memory approvedBreadfunds = new uint256[](nextId);
-    uint256 count = 0;
-
-    // Iterate through all breadfunds
-    for (uint256 breadfundId = 0; breadfundId < nextId; breadfundId++) {
-      Breadfund memory breadfund = breadfunds[breadfundId];
-
-      // Skip if breadfund is decommissioned
-      if (_isDecommissioned(breadfund)) continue;
-
-      bool hasApprovedRequest = false;
-
-      // Check all requests for this breadfund
-      for (uint256 requestId = 0; requestId < nextIdRequest; requestId++) {
-        Request memory request = requests[requestId];
-
-        // Skip if not for this breadfund
-        if (request.breadfundId != breadfundId) continue;
-
-        // Skip if already executed
-        if (isExecuted[requestId]) continue;
-
-        // Check if request is approved (passed voting)
-        if (isVoted[requestId] && request.yesVotes > breadfund.members.length * breadfund.consensusThreshold / 100) {
-          hasApprovedRequest = true;
-          break;
-        }
-      }
-
-      if (hasApprovedRequest) {
-        approvedBreadfunds[count] = breadfundId;
-        count++;
-      }
-    }
-
-    // Resize array to actual count
-    uint256[] memory result = new uint256[](count);
-    for (uint256 i = 0; i < count; i++) {
-      result[i] = approvedBreadfunds[i];
-    }
-
-    return result;
-  }
-
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit amount is added to the total amount

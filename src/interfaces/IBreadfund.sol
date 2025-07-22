@@ -296,8 +296,4 @@ interface IBreadfund {
   /// @param token ERC20 token address
   /// @return allowed True if the token is allowed, false otherwise
   function isTokenAllowed(address token) external view returns (bool);
-
-  /// @notice Returns all breadfunds that have approved active requests
-  /// @return breadfundIds Array of Breadfund IDs with approved active requests
-  function getBreadfundsWithApprovedRequests() external view returns (uint256[] memory);
 }
