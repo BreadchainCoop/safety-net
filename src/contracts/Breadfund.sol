@@ -210,8 +210,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (!_isContestable(_idRequest)) {
       if (!isContested[_idRequest]) {
         isExecuted[_idRequest] = true;
-        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
         emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
+        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
         return;
       } else {
         emit WithdrawalContested(_idRequest, _request.owner, block.timestamp);
@@ -222,8 +222,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     // Case 2: Execute approved request (anyone can call this)
     if (isVoted[_idRequest] && _request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
       isExecuted[_idRequest] = true;
-      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
       emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
       return;
     }
 
