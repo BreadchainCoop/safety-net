@@ -219,7 +219,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
       // Consensus reached - execute withdrawal immediately
-      _executeWithdrawal(_requestId);
+      isExecuted[_requestId] = true;
+      emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
   /// @inheritdoc IBreadfund
@@ -230,8 +232,10 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       isVoted[_idRequest] = true;
       Breadfund memory _breadfund = breadfunds[_request.breadfundId];
       if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
-        // If somehow consensus was reached but not executed during voting, execute now
-        _executeWithdrawal(_idRequest);
+        // Consensus reached but somehow not executed during voting - execute now
+        isExecuted[_idRequest] = true;
+        emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
+        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
       } else {
         emit WithdrawalRejected(_idRequest, _request.owner, _request.amount);
       }
@@ -281,16 +285,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     }
 
     return (_breadfund.members, _balances);
-  }
-
-  /// @dev Internal function to execute approved withdrawal requests
-  function _executeWithdrawal(uint256 _idRequest) internal {
-    Request memory _request = requests[_idRequest];
-    Breadfund memory _breadfund = breadfunds[_request.breadfundId];
-
-    isExecuted[_idRequest] = true;
-    emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
-    if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
   }
 
   /**
