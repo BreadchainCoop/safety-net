@@ -430,7 +430,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function hasAllMembersDepositedForAllEpochs(uint256 _breadfundId) external view override returns (bool) {
+  function hasAllMembersDepositedForAllEpochs(uint256 _breadfundId) public view override returns (bool) {
     Breadfund memory breadfund = breadfunds[_breadfundId];
     
     if (breadfund.owner == address(0)) {
