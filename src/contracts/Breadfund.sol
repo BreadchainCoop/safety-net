@@ -68,7 +68,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 id => bool executed) public isExecuted;
 
   /// @notice Tracks which members have deposited in each epoch
-  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => bool))) public epochMemberDeposits;
+  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => bool))) public
+    epochMemberDeposits;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
@@ -307,7 +308,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (block.timestamp < _breadfund.breadfundStart) revert DepositBeforeBreadfundStart();
 
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
-    
+
     if (epochMemberDeposits[_id][currentEpochIndex][_member]) {
       revert AlreadyDeposited();
     }
@@ -417,28 +418,27 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return _breadfund.owner == address(0);
   }
 
-
   /// @inheritdoc IBreadfund
   function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {
     Breadfund memory breadfund = breadfunds[_breadfundId];
-    
+
     if (block.timestamp < breadfund.breadfundStart) {
       return 0;
     }
-    
+
     return (block.timestamp - breadfund.breadfundStart) / breadfund.epochDuration;
   }
 
   /// @inheritdoc IBreadfund
   function hasAllMembersDepositedForAllEpochs(uint256 _breadfundId) public view override returns (bool) {
     Breadfund memory breadfund = breadfunds[_breadfundId];
-    
+
     if (breadfund.owner == address(0)) {
       return false;
     }
-    
+
     uint256 currentEpochIndex = getCurrentEpochIndex(_breadfundId);
-    
+
     for (uint256 epochIndex = 0; epochIndex <= currentEpochIndex; epochIndex++) {
       for (uint256 i = 0; i < breadfund.members.length; i++) {
         if (!epochMemberDeposits[_breadfundId][epochIndex][breadfund.members[i]]) {
@@ -446,12 +446,16 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
         }
       }
     }
-    
+
     return true;
   }
 
   /// @inheritdoc IBreadfund
-  function hasMemberDepositedInEpoch(uint256 _breadfundId, address _member, uint256 _epochIndex) external view override returns (bool) {
+  function hasMemberDepositedInEpoch(
+    uint256 _breadfundId,
+    address _member,
+    uint256 _epochIndex
+  ) external view override returns (bool) {
     return epochMemberDeposits[_breadfundId][_epochIndex][_member];
   }
 }

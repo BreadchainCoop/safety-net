@@ -12,7 +12,6 @@ interface IBreadfund {
                             STRUCTS
   //////////////////////////////////////////////////////////////*/
 
-
   /// @notice Struct defining a Breadfund group
   /// @param owner The creator of the Breadfund
   /// @param minimumMembers Minimum number of members required to create a Breadfund
@@ -115,7 +114,6 @@ interface IBreadfund {
 
   /// @notice Emitted when a request is rejected and funds are withdrawn
   event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
-
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -322,5 +320,9 @@ interface IBreadfund {
   /// @param member The member address
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
-  function hasMemberDepositedInEpoch(uint256 breadfundId, address member, uint256 epochIndex) external view returns (bool);
+  function hasMemberDepositedInEpoch(
+    uint256 breadfundId,
+    address member,
+    uint256 epochIndex
+  ) external view returns (bool);
 }
