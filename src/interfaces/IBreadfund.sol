@@ -310,10 +310,10 @@ interface IBreadfund {
   /// @return epochIndex The current epoch index based on time elapsed
   function getCurrentEpochIndex(uint256 breadfundId) external view returns (uint256);
 
-  /// @notice Checks if all members have made deposits for all epochs since inception
+  /// @notice Checks if a Breadfund is eligible for decommission
   /// @param breadfundId The Breadfund ID
-  /// @return allDepositsComplete True if every member has deposited for every completed epoch
-  function hasAllMembersDepositedForAllEpochs(uint256 breadfundId) external view returns (bool);
+  /// @return decommissionable True if the breadfund can be decommissioned (when someone missed a payment)
+  function isDecommissionable(uint256 breadfundId) external view returns (bool);
 
   /// @notice Checks if a member has deposited in a specific epoch
   /// @param breadfundId The Breadfund ID

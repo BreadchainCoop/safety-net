@@ -139,7 +139,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     Breadfund memory _breadfund = breadfunds[_id];
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
-    if (hasAllMembersDepositedForAllEpochs(_id)) revert NotDecommissionable();
+    if (!isDecommissionable(_id)) revert NotDecommissionable();
 
     uint256 _balance = breadfundBalance[_id];
 
@@ -430,24 +430,24 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function hasAllMembersDepositedForAllEpochs(uint256 _breadfundId) public view override returns (bool) {
+  function isDecommissionable(uint256 _breadfundId) public view override returns (bool) {
     Breadfund memory breadfund = breadfunds[_breadfundId];
 
     if (breadfund.owner == address(0)) {
-      return false;
+      return true;
     }
 
     uint256 currentEpochIndex = getCurrentEpochIndex(_breadfundId);
 
-    for (uint256 epochIndex = 0; epochIndex <= currentEpochIndex; epochIndex++) {
+    for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
       for (uint256 i = 0; i < breadfund.members.length; i++) {
         if (!epochMemberDeposits[_breadfundId][epochIndex][breadfund.members[i]]) {
-          return false;
+          return true;
         }
       }
     }
 
-    return true;
+    return false;
   }
 
   /// @inheritdoc IBreadfund
