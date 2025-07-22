@@ -139,7 +139,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     Breadfund memory _breadfund = breadfunds[_id];
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
-    if (!hasAllMembersDepositedForAllEpochs(_id)) revert NotDecommissionable();
+    if (hasAllMembersDepositedForAllEpochs(_id)) revert NotDecommissionable();
 
     uint256 _balance = breadfundBalance[_id];
 
