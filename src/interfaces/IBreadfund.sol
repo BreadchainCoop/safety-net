@@ -259,10 +259,6 @@ interface IBreadfund {
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
 
-  /// @notice Checks if a request can be voted on
-  /// @param requestId The ID of the request to check
-  function checkVotingWindow(uint256 requestId) external;
-
   /*///////////////////////////////////////////////////////////////
                             VIEW
   //////////////////////////////////////////////////////////////*/

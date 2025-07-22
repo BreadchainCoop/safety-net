@@ -226,23 +226,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
   /// @inheritdoc IBreadfund
 
-  function checkVotingWindow(uint256 _idRequest) external override nonReentrant {
-    Request memory _request = requests[_idRequest];
-    if (!_isVotingOngoing(_idRequest) && !isVoted[_idRequest] && !isExecuted[_idRequest]) {
-      isVoted[_idRequest] = true;
-      Breadfund memory _breadfund = breadfunds[_request.breadfundId];
-      if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
-        // Consensus reached but somehow not executed during voting - execute now
-        isExecuted[_idRequest] = true;
-        emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
-        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
-      } else {
-        emit WithdrawalRejected(_idRequest, _request.owner, _request.amount);
-      }
-    }
-  }
-  /// @inheritdoc IBreadfund
-
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
