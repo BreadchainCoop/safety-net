@@ -198,16 +198,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     Breadfund memory _breadfund = breadfunds[_request.breadfundId];
 
-    if (!_isContestable(_idRequest)) {
-      if (!isContested[_idRequest]) {
-        isExecuted[_idRequest] = true;
-        emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
-        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
-        return;
-      } else {
-        emit WithdrawalContested(_idRequest, _request.owner, block.timestamp);
-        return;
-      }
+    // Can only auto-execute if contest window has passed and request was not contested
+    if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
+      isExecuted[_idRequest] = true;
+      emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
 
