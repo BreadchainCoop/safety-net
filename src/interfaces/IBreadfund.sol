@@ -168,9 +168,6 @@ interface IBreadfund {
   /// @notice Thrown when caller is not the owner
   error InvalidOwner();
 
-  /// @notice Thrown if not enough members are added
-  error InvalidMemberCount();
-
   /// @notice Thrown if a member address is invalid
   error InvalidMemberAddress();
 

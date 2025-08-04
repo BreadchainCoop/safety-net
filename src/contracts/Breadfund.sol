@@ -88,8 +88,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (!allowedTokens[_breadfund.token]) revert TokenNotAllowed();
     if (_breadfund.breadfundStart == 0) revert InvalidBreadfundStartTime();
     if (_breadfund.owner == address(0)) revert InvalidOwner();
-    if (_breadfund.members.length < MINIMUM_MEMBERS) revert InvalidMemberCount();
-    if (_breadfund.members.length > MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
     if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
