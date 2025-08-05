@@ -13,12 +13,6 @@ import {IBreadfund} from '../interfaces/IBreadfund.sol';
 /// @author @valeriooconte
 /// @author @RonTuretzky
 contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
-  /// @notice Minimum number of members required to create a Breadfund
-  uint256 public constant MINIMUM_MEMBERS = 25;
-
-  /// @notice Maximum number of members allowed in a Breadfund
-  uint256 public constant MAXIMUM_MEMBERS = 50;
-
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
@@ -61,9 +55,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been contested
   mapping(uint256 id => bool contested) public isContested;
 
-  /// @notice Tracks if a request has been verified (voting phase is over)
-  mapping(uint256 id => bool voted) public isVoted;
-
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
 
@@ -98,8 +89,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (!allowedTokens[_breadfund.token]) revert TokenNotAllowed();
     if (_breadfund.breadfundStart == 0) revert InvalidBreadfundStartTime();
     if (_breadfund.owner == address(0)) revert InvalidOwner();
-    if (_breadfund.members.length < MINIMUM_MEMBERS) revert InvalidMemberCount();
-    if (_breadfund.members.length > MAXIMUM_MEMBERS) revert InvalidMemberCount();
     if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
     if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
@@ -205,18 +194,17 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function executeWithdrawal(uint256 _idRequest) external override nonReentrant {
+  function executeContestedWithdrawl(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
-    if (!_isContestable(_idRequest)) {
-      if (!isContested[_idRequest]) {
-        Breadfund memory _breadfund = breadfunds[_request.breadfundId];
-        isExecuted[_idRequest] = true;
-        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
-        emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
-      } else {
-        emit WithdrawalContested(_idRequest, _request.owner, block.timestamp);
-      }
+
+    Breadfund memory _breadfund = breadfunds[_request.breadfundId];
+
+    // Can only auto-execute if contest window has passed and request was not contested
+    if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
+      isExecuted[_idRequest] = true;
+      emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
 
@@ -224,6 +212,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (!isMember[requests[_requestId].breadfundId][msg.sender]) revert NotMember();
     if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
     if (!_isVotingOngoing(_requestId)) revert VotingWindowClosed();
+    if (isExecuted[_requestId]) revert AlreadyExecuted();
 
     if (_vote) {
       requests[_requestId].yesVotes++;
@@ -232,21 +221,16 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     }
     requestVotes[_requestId][msg.sender] = true;
     emit Voted(_requestId, msg.sender, _vote);
-  }
-  /// @inheritdoc IBreadfund
 
-  function checkVotingWindow(uint256 _idRequest) external override nonReentrant {
-    Request memory _request = requests[_idRequest];
-    if (!_isVotingOngoing(_idRequest) && !isVoted[_idRequest]) {
-      isVoted[_idRequest] = true;
-      Breadfund memory _breadfund = breadfunds[_request.breadfundId];
-      if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
-        isExecuted[_idRequest] = true;
-        if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
-        emit WithdrawalApproved(_idRequest, _request.owner, _request.amount);
-      } else {
-        emit WithdrawalRejected(_idRequest, _request.owner, _request.amount);
-      }
+    // Check if consensus has been reached after this vote
+    Request memory _request = requests[_requestId];
+    Breadfund memory _breadfund = breadfunds[_request.breadfundId];
+
+    if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
+      // Consensus reached - execute withdrawal immediately
+      isExecuted[_requestId] = true;
+      emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
+      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
   /// @inheritdoc IBreadfund

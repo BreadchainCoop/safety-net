@@ -114,9 +114,6 @@ interface IBreadfund {
   /// @notice Emitted when a request is approved and funds are withdrawn
   event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
-  /// @notice Emitted when a request is rejected and funds are withdrawn
-  event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
-
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
@@ -174,9 +171,6 @@ interface IBreadfund {
 
   /// @notice Thrown when caller is not the owner
   error InvalidOwner();
-
-  /// @notice Thrown if not enough members are added
-  error InvalidMemberCount();
 
   /// @notice Thrown if a member address is invalid
   error InvalidMemberAddress();
@@ -266,16 +260,12 @@ interface IBreadfund {
 
   /// @notice Checks if a request can be contested
   /// @param requestId The ID of the request to check
-  function executeWithdrawal(uint256 requestId) external;
+  function executeContestedWithdrawl(uint256 requestId) external;
 
   /// @notice Casts a vote on a request
   /// @param requestId The ID of the request
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
-
-  /// @notice Checks if a request can be voted on
-  /// @param requestId The ID of the request to check
-  function checkVotingWindow(uint256 requestId) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW
