@@ -107,9 +107,6 @@ interface IBreadfund {
   /// @notice Emitted when a request is approved and funds are withdrawn
   event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
-  /// @notice Emitted when a request is rejected and funds are withdrawn
-  event WithdrawalRejected(uint256 indexed requestId, address indexed owner, uint256 timestamp);
-
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
