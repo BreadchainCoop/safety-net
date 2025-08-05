@@ -55,9 +55,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been contested
   mapping(uint256 id => bool contested) public isContested;
 
-  /// @notice Tracks if a request has been verified (voting phase is over)
-  mapping(uint256 id => bool voted) public isVoted;
-
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
 
