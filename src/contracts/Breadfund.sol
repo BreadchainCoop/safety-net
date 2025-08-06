@@ -63,7 +63,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     epochMemberDeposits;
 
   /// @notice Tracks the number of small withdraws performed in a Breadfund from a member
-  //mapping(uint256 breadfundId => mapping(address member => uint256 smallWithdrawsCount)) public smallWithdrawsCount;
+  mapping(uint256 breadfundId => mapping(address member => uint256 smallWithdrawsCount)) public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
