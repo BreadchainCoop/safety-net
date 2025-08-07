@@ -62,8 +62,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
-  /// @notice Tracks the number of small withdraws performed in a Breadfund from a member
-  mapping(uint256 breadfundId => mapping(address member => uint256 smallWithdrawsCount)) public smallWithdrawsCount;
+  /// @notice Tracks the number of small withdraws performed in a Breadfund from a member during one epoch
+  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))) public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
@@ -390,7 +390,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
    */
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     Breadfund memory _breadfund = breadfunds[_id];
-
+    uint256 currentEpochIndex = getCurrentEpochIndex(_id);
+    
     if (_breadfund.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
 
@@ -401,8 +402,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_withdrawAmount > memberWithdrawableBalance[_id][_member]) revert NotWithdrawable();
 
     if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
-      smallWithdrawsCount[_id][_member]++;
-      if (smallWithdrawsCount[_id][_member] > _breadfund.smallWithdrawsLimit) revert ExceedsSmallWithdrawsLimit();
+      smallWithdrawsCount[_id][currentEpochIndex][_member]++;
+      if (smallWithdrawsCount[_id][currentEpochIndex][_member] > _breadfund.smallWithdrawsLimit) revert ExceedsSmallWithdrawsLimit();
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
       if (!IERC20(_breadfund.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
