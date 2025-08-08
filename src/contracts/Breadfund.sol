@@ -62,6 +62,10 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
+  /// @notice Tracks the number of small withdrawals performed in a Breadfund from a member during one epoch
+  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
+    public smallWithdrawsCount;
+
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
@@ -95,6 +99,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_breadfund.minimumMembers < 2) revert InvalidMinimumMembers();
     if (_breadfund.maximumMembers < _breadfund.minimumMembers) revert InvalidMaximumMembers();
     if (_breadfund.epochDuration == 0) revert InvalidEpochDuration();
+    if (_breadfund.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
@@ -119,7 +124,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       _breadfund.fixedDeposit,
       _breadfund.ratio,
       _breadfund.autoThreshold,
-      _breadfund.epochDuration
+      _breadfund.epochDuration,
+      _breadfund.smallWithdrawsLimit
     );
     return _id;
   }
@@ -279,6 +285,47 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return (_breadfund.members, _balances);
   }
 
+  /// @inheritdoc IBreadfund
+  function hasMemberDepositedInEpoch(
+    uint256 _breadfundId,
+    address _member,
+    uint256 _epochIndex
+  ) external view override returns (bool) {
+    return epochMemberDeposits[_breadfundId][_epochIndex][_member];
+  }
+
+  /// @inheritdoc IBreadfund
+  function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {
+    Breadfund memory breadfund = breadfunds[_breadfundId];
+
+    if (block.timestamp < breadfund.breadfundStart) {
+      return 0;
+    }
+
+    return (block.timestamp - breadfund.breadfundStart) / breadfund.epochDuration;
+  }
+
+  /// @inheritdoc IBreadfund
+  function isDecommissionable(uint256 _breadfundId) public view override returns (bool) {
+    Breadfund memory breadfund = breadfunds[_breadfundId];
+
+    if (breadfund.owner == address(0)) {
+      return true;
+    }
+
+    uint256 currentEpochIndex = getCurrentEpochIndex(_breadfundId);
+
+    for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
+      for (uint256 i = 0; i < breadfund.members.length; i++) {
+        if (!epochMemberDeposits[_breadfundId][epochIndex][breadfund.members[i]]) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit amount is added to the total amount
@@ -344,6 +391,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
    */
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     Breadfund memory _breadfund = breadfunds[_id];
+    uint256 currentEpochIndex = getCurrentEpochIndex(_id);
 
     if (_breadfund.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
@@ -355,8 +403,11 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_withdrawAmount > memberWithdrawableBalance[_id][_member]) revert NotWithdrawable();
 
     if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
+      smallWithdrawsCount[_id][currentEpochIndex][_member]++;
+      if (smallWithdrawsCount[_id][currentEpochIndex][_member] > _breadfund.smallWithdrawsLimit) {
+        revert ExceedsSmallWithdrawalLimit();
+      }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
-
       if (!IERC20(_breadfund.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
@@ -401,46 +452,5 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Return if a specified Breadfund is decommissioned by checking if an owner is set
   function _isDecommissioned(Breadfund memory _breadfund) internal pure returns (bool) {
     return _breadfund.owner == address(0);
-  }
-
-  /// @inheritdoc IBreadfund
-  function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {
-    Breadfund memory breadfund = breadfunds[_breadfundId];
-
-    if (block.timestamp < breadfund.breadfundStart) {
-      return 0;
-    }
-
-    return (block.timestamp - breadfund.breadfundStart) / breadfund.epochDuration;
-  }
-
-  /// @inheritdoc IBreadfund
-  function isDecommissionable(uint256 _breadfundId) public view override returns (bool) {
-    Breadfund memory breadfund = breadfunds[_breadfundId];
-
-    if (breadfund.owner == address(0)) {
-      return true;
-    }
-
-    uint256 currentEpochIndex = getCurrentEpochIndex(_breadfundId);
-
-    for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
-      for (uint256 i = 0; i < breadfund.members.length; i++) {
-        if (!epochMemberDeposits[_breadfundId][epochIndex][breadfund.members[i]]) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  /// @inheritdoc IBreadfund
-  function hasMemberDepositedInEpoch(
-    uint256 _breadfundId,
-    address _member,
-    uint256 _epochIndex
-  ) external view override returns (bool) {
-    return epochMemberDeposits[_breadfundId][_epochIndex][_member];
   }
 }

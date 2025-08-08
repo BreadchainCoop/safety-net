@@ -27,6 +27,7 @@ interface IBreadfund {
   /// @param votingWindow Duration of the voting period for requests
   /// @param currentEpoch Current epoch index
   /// @param epochDuration Duration of each epoch in seconds
+  /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
   struct Breadfund {
     uint256 id;
     address owner;
@@ -44,6 +45,7 @@ interface IBreadfund {
     uint256 votingWindow;
     uint256 currentEpoch;
     uint256 epochDuration;
+    uint256 smallWithdrawsLimit;
   }
 
   /// @notice Struct defining a withdraw request within a Breadfund
@@ -78,7 +80,8 @@ interface IBreadfund {
     uint256 fixedDeposit,
     uint256 ratio,
     uint256 autoThreshold,
-    uint256 epochDuration
+    uint256 epochDuration,
+    uint256 smallWithdrawsLimit
   );
 
   /// @notice Emitted when a Breadfund is decommissioned
@@ -210,6 +213,16 @@ interface IBreadfund {
 
   /// @notice Thrown when epoch duration is invalid
   error InvalidEpochDuration();
+
+  /// @notice Thrown when small withdraws limit is invalid
+  error InvalidSmallWithdrawsLimit();
+
+  /// @notice Thrown when the request amount exceeds the small withdraws limit
+  /// @notice Thrown when small withdrawal limit is invalid
+  error InvalidSmallWithdrawalLimit();
+
+  /// @notice Thrown when the request amount exceeds the small withdrawal limit
+  error ExceedsSmallWithdrawalLimit();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
