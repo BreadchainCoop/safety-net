@@ -98,7 +98,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     if (_breadfund.minimumMembers < 2) revert InvalidMinimumMembers();
     if (_breadfund.maximumMembers < _breadfund.minimumMembers) revert InvalidMaximumMembers();
     if (_breadfund.epochDuration == 0) revert InvalidEpochDuration();
-    if (_breadfund.smallWithdrawsLimit <= 0) revert InvalidSmallWithdrawsLimit();
+    if (_breadfund.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
 
     uint256 _breadfundMembersLength = _breadfund.members.length;
 
