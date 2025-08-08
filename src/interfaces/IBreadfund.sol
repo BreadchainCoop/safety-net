@@ -218,7 +218,11 @@ interface IBreadfund {
   error InvalidSmallWithdrawsLimit();
 
   /// @notice Thrown when the request amount exceeds the small withdraws limit
-  error ExceedsSmallWithdrawsLimit();
+  /// @notice Thrown when small withdrawal limit is invalid
+  error InvalidSmallWithdrawalLimit();
+
+  /// @notice Thrown when the request amount exceeds the small withdrawal limit
+  error ExceedsSmallWithdrawalLimit();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
