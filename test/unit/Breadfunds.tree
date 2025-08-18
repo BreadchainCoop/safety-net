@@ -1,0 +1,325 @@
+BreadfundsUnit::initialize
+├── when already initialized
+│   └── it reverts
+└── when not initialized
+    └── it sets the owner correctly
+
+BreadfundsUnit::setTokenAllowed
+├── when caller is not owner
+│   └── it reverts
+└── when caller is owner
+    ├── when setting token to allowed
+    │   ├── it updates the token status to true
+    │   └── it emits TokenAllowed event with true
+    └── when setting token to not allowed
+        ├── it updates the token status to false
+        └── it emits TokenAllowed event with false
+
+BreadfundsUnit::create
+├── when breadfund already exists
+│   └── it reverts with AlreadyExists
+├── when token is not allowed
+│   └── it reverts with TokenNotAllowed
+├── when breadfund start time is zero
+│   └── it reverts with InvalidBreadfundStartTime
+├── when owner is zero address
+│   └── it reverts with InvalidOwner
+├── when initial deposit is zero or less
+│   └── it reverts with InvalidInitialDeposit
+├── when fixed deposit is zero or less
+│   └── it reverts with InvalidFixedDeposit
+├── when auto threshold is zero or less
+│   └── it reverts with InvalidThreshold
+├── when minimum members is less than two
+│   └── it reverts with InvalidMinimumMembers
+├── when maximum members is less than minimum members
+│   └── it reverts with InvalidMaximumMembers
+├── when epoch duration is zero
+│   └── it reverts with InvalidEpochDuration
+├── when small withdraws limit is zero
+│   └── it reverts with InvalidSmallWithdrawsLimit
+├── when member address is zero
+│   └── it reverts with InvalidMemberAddress
+├── when members array is empty
+│   └── it processes with no members
+├── when members array has duplicates
+│   └── it sets member status correctly for duplicates
+├── when members count exceeds maximum members
+│   └── it processes all members
+├── when consensus threshold is zero
+│   └── it creates breadfund with zero threshold
+├── when consensus threshold is 100
+│   └── it creates breadfund requiring unanimous consent
+├── when ratio is zero
+│   └── it creates breadfund with zero ratio
+└── when all parameters are valid
+    ├── it increments nextId
+    ├── it stores the breadfund with correct id
+    ├── it sets all members as isMember
+    ├── it adds breadfund id to each member's breadfunds list
+    └── it emits BreadfundCreated event
+
+BreadfundsUnit::decommission
+├── when breadfund is not decommissionable
+│   └── it reverts with NotDecommissionable
+├── when breadfund is decommissionable
+│   ├── when members have withdrawable balances
+│   │   ├── it transfers each member's withdrawable balance
+│   │   ├── it sets withdrawable balances to zero
+│   │   └── when transfer fails
+│   │       └── it reverts with TransferFailed
+│   ├── when remaining balance exists after withdrawals
+│   │   ├── it calculates equal distribution
+│   │   ├── it transfers equal amounts to all members
+│   │   └── when transfer fails
+│   │       └── it reverts with TransferFailed
+│   ├── when no remaining balance exists
+│   │   └── it skips distribution
+│   ├── it sets breadfund balance to zero
+│   ├── it deletes the breadfund
+│   └── it emits BreadfundDecommissioned event
+└── when called with reentrancy attempt
+    └── it reverts with reentrancy guard
+
+BreadfundsUnit::deposit
+├── when breadfund is not commissioned
+│   └── it reverts with NotCommissioned
+├── when caller is not a member
+│   └── it reverts with NotMember
+├── when deposit amount is zero
+│   └── it reverts with InvalidDepositAmount
+├── when deposit amount is negative
+│   └── it reverts with InvalidDepositAmount
+├── when depositing before breadfund start time
+│   └── it reverts with DepositBeforeBreadfundStart
+├── when already deposited in current epoch
+│   └── it reverts with AlreadyDeposited
+├── when making first deposit
+│   ├── it adds initial deposit to total
+│   ├── it adds fixed deposit to total
+│   ├── it sets hasMadeFirstDeposit to true
+│   ├── it stores member contribution
+│   └── it calculates withdrawable with ratio
+├── when making subsequent deposit
+│   ├── it adds only fixed deposit to total
+│   └── it calculates withdrawable with ratio
+├── when transferFrom fails
+│   └── it reverts with TransferFailed
+└── when deposit is valid
+    ├── it updates breadfund balance
+    ├── it updates member withdrawable balance
+    ├── it marks member as deposited in current epoch
+    ├── it transfers tokens from member
+    └── it emits FundsDeposited event
+
+BreadfundsUnit::depositFor
+├── when breadfund is not commissioned
+│   └── it reverts with NotCommissioned
+├── when target member is not a member
+│   └── it reverts with NotMember
+├── when deposit amount is zero or less
+│   └── it reverts with InvalidDepositAmount
+├── when depositing before breadfund start time
+│   └── it reverts with DepositBeforeBreadfundStart
+├── when member already deposited in current epoch
+│   └── it reverts with AlreadyDeposited
+├── when transferFrom from sender fails
+│   └── it reverts with TransferFailed
+└── when deposit is valid
+    ├── it updates breadfund balance for target member
+    ├── it updates target member withdrawable balance
+    ├── it marks target member as deposited in current epoch
+    ├── it transfers tokens from sender not target
+    └── it emits FundsDeposited event for target member
+
+BreadfundsUnit::withdraw
+├── when breadfund is not commissioned
+│   └── it reverts with NotCommissioned
+├── when caller is not a member
+│   └── it reverts with NotMember
+├── when days requested is zero
+│   └── it calculates zero withdrawal amount
+├── when member contribution is zero
+│   └── it calculates zero daily withdrawable
+├── when ratio is zero
+│   └── it calculates zero withdrawable amount
+├── when requested amount exceeds withdrawable balance
+│   └── it reverts with NotWithdrawable
+├── when withdrawal is small
+│   ├── when exceeds small withdrawal limit for epoch
+│   │   └── it reverts with ExceedsSmallWithdrawalLimit
+│   ├── when within small withdrawal limit
+│   │   ├── it decrements member withdrawable balance
+│   │   ├── it increments small withdraws count
+│   │   ├── when transfer fails
+│   │   │   └── it reverts with TransferFailed
+│   │   ├── it transfers funds directly
+│   │   └── it emits FundsWithdrawn event
+│   └── when at exactly the limit
+│       └── it processes as small withdrawal
+└── when withdrawal is large
+    ├── it creates a withdrawal request
+    ├── it does not modify balances immediately
+    └── it emits WithdrawalPending event
+
+BreadfundsUnit::createRequest
+├── when owner is zero address
+│   └── it reverts with InvalidRequest
+├── when request already exists
+│   └── it reverts with AlreadyExists
+├── when breadfund is not commissioned
+│   └── it reverts with NotCommissioned
+├── when amount is zero
+│   └── it stores request with zero amount
+└── when request is valid
+    ├── it stores the request with correct data
+    ├── it increments nextIdRequest
+    ├── it initializes votes to zero
+    └── it emits RequestCreated event
+
+BreadfundsUnit::contest
+├── when request does not exist
+│   └── it processes with empty request
+├── when contest window is closed
+│   └── it reverts with ContestWindowClosed
+├── when contest window is exactly at deadline
+│   └── it allows contest
+├── when caller is not a member
+│   └── it reverts with NotMember
+├── when already contested
+│   └── it reverts with AlreadyContested
+└── when contest is valid
+    ├── it marks request as contested
+    └── it emits WithdrawalContested event
+
+BreadfundsUnit::executeContestedWithdrawl
+├── when request does not exist
+│   └── it processes with empty request
+├── when already executed
+│   └── it reverts with AlreadyExecuted
+├── when contest window has not passed
+│   ├── when not contested
+│   │   └── it does not execute
+│   └── when contested
+│       └── it does not execute
+├── when contest window has passed
+│   ├── when contested
+│   │   └── it does not execute
+│   └── when not contested
+│       ├── it marks as executed
+│       ├── when transfer fails
+│       │   └── it reverts with TransferFailed
+│       ├── it transfers funds to request owner
+│       └── it emits WithdrawalAutoExecuted event
+└── when called with reentrancy attempt
+    └── it reverts with reentrancy guard
+
+BreadfundsUnit::vote
+├── when request does not exist
+│   └── it processes with empty request
+├── when caller is not a member
+│   └── it reverts with NotMember
+├── when already voted
+│   └── it reverts with AlreadyVoted
+├── when voting window is closed
+│   └── it reverts with VotingWindowClosed
+├── when voting window is exactly at deadline
+│   └── it allows vote
+├── when request is already executed
+│   └── it reverts with AlreadyExecuted
+├── when voting yes
+│   ├── it increments yes votes
+│   ├── it marks member as voted
+│   ├── it emits Voted event with true
+│   └── when consensus is reached
+│       ├── it marks request as executed immediately
+│       ├── when transfer fails
+│       │   └── it reverts with TransferFailed
+│       ├── it transfers funds to owner
+│       └── it emits WithdrawalApproved event
+├── when voting no
+│   ├── it increments no votes
+│   ├── it marks member as voted
+│   ├── it emits Voted event with false
+│   └── it does not execute withdrawal
+├── when consensus threshold is exactly met
+│   └── it does not execute
+└── when consensus threshold is exceeded by one
+    └── it executes withdrawal
+
+BreadfundsUnit::isTokenAllowed
+├── when token is allowed
+│   └── it returns true
+└── when token is not allowed
+    └── it returns false
+
+BreadfundsUnit::getBreadfund
+├── when breadfund does not exist
+│   └── it returns empty breadfund
+├── when breadfund is decommissioned
+│   └── it reverts with NotCommissioned
+└── when breadfund exists
+    └── it returns complete breadfund data
+
+BreadfundsUnit::getBreadfunds
+├── when array is empty
+│   └── it returns empty array
+├── when some ids do not exist
+│   └── it returns empty breadfunds for non-existent ids
+└── when all ids exist
+    └── it returns array of all breadfunds
+
+BreadfundsUnit::getMemberBreadfunds
+├── when member has no breadfunds
+│   └── it returns empty array
+└── when member has breadfunds
+    └── it returns array of all member's breadfund ids
+
+BreadfundsUnit::getMemberBalances
+├── when breadfund does not exist
+│   └── it returns empty data
+├── when breadfund is decommissioned
+│   └── it reverts with NotCommissioned
+├── when breadfund has no members
+│   └── it returns empty arrays
+└── when breadfund has members
+    ├── it returns all member addresses
+    └── it returns corresponding balances
+
+BreadfundsUnit::hasMemberDepositedInEpoch
+├── when member has not deposited
+│   └── it returns false
+├── when member has deposited
+│   └── it returns true
+└── when checking invalid epoch or member
+    └── it returns false
+
+BreadfundsUnit::getCurrentEpochIndex
+├── when breadfund does not exist
+│   └── it calculates with default values
+├── when current time is before breadfund start
+│   └── it returns zero
+├── when current time equals breadfund start
+│   └── it returns zero
+├── when current time is one second into first epoch
+│   └── it returns zero
+├── when current time is exactly one epoch duration after start
+│   └── it returns one
+└── when current time is multiple epochs after start
+    └── it returns correct epoch index
+
+BreadfundsUnit::isDecommissionable
+├── when breadfund does not exist
+│   └── it returns true
+├── when breadfund has no owner
+│   └── it returns true
+├── when in epoch zero
+│   └── it returns false
+├── when all members deposited in all past epochs
+│   └── it returns false
+├── when one member missed one deposit in any past epoch
+│   └── it returns true
+├── when multiple members missed deposits
+│   └── it returns true
+└── when checking current epoch
+    └── it ignores current epoch deposits
