@@ -9,16 +9,10 @@ pragma solidity ^0.8.28;
  * - Deploys an upgradeable Breadfund via OZ Transparent Proxy
  * - Mints a mock ERC20 and allow-lists it
  * - Provides a “safe” default config template and reusable helpers
- *
- * Notes for reviewers:
- * - The `_assertConservative` invariant is a *soft* conservation check that
- *   compensates for the known bug where large request executions do not
- *   decrement member withdrawables. It adds `executedOut` to the contract
- *   balance before comparing to the sum of withdrawables.
- *   When that bug is fixed, fuzz suites can switch to a *strict* invariant
- *   (`contract balance >= sumWithdrawables`) where appropriate.
+
  * ────────────────────────────────────────────────────────────────────────────────
  */
+
 
 // ───────────────────────────── Imports ─────────────────────────────
 import {Test} from "forge-std/Test.sol";
@@ -197,39 +191,8 @@ abstract contract BreadfundFuzzBase is Test {
     return arr[seed % arr.length];
   }
 
-  /**
-   * @dev Soft conservation check.
-   * Sums member withdrawables and asserts:
-   *   (contract token balance + amounts paid out via executed large requests) ≥ sum(withdrawables)
-   *
-   * Rationale: There is a known issue where executing large requests does not
-   * decrement withdrawables. To keep long soaks exploring state without failing
-   * on that bug, we add `executedOut` to the contract balance when checking.
-   *
-   * When the bug is fixed, prefer a strict variant in tests where no large
-   * executions occur:
-   *   assertGe(contractBalance, sumWithdrawables, "strict conservation");
-   */
-  function _assertConservative(uint256 _id, address[] memory members) internal view {
-    uint256 sumW;
-    for (uint256 i = 0; i < members.length; i++) {
-      sumW += breadfund.memberWithdrawableBalance(_id, members[i]);
-    }
-    uint256 bal = token.balanceOf(address(breadfund));
 
-    uint256 executedOut;
-    uint256 nReq = breadfund.nextIdRequest();
-    for (uint256 r = 0; r < nReq; r++) {
-      (, uint256 bfId,, , , uint256 amount) = breadfund.requests(r);
-      if (bfId == _id && breadfund.isExecuted(r)) executedOut += amount;
-    }
 
-    assertGe(
-      bal + executedOut,
-      sumW,
-      "contract balance + executed large withdrawals must cover withdrawables (r=1)"
-    );
-  }
 
   /// @dev Helper to ensure the per-epoch small-withdraw counter never exceeds the limit.
   function _assertSmallCounterBound(

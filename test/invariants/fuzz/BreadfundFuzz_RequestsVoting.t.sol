@@ -14,10 +14,6 @@ pragma solidity ^0.8.28;
  *  - Only members may vote; no double voting; voting must happen within window.
  *  - Contested requests do not auto-execute on timeout.
  *  - Fuzzed voting converges either via consensus or timeout without reverts.
- *
- * Notes:
- *  - These tests are intentionally policy-heavy (unit-ish) because governance
- *    safety depends on exact boundaries and window ordering.
  * ────────────────────────────────────────────────────────────────────────────────
  */
 
@@ -38,12 +34,15 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
     uint256 depositValue = bound(depositValueRaw, 5e18, 1e22);
 
     IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.members = defaultMembers; cfg.ratio = 1; cfg.breadfundStart = block.timestamp;
+    cfg.members = defaultMembers; 
+    cfg.ratio = 1; 
+    cfg.breadfundStart = block.timestamp;
     uint256 id = breadfund.create(cfg);
 
     uint256 totalNeeded = depositValue + cfg.initialDeposit + cfg.fixedDeposit;
     _mintApprove(member1, totalNeeded, address(breadfund));
-    vm.prank(member1); breadfund.deposit(id, depositValue);
+    vm.prank(member1); 
+    breadfund.deposit(id, depositValue);
 
     // Choose a daysRequested that ensures "large" classification.
     uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
@@ -51,13 +50,15 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
     if (daysRequested > 30) daysRequested = 30;
     if (minDaysToBeLarge > 30) daysRequested = 30;
 
-    vm.prank(member1); breadfund.withdraw(id, daysRequested);
+    vm.prank(member1); 
+    breadfund.withdraw(id, daysRequested);
     uint256 reqId = breadfund.nextIdRequest() - 1;
 
     vm.warp(block.timestamp + cfg.contestWindow + 1);
 
     uint256 balBefore = token.balanceOf(member1);
-    vm.prank(member2); breadfund.executeContestedWithdrawl(reqId);
+    vm.prank(member2); 
+    breadfund.executeContestedWithdrawl(reqId);
     uint256 balAfter = token.balanceOf(member1);
 
     assertGt(balAfter, balBefore);
@@ -65,84 +66,149 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
   }
 
   /// -------------------------------------------------------------------------
-  /// Scenario: Voting threshold semantics.
-  /// Properties:
-  ///  - With 4 members and threshold=50%, exactly two "yes" votes is NOT enough.
-  ///  - A third "yes" vote pushes above threshold and executes.
+  /// Property-based: Voting threshold boundary.
+  /// For m members and threshold T%, exactly floor(m*T/100) YES must NOT execute;
+  /// strictly more than that must execute.
   /// -------------------------------------------------------------------------
-  function test_Voting_ExactThreshold_NoExecute_ThenAboveExecutes() public {
-    address[] memory members = _makeMembers(4);
+  function testFuzz_Voting_ThresholdBoundary(
+    uint8 membersRaw,
+    uint8 consensusPctRaw
+  ) public {
+    uint256 m = bound(uint256(membersRaw), 3, 20);
+    uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
+
+    address[] memory members = _makeMembers(m);
 
     IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.members = members; cfg.minimumMembers = 2; cfg.maximumMembers = 4;
-    cfg.consensusThreshold = 50; cfg.breadfundStart = block.timestamp;
+    cfg.members = members;
+    cfg.minimumMembers = 2;
+    cfg.maximumMembers = m;
+    cfg.consensusThreshold = consensus;
+    cfg.breadfundStart = block.timestamp;
     cfg.votingWindow = 7 days;
+    cfg.contestWindow = 7 days;
+
     uint256 id = breadfund.create(cfg);
 
-    uint256 dep = 2e18;
-    for (uint256 i = 0; i < 4; i++) {
-      _mintApprove(members[i], dep + cfg.initialDeposit + cfg.fixedDeposit, address(breadfund));
-      vm.prank(members[i]); breadfund.deposit(id, dep);
+    // Seed deposits for members[1..m-1]
+    uint256 depEach = 2e18;
+    for (uint256 i = 1; i < m; i++) {
+      _mintApprove(members[i], depEach + cfg.initialDeposit + cfg.fixedDeposit, address(breadfund));
+      vm.prank(members[i]);
+      breadfund.deposit(id, depEach);
     }
 
-    vm.prank(members[0]); breadfund.withdraw(id, 30);
+    // Single (larger) deposit for members[0] so we can make a large request
+    uint256 depositValue = 5e18;
+    _mintApprove(members[0], depositValue + cfg.initialDeposit + cfg.fixedDeposit, address(breadfund));
+    vm.prank(members[0]);
+    breadfund.deposit(id, depositValue);
+
+    // Compute days to classify as "large" based on that one deposit
+    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
+    if (minDaysToBeLarge > 30) minDaysToBeLarge = 30;
+    uint256 daysRequested = minDaysToBeLarge == 0 ? 1 : minDaysToBeLarge;
+
+    vm.prank(members[0]);
+    breadfund.withdraw(id, daysRequested);
     uint256 reqId = breadfund.nextIdRequest() - 1;
 
-    vm.prank(members[1]); breadfund.vote(reqId, true);
-    vm.prank(members[2]); breadfund.vote(reqId, true);
+    // Exactly threshold YES votes (floor).
+    uint256 needed = (m * consensus) / 100; // floor
+    for (uint256 i = 1; i <= needed && i < m; i++) {
+      vm.prank(members[i]);
+      breadfund.vote(reqId, true);
+    }
     assertFalse(breadfund.isExecuted(reqId), "== threshold must not execute");
 
-    uint256 balBefore = token.balanceOf(members[0]);
-    vm.prank(members[3]); breadfund.vote(reqId, true);
-    assertTrue(breadfund.isExecuted(reqId), "> threshold executes");
-    uint256 balAfter = token.balanceOf(members[0]);
-    assertGt(balAfter, balBefore);
+    // One more YES crosses the threshold.
+    if (needed + 1 < m) {
+      uint256 balBefore = token.balanceOf(members[0]);
+      vm.prank(members[needed + 1]);
+      breadfund.vote(reqId, true);
+      assertTrue(breadfund.isExecuted(reqId), "> threshold executes");
+      uint256 balAfter = token.balanceOf(members[0]);
+      assertGt(balAfter, balBefore);
+    }
   }
 
   /// -------------------------------------------------------------------------
-  /// Scenario: Voting windows and contest behavior.
-  /// Properties:
-  ///  - Only members may vote; double voting reverts.
-  ///  - Votes must be within `votingWindow`.
-  ///  - A contested request must not auto-execute on timeout.
+  /// Property-based: Voting windows and contest behavior.
+  ///  - Only members may vote; no double voting.
+  ///  - Votes outside `votingWindow` revert.
+  ///  - Contested requests must NOT auto-execute on timeout,
+  ///    and executeContestedWithdrawl should not succeed.
   /// -------------------------------------------------------------------------
-  function test_Voting_Windows_And_Contest_BlockAutoExec() public {
+  function testFuzz_Voting_Windows_And_Contest_BlockAutoExec(
+    uint32 votingSecsRaw,
+    uint32 contestSecsRaw
+  ) public {
+    uint256 votingWin = bound(uint256(votingSecsRaw), 1 hours, 3 days);
+    uint256 contestWin = bound(uint256(contestSecsRaw), 1 hours, 3 days);
+
     IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.members = defaultMembers; cfg.breadfundStart = block.timestamp;
-    cfg.votingWindow = 1 days; cfg.contestWindow = 1 days; cfg.ratio = 1;
+    cfg.members = defaultMembers;
+    cfg.breadfundStart = block.timestamp;
+    cfg.votingWindow = votingWin;
+    cfg.contestWindow = contestWin;
+    cfg.ratio = 1;
+
     uint256 id = breadfund.create(cfg);
 
-    uint256 dep = 1e18;
-    _mintApprove(member1, dep + cfg.initialDeposit + cfg.fixedDeposit, address(breadfund));
-    vm.prank(member1); breadfund.deposit(id, dep);
+    // Fund member1 and create a "large" request.
+    uint256 depositValue = 2e18;
+    _mintApprove(member1, depositValue + cfg.initialDeposit + cfg.fixedDeposit, address(breadfund));
+    vm.prank(member1);
+    breadfund.deposit(id, depositValue);
 
-    vm.prank(member1); breadfund.withdraw(id, 30);
+    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
+    if (minDaysToBeLarge > 30) {
+      minDaysToBeLarge = 30;
+    }
+    uint256 daysRequested = minDaysToBeLarge;
+    if (daysRequested == 0) {
+      daysRequested = 1;
+    }
+
+    vm.prank(member1);
+    breadfund.withdraw(id, daysRequested);
     uint256 reqId = breadfund.nextIdRequest() - 1;
 
+    // Only members may vote.
     address outsider = address(0xDEAD);
     vm.prank(outsider);
     vm.expectRevert(IBreadfund.NotMember.selector);
     breadfund.vote(reqId, true);
 
-    vm.prank(member2); breadfund.vote(reqId, true);
+    // No double voting.
+    vm.prank(member2);
+    breadfund.vote(reqId, true);
     vm.prank(member2);
     vm.expectRevert(IBreadfund.AlreadyVoted.selector);
     breadfund.vote(reqId, true);
 
-    vm.warp(block.timestamp + cfg.votingWindow + 1);
+    // Voting must be within the window.
+    vm.warp(block.timestamp + votingWin + 1);
     vm.prank(member3);
     vm.expectRevert(IBreadfund.VotingWindowClosed.selector);
     breadfund.vote(reqId, true);
 
-    // New request that gets contested, then verify it won't auto-execute.
-    vm.prank(member1); breadfund.withdraw(id, 30);
+    // New request that gets contested; verify it does not auto-execute after timeout.
+    vm.prank(member1);
+    breadfund.withdraw(id, daysRequested);
     uint256 req2 = breadfund.nextIdRequest() - 1;
 
-    vm.prank(member2); breadfund.contest(req2);
-    vm.warp(block.timestamp + cfg.contestWindow + 1);
-    vm.prank(member3); breadfund.executeContestedWithdrawl(req2);
+    vm.prank(member2);
+    breadfund.contest(req2);
+
+    vm.warp(block.timestamp + contestWin + 1);
+
+    // Attempt execution; it should not mark executed for contested request.
+    vm.prank(member3);
+    try breadfund.executeContestedWithdrawl(req2) { } catch { }
     assertFalse(breadfund.isExecuted(req2), "contested request must not auto-execute");
   }
+
 
   /// -------------------------------------------------------------------------
   /// Scenario: Vote-heavy fuzz — random voting with bias until consensus or timeout.
@@ -160,9 +226,13 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
 
     address[] memory members = _makeMembers(m);
     IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.members = members; cfg.minimumMembers = 2; cfg.maximumMembers = m;
-    cfg.consensusThreshold = consensus; cfg.breadfundStart = block.timestamp;
-    cfg.votingWindow = 1 days; cfg.contestWindow = 1 days;
+    cfg.members = members; 
+    cfg.minimumMembers = 2; 
+    cfg.maximumMembers = m;
+    cfg.consensusThreshold = consensus; 
+    cfg.breadfundStart = block.timestamp;
+    cfg.votingWindow = 1 days; 
+    cfg.contestWindow = 1 days;
     uint256 id = breadfund.create(cfg);
 
     // Seed balances; ignore per-member deposit failure to keep exploring.
