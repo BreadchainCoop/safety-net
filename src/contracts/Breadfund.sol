@@ -200,7 +200,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function executeContestedWithdrawl(uint256 _idRequest) external override nonReentrant {
+  function executeContestedWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
