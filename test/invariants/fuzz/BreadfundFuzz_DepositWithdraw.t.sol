@@ -123,7 +123,7 @@ contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
           if ((seed & 1) == 1) {
             vm.warp(block.timestamp + cfg.contestWindow + 1);
             vm.prank(actor); 
-            try breadfund.executeContestedWithdrawl(reqId) {
+            try breadfund.executeContestedWithdrawal(reqId) {
               assertTrue(breadfund.isExecuted(reqId));
             } catch { }
           }
@@ -142,7 +142,7 @@ contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
     uint256 reqId = nReq - 1;
     vm.warp(block.timestamp + cfg.contestWindow + 1);
     vm.prank(actor);
-    try breadfund.executeContestedWithdrawl(reqId) { } catch {}
+    try breadfund.executeContestedWithdrawal(reqId) { } catch {}
   }
 
   /// Small-withdraw limit fuzzing

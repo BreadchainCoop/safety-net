@@ -58,7 +58,7 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
 
     uint256 balBefore = token.balanceOf(member1);
     vm.prank(member2); 
-    breadfund.executeContestedWithdrawl(reqId);
+    breadfund.executeContestedWithdrawal(reqId);
     uint256 balAfter = token.balanceOf(member1);
 
     assertGt(balAfter, balBefore);
@@ -137,7 +137,7 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
   ///  - Only members may vote; no double voting.
   ///  - Votes outside `votingWindow` revert.
   ///  - Contested requests must NOT auto-execute on timeout,
-  ///    and executeContestedWithdrawl should not succeed.
+  ///    and executeContestedWithdrawal should not succeed.
   /// -------------------------------------------------------------------------
   function testFuzz_Voting_Windows_And_Contest_BlockAutoExec(
     uint32 votingSecsRaw,
@@ -205,7 +205,7 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
 
     // Attempt execution; it should not mark executed for contested request.
     vm.prank(member3);
-    try breadfund.executeContestedWithdrawl(req2) { } catch { }
+    try breadfund.executeContestedWithdrawal(req2) { } catch { }
     assertFalse(breadfund.isExecuted(req2), "contested request must not auto-execute");
   }
 
@@ -262,7 +262,7 @@ contract BreadfundFuzz_RequestsVoting is BreadfundFuzzBase {
     // If not executed by consensus, try after contest window.
     if (!breadfund.isExecuted(reqId)) {
       vm.warp(block.timestamp + cfg.contestWindow + 1);
-      vm.prank(members[m-1]); try breadfund.executeContestedWithdrawl(reqId) { } catch { }
+      vm.prank(members[m-1]); try breadfund.executeContestedWithdrawal(reqId) { } catch { }
     }
 
     assertTrue(true); // sanity: no catastrophic revert

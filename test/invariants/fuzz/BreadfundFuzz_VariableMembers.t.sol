@@ -163,7 +163,7 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
           uint256 reqId = breadfund.nextIdRequest() - 1;
           vm.warp(block.timestamp + cfg.contestWindow + 1);
           vm.prank(actor);
-          try breadfund.executeContestedWithdrawl(reqId) {} catch {}
+          try breadfund.executeContestedWithdrawal(reqId) {} catch {}
         }
       }
       vm.warp(block.timestamp + cfg.epochDuration + 1);
