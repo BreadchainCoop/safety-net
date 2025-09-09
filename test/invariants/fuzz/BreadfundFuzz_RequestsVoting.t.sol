@@ -1,21 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/**
- * ────────────────────────────────────────────────────────────────────────────────
- * BreadfundFuzz_RequestsVoting.t.sol
- *
- * Purpose: Validate the lifecycle of large-withdrawal requests and the governance
- * voting rules around them (threshold semantics, windows, and contest behavior).
- *
- * Properties checked:
- *  - Large withdrawals create requests and only execute after the contest window.
- *  - Voting semantics: == threshold does NOT execute; > threshold executes.
- *  - Only members may vote; no double voting; voting must happen within window.
- *  - Contested requests do not auto-execute on timeout.
- *  - Fuzzed voting converges either via consensus or timeout without reverts.
- * ────────────────────────────────────────────────────────────────────────────────
- */
+
 
 import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
 import {IBreadfund} from "src/interfaces/IBreadfund.sol";

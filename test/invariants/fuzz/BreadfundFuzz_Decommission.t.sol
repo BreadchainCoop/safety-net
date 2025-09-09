@@ -1,29 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/**
- * ────────────────────────────────────────────────────────────────────────────────
- * BreadfundFuzz_Decommission.t.sol
- *
- * Purpose: Exercise the "decommission" flow under harsh conditions:
- * - Members deposit unevenly
- * - One member skips contributions for several epochs
- * - Fund becomes decommissionable due to missed payments
- *
- * Properties checked:
- *  - Contract is flagged decommissionable after a skipped epoch.
- *  - Decommission distributes withdrawables + pro-rata share of remaining balance.
- *  - Withdrawable balances are reset to 0 after decommission.
- *  - The fund cannot be queried anymore (`NotCommissioned`).
- *  - Dust remainder stays in the contract (explicit policy).
- *
- * Notes for reviewers:
- *  - After fixing related accounting bugs (e.g., large-exec not decrementing
- *    withdrawables), re-check that `assertGe(cBalBefore, sumW)` still holds.
- *  - Could be extended with cases: prior pending requests, more members,
- *    fee-on-transfer tokens.
- * ────────────────────────────────────────────────────────────────────────────────
- */
 
 import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
 import {IBreadfund} from "src/interfaces/IBreadfund.sol";

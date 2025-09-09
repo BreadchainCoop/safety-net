@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/**
- * ────────────────────────────────────────────────────────────────────────────────
- * BreadfundFuzzBase.t.sol
- *
- * Purpose: Shared base for all fuzz suites.
- * - Deploys an upgradeable Breadfund via OZ Transparent Proxy
- * - Mints a mock ERC20 and allow-lists it
- * - Provides a “safe” default config template and reusable helpers
-
- * ────────────────────────────────────────────────────────────────────────────────
- */
 
 
 // ───────────────────────────── Imports ─────────────────────────────

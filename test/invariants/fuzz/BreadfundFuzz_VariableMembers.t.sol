@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/**
- *
- * Purpose: Fuzz properties over variable member counts and epochs. Exercises:
- *  - Deposits across epochs
- *  - Small withdrawals across epochs
- *  - Large withdrawals creating requests
- *  - Executing requests after contest window
- */
+
 
 import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
 import {IBreadfund} from "src/interfaces/IBreadfund.sol";

@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/**
- * ────────────────────────────────────────────────────────────────────────────────
- * BreadfundFuzz_Create.t.sol
- *
- * Purpose: Stress the Breadfund creation surface with varied consensus thresholds,
- * auto-thresholds, member lists, and token allow-list status. Verifies monotonic
- * ID assignment and expected reverts for invalid inputs.
- * ────────────────────────────────────────────────────────────────────────────────
- */
 
 import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
 import {IBreadfund} from "src/interfaces/IBreadfund.sol";
@@ -26,7 +17,7 @@ contract BreadfundFuzz_Create is BreadfundFuzzBase {
       IBreadfund.Breadfund memory cfg = safeCfg;
       cfg.breadfundStart = block.timestamp + 1;
       cfg.consensusThreshold = uint256((cBase + i) % 100);
-      if (cfg.consensusThreshold < 1) cfg.consensusThreshold = 1; // input sanitization for the fuzz only
+      if (cfg.consensusThreshold < 1) cfg.consensusThreshold = 1;
       cfg.autoThreshold = SAFE_AUTO_THRESHOLD + i * 1e15;
       cfg.members = _threeMembers();
 
