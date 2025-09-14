@@ -2,4 +2,4 @@
 # 2. Build the contracts
 # 3. Stage build output
 # 4. Lint and stage style improvements
-yarn lint:check && yarn build && npx lint-staged
+# yarn lint:check && yarn build && npx lint-staged

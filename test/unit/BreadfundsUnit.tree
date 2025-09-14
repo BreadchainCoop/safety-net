@@ -135,7 +135,7 @@ BreadfundsUnit::contest
 └── when contested within window by a member
     └── it marks the request contested
 
-BreadfundsUnit::executeContestedWithdrawl
+BreadfundsUnit::executeContestedWithdrawal
 ├── when contest window still open and not contested
 │   └── it does nothing (not executed)
 ├── when request contested and window passed
