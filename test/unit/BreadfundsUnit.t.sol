@@ -654,29 +654,29 @@ contract BreadfundsUnit is Test {
     assertTrue(_bf.isContested(reqId));
   }
 
-  function test_ExecuteContestedWithdrawlWhenContestWindowIsStillOpen() external {
+  function test_ExecuteContestedWithdrawalWhenContestWindowIsStillOpen() external {
     (, uint256 reqId) = _createFundAndRequest();
     // Should do nothing while still within window and not contested
-    _bf.executeContestedWithdrawl(reqId);
+    _bf.executeContestedWithdrawal(reqId);
     assertFalse(_bf.isExecuted(reqId));
   }
 
-  function test_ExecuteContestedWithdrawlWhenRequestIsContested() external {
+  function test_ExecuteContestedWithdrawalWhenRequestIsContested() external {
     (, uint256 reqId) = _createFundAndRequest();
     vm.prank(_bob);
     _bf.contest(reqId);
     vm.warp(block.timestamp + 10 days);
-    _bf.executeContestedWithdrawl(reqId);
+    _bf.executeContestedWithdrawal(reqId);
     assertFalse(_bf.isExecuted(reqId));
   }
 
-  function test_ExecuteContestedWithdrawlWhenContestWindowHasPassedAndRequestWasNotContested() external {
+  function test_ExecuteContestedWithdrawalWhenContestWindowHasPassedAndRequestWasNotContested() external {
     (, uint256 reqId) = _createFundAndRequest();
     vm.warp(block.timestamp + 10 days); // beyond window
     (address rqOwner, , , , , uint256 rqAmount) = _bf.requests(reqId);
     vm.expectEmit(true, true, false, true);
     emit IBreadfund.WithdrawalAutoExecuted(reqId, rqOwner, rqAmount);
-    _bf.executeContestedWithdrawl(reqId);
+    _bf.executeContestedWithdrawal(reqId);
     assertTrue(_bf.isExecuted(reqId));
   }
 
