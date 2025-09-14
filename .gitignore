@@ -26,3 +26,4 @@ test/invariants/fuzz/echidna_coverage
 
 # Linter
 .husky/pre-commit
+.husky/pre-commit
