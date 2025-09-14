@@ -33,7 +33,8 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",
-    "@openzeppelin/contracts-upgradeable": "^5.1.0"
+    "@openzeppelin/contracts-upgradeable": "^5.1.0",
+    "forge": "^2.3.0"
   },
   "devDependencies": {
     "@commitlint/cli": "19.3.0",

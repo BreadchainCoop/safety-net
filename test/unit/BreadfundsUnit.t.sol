@@ -1,745 +1,827 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-contract BreadfundsUnit {
-    function test_InitializeWhenAlreadyInitialized() external {
-        // it reverts with InvalidInitialization
-    }
-
-    function test_InitializeWhenNotInitialized() external {
-        // it sets the owner correctly
-        // it initializes OwnableUpgradeable
-        // it prevents further initialization calls
-    }
-
-    function test_SetTokenAllowedWhenCallerIsNotOwner() external {
-        // it reverts with OwnableUnauthorizedAccount
-    }
-
-    function test_SetTokenAllowedWhenTokenAddressIsZero() external {
-        // it processes but sets zero address mapping
-    }
-
-    modifier whenCallerIsOwner() {
-        _;
-    }
-
-    function test_SetTokenAllowedWhenAllowingAToken() external whenCallerIsOwner {
-        // it sets allowedTokens mapping to true
-        // it emits TokenAllowed event with true
-    }
-
-    function test_SetTokenAllowedWhenDisallowingAToken() external whenCallerIsOwner {
-        // it sets allowedTokens mapping to false
-        // it emits TokenAllowed event with false
-    }
-
-    function test_CreateWhenBreadfundIDAlreadyExists() external {
-        // it reverts with AlreadyExists
-    }
-
-    function test_CreateWhenTokenIsNotInAllowedTokensMapping() external {
-        // it reverts with TokenNotAllowed
-    }
-
-    function test_CreateWhenBreadfundStartTimeIsZero() external {
-        // it reverts with InvalidBreadfundStartTime
-    }
-
-    function test_CreateWhenBreadfundStartTimeIsInThePast() external {
-        // it processes but starts immediately
-    }
-
-    function test_CreateWhenOwnerIsZeroAddress() external {
-        // it reverts with InvalidOwner
-    }
-
-    function test_CreateWhenInitialDepositIsZero() external {
-        // it reverts with InvalidInitialDeposit
-    }
-
-    function test_CreateWhenInitialDepositIsNegative() external {
-        // it reverts with InvalidInitialDeposit
-    }
-
-    function test_CreateWhenFixedDepositIsZero() external {
-        // it reverts with InvalidFixedDeposit
-    }
-
-    function test_CreateWhenFixedDepositIsNegative() external {
-        // it reverts with InvalidFixedDeposit
-    }
-
-    function test_CreateWhenAutoThresholdIsZero() external {
-        // it reverts with InvalidThreshold
-    }
-
-    function test_CreateWhenAutoThresholdIsNegative() external {
-        // it reverts with InvalidThreshold
-    }
-
-    function test_CreateWhenMinimumMembersIs0() external {
-        // it reverts with InvalidMinimumMembers
-    }
-
-    function test_CreateWhenMinimumMembersIs1() external {
-        // it reverts with InvalidMinimumMembers
-    }
-
-    function test_CreateWhenMaximumMembersEqualsMinimumMembers() external {
-        // it processes successfully
-    }
-
-    function test_CreateWhenMaximumMembersIsLessThanMinimumMembers() external {
-        // it reverts with InvalidMaximumMembers
-    }
-
-    function test_CreateWhenEpochDurationIsZero() external {
-        // it reverts with InvalidEpochDuration
-    }
-
-    function test_CreateWhenEpochDurationIsVeryLarge() external {
-        // it processes but may cause calculation issues
-    }
-
-    function test_CreateWhenSmallWithdrawsLimitIsZero() external {
-        // it reverts with InvalidSmallWithdrawsLimit
-    }
-
-    function test_CreateWhenMembersArrayIsEmpty() external {
-        // it processes with no initial members
-    }
-
-    function test_CreateWhenAnyMemberAddressIsZeroAddress() external {
-        // it reverts with InvalidMemberAddress
-    }
-
-    function test_CreateWhenMembersArrayContainsDuplicates() external {
-        // it sets isMember correctly for all duplicates
-    }
-
-    function test_CreateWhenMembersArrayExceedsMaximumMembers() external {
-        // it processes all provided members regardless
-    }
-
-    function test_CreateWhenConsensusThresholdIsZero() external {
-        // it processes with no consensus requirement
-    }
-
-    function test_CreateWhenConsensusThresholdIsGreaterThan100() external {
-        // it processes but makes consensus impossible
-    }
-
-    function test_CreateWhenRatioIsZero() external {
-        // it processes but members cannot build withdrawable balance
-    }
-
-    function test_CreateWhenRatioIsGreaterThan100() external {
-        // it processes with high withdrawal multiplier
-    }
-
-    function test_CreateWhenAllParametersAreValid() external {
-        // it increments nextId by 1
-        // it assigns nextId as breadfund id
-        // it stores complete breadfund struct in breadfunds mapping
-        // it sets isMember mapping to true for all members
-        // it pushes breadfund ID to each member's memberBreadfunds array
-        // it emits BreadfundCreated event with all 12 parameters
-        // it returns the assigned breadfund ID
-    }
-
-    function test_DecommissionWhenBreadfundDoesNotExist() external {
-        // it processes as if decommissionable
-    }
-
-    function test_DecommissionWhenBreadfundIsNotDecommissionable() external {
-        // it reverts with NotDecommissionable
-    }
-
-    function test_DecommissionWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    modifier whenBreadfundIsDecommissionable() {
-        _;
-    }
-
-    function test_DecommissionWhenBreadfundIsDecommissionable() external whenBreadfundIsDecommissionable {
-        // it sets breadfundBalance to zero first
-        // it deletes breadfund struct completely
-        // it emits BreadfundDecommissioned event with breadfund ID
-    }
-
-    modifier whenMembersHaveWithdrawableBalances() {
-        _;
-    }
-
-    function test_DecommissionWhenMembersHaveWithdrawableBalances()
-        external
-        whenBreadfundIsDecommissionable
-        whenMembersHaveWithdrawableBalances
-    {
-        // it transfers each member's withdrawable balance
-        // it sets memberWithdrawableBalance to zero
-        // it deducts transferred amount from remaining balance
-    }
-
-    function test_DecommissionWhenAnyTransferFails()
-        external
-        whenBreadfundIsDecommissionable
-        whenMembersHaveWithdrawableBalances
-    {
-        // it reverts with TransferFailed
-    }
-
-    modifier whenThereIsRemainingBalanceAfterAllWithdrawals() {
-        _;
-    }
-
-    function test_DecommissionWhenThereIsRemainingBalanceAfterAllWithdrawals()
-        external
-        whenBreadfundIsDecommissionable
-        whenThereIsRemainingBalanceAfterAllWithdrawals
-    {
-        // it calculates equal distribution
-        // it transfers equal amounts to all members
-    }
-
-    function test_DecommissionWhenAnyEqualDistributionTransferFails()
-        external
-        whenBreadfundIsDecommissionable
-        whenThereIsRemainingBalanceAfterAllWithdrawals
-    {
-        // it reverts with TransferFailed
-    }
-
-    function test_DecommissionWhenRemainingBalanceIsNotEvenlyDivisible() external whenBreadfundIsDecommissionable {
-        // it distributes floor amount and remainder stays in contract
-    }
-
-    function test_DepositWhenBreadfundOwnerIsZeroAddress() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_DepositWhenCallerIsNotInIsMemberMapping() external {
-        // it reverts with NotMember
-    }
-
-    function test_DepositWhenDepositValueIsZero() external {
-        // it reverts with InvalidDepositAmount
-    }
-
-    function test_DepositWhenDepositValueIsNegative() external {
-        // it reverts with InvalidDepositAmount
-    }
-
-    function test_DepositWhenCurrentTimeIsBeforeBreadfundStartTime() external {
-        // it reverts with DepositBeforeBreadfundStart
-    }
-
-    function test_DepositWhenCurrentTimeEqualsBreadfundStartTime() external {
-        // it processes as valid deposit timing
-    }
-
-    function test_DepositWhenMemberAlreadyDepositedInCurrentEpoch() external {
-        // it reverts with AlreadyDeposited
-    }
-
-    function test_DepositWhenReentrancyIsAttempted() external {
-        // it reverts with TransferFailed
-    }
-
-    function test_DepositWhenTokenTransferFromFails() external {
-        // it reverts with TransferFailed
-    }
-
-    function test_DepositWhenMakingFirstDeposit() external {
-        // it stores value in breadfundMemberContribute mapping
-        // it calculates totalDeposit as value plus fixedDeposit plus initialDeposit
-        // it sets hasMadeFirstDeposit mapping to true
-        // it adds totalDeposit to breadfundBalance
-        // it adds value times ratio to memberWithdrawableBalance
-        // it sets epochMemberDeposits to true
-        // it calls transferFrom from member to contract with totalDeposit
-        // it emits FundsDeposited with id member and totalDeposit
-    }
-
-    function test_DepositWhenMakingSubsequentDeposits() external {
-        // it calculates totalDeposit as value plus fixedDeposit only
-        // it adds totalDeposit to breadfundBalance
-        // it adds value times ratio to memberWithdrawableBalance
-        // it sets epochMemberDeposits to true
-        // it calls transferFrom from member to contract with totalDeposit
-        // it emits FundsDeposited with id member and totalDeposit
-    }
-
-    function test_DepositWhenRatioIsZero() external {
-        // it updates balances but memberWithdrawableBalance remains zero
-    }
-
-    function test_DepositWhenValueCausesIntegerOverflow() external {
-        // it reverts due to Solidity overflow protection
-    }
-
-    function test_DepositForWhenBreadfundOwnerIsZeroAddress() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_DepositForWhenTargetMemberIsNotInIsMemberMapping() external {
-        // it reverts with NotMember
-    }
-
-    function test_DepositForWhenSenderIsNotAMember() external {
-        // it processes successfully
-    }
-
-    function test_DepositForWhenDepositValueIsZero() external {
-        // it reverts with InvalidDepositAmount
-    }
-
-    function test_DepositForWhenDepositValueIsNegative() external {
-        // it reverts with InvalidDepositAmount
-    }
-
-    function test_DepositForWhenCurrentTimeIsBeforeBreadfundStartTime() external {
-        // it reverts with DepositBeforeBreadfundStart
-    }
-
-    function test_DepositForWhenTargetMemberAlreadyDepositedInCurrentEpoch() external {
-        // it reverts with AlreadyDeposited
-    }
-
-    function test_DepositForWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    function test_DepositForWhenTokenTransferFromFailsFromSender() external {
-        // it reverts with TransferFailed
-    }
-
-    function test_DepositForWhenMakingFirstDepositForTargetMember() external {
-        // it stores value in breadfundMemberContribute for target
-        // it calculates totalDeposit as value plus fixedDeposit plus initialDeposit
-        // it sets hasMadeFirstDeposit to true for target member
-        // it adds totalDeposit to breadfundBalance
-        // it adds value times ratio to target memberWithdrawableBalance
-        // it sets epochMemberDeposits to true for target
-        // it calls transferFrom from sender to contract with totalDeposit
-        // it emits FundsDeposited with target member address
-    }
-
-    function test_DepositForWhenMakingSubsequentDepositsForTargetMember() external {
-        // it calculates totalDeposit as value plus fixedDeposit only
-        // it adds totalDeposit to breadfundBalance
-        // it adds value times ratio to target memberWithdrawableBalance
-        // it sets epochMemberDeposits to true for target
-        // it calls transferFrom from sender to contract with totalDeposit
-        // it emits FundsDeposited with target member address
-    }
-
-    function test_WithdrawWhenBreadfundOwnerIsZeroAddress() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_WithdrawWhenCallerIsNotInIsMemberMapping() external {
-        // it reverts with NotMember
-    }
-
-    function test_WithdrawWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    function test_WithdrawWhenDaysRequestedIsZero() external {
-        // it calculates withdrawAmount as zero and processes
-    }
-
-    function test_WithdrawWhenMemberContributionIsZero() external {
-        // it calculates dailyWithdrawableAmount as zero
-    }
-
-    function test_WithdrawWhenRatioIsZero() external {
-        // it calculates withdrawableAmount as zero from any contribution
-    }
-
-    function test_WithdrawWhenRequestedWithdrawalAmountExceedsMemberWithdrawableBalance() external {
-        // it reverts with NotWithdrawable
-    }
-
-    function test_WithdrawWhenWithdrawalAmountEqualsMemberWithdrawableBalanceExactly() external {
-        // it processes as valid withdrawal
-    }
-
-    modifier whenWithdrawalAmountIsBelowOrEqualToAutoThreshold() {
-        _;
-    }
-
-    function test_WithdrawWhenSmallWithdrawsCountExceedsSmallWithdrawsLimitForCurrentEpoch()
-        external
-        whenWithdrawalAmountIsBelowOrEqualToAutoThreshold
-    {
-        // it reverts with ExceedsSmallWithdrawalLimit
-    }
-
-    function test_WithdrawWhenSmallWithdrawsCountEqualsSmallWithdrawsLimitExactly()
-        external
-        whenWithdrawalAmountIsBelowOrEqualToAutoThreshold
-    {
-        // it reverts with ExceedsSmallWithdrawalLimit
-    }
-
-    function test_WithdrawWhenTokenTransferFails() external whenWithdrawalAmountIsBelowOrEqualToAutoThreshold {
-        // it reverts with TransferFailed
-    }
-
-    function test_WithdrawWhenWithinSmallWithdrawalsLimit()
-        external
-        whenWithdrawalAmountIsBelowOrEqualToAutoThreshold
-    {
-        // it increments smallWithdrawsCount for current epoch and member
-        // it decreases memberWithdrawableBalance by withdrawAmount
-        // it calls transfer to member with withdrawAmount
-        // it emits FundsWithdrawn with id member and withdrawAmount
-    }
-
-    function test_WithdrawWhenWithdrawalAmountIsAboveAutoThreshold() external {
-        // it creates Request struct with member as owner
-        // it sets breadfundId timestamp and zero votes
-        // it calls internal createRequest with the struct
-        // it increments nextIdRequest
-        // it stores request in requests mapping
-        // it emits RequestCreated event
-        // it emits WithdrawalPending with requestId member and withdrawAmount
-    }
-
-    function test_CreateRequestWhenRequestOwnerIsZeroAddress() external {
-        // it reverts with InvalidRequest
-    }
-
-    function test_CreateRequestWhenRequestIDCollisionOccurs() external {
-        // it reverts with AlreadyExists
-    }
-
-    function test_CreateRequestWhenBreadfundsOwnerIsZero() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_CreateRequestWhenBreadfundDoesNotExist() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_CreateRequestWhenRequestAmountIsZero() external {
-        // it processes and stores request with zero amount
-    }
-
-    function test_CreateRequestWhenRequestTimestampIsZero() external {
-        // it processes with zero timestamp
-    }
-
-    function test_CreateRequestWhenRequestIsValid() external {
-        // it increments nextIdRequest by 1
-        // it stores request in requests mapping
-        // it emits RequestCreated with idRequest owner timestamp and amount
-        // it returns the assigned request ID
-    }
-
-    function test_ContestWhenRequestDoesNotExist() external {
-        // it processes with empty request values
-    }
-
-    function test_ContestWhenContestWindowHasPassed() external {
-        // it reverts with ContestWindowClosed
-    }
-
-    function test_ContestWhenContestWindowIsExactlyAtDeadline() external {
-        // it processes as valid contest
-    }
-
-    function test_ContestWhenCallerIsNotInIsMemberMappingForRequestBreadfund() external {
-        // it reverts with NotMember
-    }
-
-    function test_ContestWhenIsContestedIsAlreadyTrue() external {
-        // it reverts with AlreadyContested
-    }
-
-    function test_ContestWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    function test_ContestWhenContestIsValid() external {
-        // it sets isContested to true
-        // it emits WithdrawalContested with requestId owner and timestamp
-    }
-
-    function test_ExecuteContestedWithdrawlWhenRequestDoesNotExist() external {
-        // it processes with empty request values
-    }
-
-    function test_ExecuteContestedWithdrawlWhenIsExecutedIsAlreadyTrue() external {
-        // it reverts with AlreadyExecuted
-    }
-
-    function test_ExecuteContestedWithdrawlWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    function test_ExecuteContestedWithdrawlWhenContestWindowIsStillOpen() external {
-        // it does not execute and returns silently
-    }
-
-    function test_ExecuteContestedWithdrawlWhenRequestIsContested() external {
-        // it does not execute and returns silently
-    }
-
-    modifier whenContestWindowHasPassedAndRequestWasNotContested() {
-        _;
-    }
-
-    function test_ExecuteContestedWithdrawlWhenContestWindowHasPassedAndRequestWasNotContested()
-        external
-        whenContestWindowHasPassedAndRequestWasNotContested
-    {
-        // it sets isExecuted to true
-        // it calls transfer to request owner with amount
-        // it emits WithdrawalAutoExecuted with requestId owner and amount
-    }
-
-    function test_ExecuteContestedWithdrawlWhenTokenTransferFails()
-        external
-        whenContestWindowHasPassedAndRequestWasNotContested
-    {
-        // it reverts with TransferFailed
-    }
-
-    function test_ExecuteContestedWithdrawlWhenContestWindowBoundaryConditions() external {
-        // it uses less than or equal comparison for contestability check
-    }
-
-    function test_VoteWhenRequestDoesNotExist() external {
-        // it processes with empty request values
-    }
-
-    function test_VoteWhenCallerIsNotInIsMemberMappingForRequestBreadfund() external {
-        // it reverts with NotMember
-    }
-
-    function test_VoteWhenRequestVotesForCallerIsAlreadyTrue() external {
-        // it reverts with AlreadyVoted
-    }
-
-    function test_VoteWhenVotingWindowHasClosed() external {
-        // it reverts with VotingWindowClosed
-    }
-
-    function test_VoteWhenVotingWindowIsExactlyAtDeadline() external {
-        // it processes as valid vote
-    }
-
-    function test_VoteWhenIsExecutedIsAlreadyTrue() external {
-        // it reverts with AlreadyExecuted
-    }
-
-    function test_VoteWhenReentrancyIsAttempted() external {
-        // it reverts with ReentrancyGuard protection
-    }
-
-    modifier whenVotingYes() {
-        _;
-    }
-
-    function test_VoteWhenVotingYes() external whenVotingYes {
-        // it increments yesVotes by 1
-        // it sets requestVotes to true
-        // it emits Voted with requestId caller and true
-    }
-
-    modifier whenConsensusThresholdIsExceeded() {
-        _;
-    }
-
-    function test_VoteWhenConsensusThresholdIsExceeded() external whenVotingYes whenConsensusThresholdIsExceeded {
-        // it sets isExecuted to true immediately
-        // it calls transfer to request owner with amount
-        // it emits WithdrawalApproved with requestId owner and amount
-    }
-
-    function test_VoteWhenTokenTransferFails() external whenVotingYes whenConsensusThresholdIsExceeded {
-        // it reverts with TransferFailed
-    }
-
-    function test_VoteWhenConsensusThresholdIsExactlyMet() external whenVotingYes {
-        // it does not execute withdrawal
-    }
-
-    function test_VoteWhenVotingNo() external {
-        // it increments noVotes by 1
-        // it sets requestVotes to true
-        // it emits Voted with requestId caller and false
-        // it does not check for consensus or execute withdrawal
-    }
-
-    modifier whenConsensusCalculationEdgeCases() {
-        _;
-    }
-
-    function test_VoteWhenConsensusThresholdIs0() external whenConsensusCalculationEdgeCases {
-        // it immediately executes on first yes vote
-    }
-
-    function test_VoteWhenConsensusThresholdIsGreaterThan100() external whenConsensusCalculationEdgeCases {
-        // it makes consensus impossible to reach
-    }
-
-    function test_IsTokenAllowedWhenTokenIsInAllowedTokensMappingWithTrueValue() external {
-        // it returns true
-    }
-
-    function test_IsTokenAllowedWhenTokenIsInAllowedTokensMappingWithFalseValue() external {
-        // it returns false
-    }
-
-    function test_IsTokenAllowedWhenTokenIsNotInAllowedTokensMapping() external {
-        // it returns false
-    }
-
-    function test_IsTokenAllowedWhenTokenAddressIsZero() external {
-        // it returns allowedTokens for zero address
-    }
-
-    function test_GetBreadfundWhenBreadfundDoesNotExist() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_GetBreadfundWhenBreadfundIsDecommissioned() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_GetBreadfundWhenBreadfundExistsAndIsCommissioned() external {
-        // it returns complete Breadfund struct from breadfunds mapping
-    }
-
-    function test_GetBreadfundsWhenIdsArrayIsEmpty() external {
-        // it returns empty Breadfund array
-    }
-
-    function test_GetBreadfundsWhenSomeIdsDoNotExist() external {
-        // it returns default structs for non-existent ids
-    }
-
-    function test_GetBreadfundsWhenArrayIncludesDecommissionedBreadfunds() external {
-        // it returns their stored structs with zero owner addresses
-    }
-
-    function test_GetBreadfundsWhenAllBreadfundsExistAndAreCommissioned() external {
-        // it returns array of complete breadfund structs from breadfunds mapping
-    }
-
-    function test_GetMemberBreadfundsWhenMemberAddressIsZero() external {
-        // it returns memberBreadfunds for zero address
-    }
-
-    function test_GetMemberBreadfundsWhenMemberHasNoBreadfunds() external {
-        // it returns empty uint256 array
-    }
-
-    function test_GetMemberBreadfundsWhenMemberHasBreadfunds() external {
-        // it returns complete memberBreadfunds array with all IDs
-    }
-
-    function test_GetMemberBalancesWhenBreadfundDoesNotExist() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_GetMemberBalancesWhenBreadfundIsDecommissioned() external {
-        // it reverts with NotCommissioned
-    }
-
-    function test_GetMemberBalancesWhenBreadfundHasNoMembers() external {
-        // it returns empty arrays
-    }
-
-    function test_GetMemberBalancesWhenBreadfundExistsAndIsCommissioned() external {
-        // it returns breadfund members array as first return value
-        // it returns memberWithdrawableBalance for each member as second return value
-    }
-
-    function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsTrue() external {
-        // it returns true
-    }
-
-    function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsFalseOrUnset() external {
-        // it returns false
-    }
-
-    function test_HasMemberDepositedInEpochWhenBreadfundIdDoesNotExist() external {
-        // it returns false
-    }
-
-    function test_HasMemberDepositedInEpochWhenMemberAddressIsZero() external {
-        // it returns epochMemberDeposits for zero address
-    }
-
-    function test_HasMemberDepositedInEpochWhenEpochIndexIsVeryLarge() external {
-        // it returns false
-    }
-
-    function test_GetCurrentEpochIndexWhenBreadfundDoesNotExist() external {
-        // it calculates using default struct values
-    }
-
-    function test_GetCurrentEpochIndexWhenEpochDurationIsZero() external {
-        // it reverts with division by zero
-    }
-
-    function test_GetCurrentEpochIndexWhenCurrentTimeIsBeforeBreadfundStart() external {
-        // it returns 0
-    }
-
-    function test_GetCurrentEpochIndexWhenCurrentTimeEqualsBreadfundStartExactly() external {
-        // it returns 0
-    }
-
-    function test_GetCurrentEpochIndexWhenCurrentTimeIs1SecondAfterBreadfundStart() external {
-        // it returns 0
-    }
-
-    function test_GetCurrentEpochIndexWhenCurrentTimeEqualsBreadfundStartPlusEpochDurationExactly() external {
-        // it returns 1
-    }
-
-    function test_GetCurrentEpochIndexWhenCurrentTimeIsMultipleEpochsAfterStart() external {
-        // it returns calculated epoch index
-    }
-
-    function test_IsDecommissionableWhenBreadfundDoesNotExist() external {
-        // it returns true
-    }
-
-    function test_IsDecommissionableWhenBreadfundOwnerIsZeroAddress() external {
-        // it returns true
-    }
-
-    function test_IsDecommissionableWhenBreadfundHasNoMembers() external {
-        // it returns false
-    }
-
-    function test_IsDecommissionableWhenCurrentEpochIndexIs0() external {
-        // it returns false
-    }
-
-    function test_IsDecommissionableWhenEpochDurationIsZero() external {
-        // it uses getCurrentEpochIndex which may revert
-    }
-
-    function test_IsDecommissionableWhenAnyMemberMissedDepositInAnyPastEpoch() external {
-        // it returns true on first missing deposit found
-    }
-
-    function test_IsDecommissionableWhenAllMembersDepositedInAllPastEpochs() external {
-        // it returns false after checking all epochs and members
-    }
-
-    function test_IsDecommissionableWhenCheckingCurrentEpochDeposits() external {
-        // it only considers epochs before current epoch
-    }
+import {Test} from 'forge-std/Test.sol';
+import {Breadfund} from 'src/contracts/Breadfund.sol';
+import {IBreadfund} from 'src/interfaces/IBreadfund.sol';
+import {MockERC20} from 'test/mocks/MockERC20.sol';
+
+contract FailERC20 {
+  string public name = 'FailERC20';
+  string public symbol = 'FAIL';
+  uint8 public decimals = 18;
+
+  function transfer(address, uint256) external pure returns (bool) {
+    return false;
+  }
+
+  function transferFrom(address, address, uint256) external pure returns (bool) {
+    return false;
+  }
 }
+
+contract BreadfundsUnit is Test {
+  Breadfund internal _bf;
+  MockERC20 internal _token;
+  FailERC20 internal _failToken;
+
+  address internal _owner = address(0xA11CE);
+  address internal _alice = address(0xB0B);
+  address internal _bob = address(0xB0B2);
+  address internal _carol = address(0xCA);
+
+  function setUp() public {
+    _bf = new Breadfund();
+    _bf.initialize(_owner);
+    _token = new MockERC20('Mock', 'MOCK');
+    _failToken = new FailERC20();
+
+    // fund members with ample tokens
+    _token.mint(_alice, 1_000_000 ether);
+    _token.mint(_bob, 1_000_000 ether);
+    _token.mint(_carol, 1_000_000 ether);
+    // approve Breadfund to pull funds
+    vm.startPrank(_alice);
+    _token.approve(address(_bf), type(uint256).max);
+    vm.stopPrank();
+    vm.startPrank(_bob);
+    _token.approve(address(_bf), type(uint256).max);
+    vm.stopPrank();
+    vm.startPrank(_carol);
+    _token.approve(address(_bf), type(uint256).max);
+    vm.stopPrank();
+  }
+
+  // ---------- helpers ----------
+  function _defaultBreadfund(address _tokenAddr) internal view returns (IBreadfund.Breadfund memory b) {
+    address[] memory members = new address[](2);
+    members[0] = _alice;
+    members[1] = _bob;
+    b = IBreadfund.Breadfund({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 5,
+      consensusThreshold: 60,
+      breadfundStart: block.timestamp,
+      token: _tokenAddr,
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      ratio: 1,
+      autoThreshold: 50 ether,
+      contestWindow: 3 days,
+      votingWindow: 7 days,
+      currentEpoch: 0,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+  }
+
+  function _allowToken(address tkn) internal {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(tkn, true);
+  }
+
+  // ---------- initialize ----------
+  function test_InitializeWhenAlreadyInitialized() external {
+    vm.expectRevert(abi.encodeWithSignature('InvalidInitialization()'));
+    _bf.initialize(_owner);
+  }
+
+  function test_InitializeWhenNotInitialized() external {
+    Breadfund fresh = new Breadfund();
+    fresh.initialize(_alice);
+    // owner set
+    assertEq(fresh.owner(), _alice);
+    // cannot initialize twice
+    vm.expectRevert(abi.encodeWithSignature('InvalidInitialization()'));
+    fresh.initialize(_alice);
+  }
+
+  // ---------- setTokenAllowed ----------
+  function test_SetTokenAllowedWhenCallerIsNotOwner() external {
+    vm.expectRevert(abi.encodeWithSignature('OwnableUnauthorizedAccount(address)', _alice));
+    vm.prank(_alice);
+    _bf.setTokenAllowed(address(_token), true);
+  }
+
+  function test_SetTokenAllowedWhenTokenAddressIsZero() external {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(0), true);
+    assertTrue(_bf.allowedTokens(address(0)));
+  }
+
+  function test_SetTokenAllowedWhenAllowingAToken() external {
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.TokenAllowed(address(_token), true);
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(_token), true);
+    assertTrue(_bf.allowedTokens(address(_token)));
+  }
+
+  function test_SetTokenAllowedWhenDisallowingAToken() external {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(_token), true);
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.TokenAllowed(address(_token), false);
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(_token), false);
+    assertFalse(_bf.allowedTokens(address(_token)));
+  }
+
+  // ---------- create ----------
+  function test_CreateWhenTokenIsNotInAllowedTokensMapping() external {
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    vm.expectRevert(IBreadfund.TokenNotAllowed.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenBreadfundStartTimeIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.breadfundStart = 0;
+    vm.expectRevert(IBreadfund.InvalidBreadfundStartTime.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenOwnerIsZeroAddress() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.owner = address(0);
+    vm.expectRevert(IBreadfund.InvalidOwner.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenInitialDepositIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.initialDeposit = 0;
+    vm.expectRevert(IBreadfund.InvalidInitialDeposit.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenFixedDepositIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.fixedDeposit = 0;
+    vm.expectRevert(IBreadfund.InvalidFixedDeposit.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenAutoThresholdIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.autoThreshold = 0;
+    vm.expectRevert(IBreadfund.InvalidThreshold.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenMinimumMembersIs0() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.minimumMembers = 0;
+    vm.expectRevert(IBreadfund.InvalidMinimumMembers.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenMinimumMembersIs1() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.minimumMembers = 1;
+    vm.expectRevert(IBreadfund.InvalidMinimumMembers.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenMaximumMembersEqualsMinimumMembers() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.maximumMembers = b.minimumMembers;
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+  }
+
+  function test_CreateWhenMaximumMembersIsLessThanMinimumMembers() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.maximumMembers = 1;
+    b.minimumMembers = 2;
+    vm.expectRevert(IBreadfund.InvalidMaximumMembers.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenEpochDurationIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.epochDuration = 0;
+    vm.expectRevert(IBreadfund.InvalidEpochDuration.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenSmallWithdrawsLimitIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.smallWithdrawsLimit = 0;
+    vm.expectRevert(IBreadfund.InvalidSmallWithdrawsLimit.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenMembersArrayIsEmpty() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.members = new address[](0);
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+    (address[] memory members, ) = _bf.getMemberBalances(id);
+    assertEq(members.length, 0);
+  }
+
+  function test_CreateWhenAnyMemberAddressIsZeroAddress() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.members[1] = address(0);
+    vm.expectRevert(IBreadfund.InvalidMemberAddress.selector);
+    _bf.create(b);
+  }
+
+  function test_CreateWhenMembersArrayContainsDuplicates() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.members[1] = _alice; // duplicate
+    uint256 id = _bf.create(b);
+    assertTrue(_bf.isMember(id, _alice));
+  }
+
+  function test_CreateWhenConsensusThresholdIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.consensusThreshold = 0;
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+  }
+
+  function test_CreateWhenConsensusThresholdIsGreaterThan100() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.consensusThreshold = 150;
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+  }
+
+  function test_CreateWhenRatioIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.ratio = 0;
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+  }
+
+  function test_CreateWhenRatioIsGreaterThan100() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.ratio = 200;
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+  }
+
+  function test_CreateWhenAllParametersAreValid() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    vm.expectEmit(true, false, false, true);
+    emit IBreadfund.BreadfundCreated(
+      0,
+      b.minimumMembers,
+      b.maximumMembers,
+      b.consensusThreshold,
+      b.members,
+      b.token,
+      b.initialDeposit,
+      b.fixedDeposit,
+      b.ratio,
+      b.autoThreshold,
+      b.epochDuration,
+      b.smallWithdrawsLimit
+    );
+    uint256 id = _bf.create(b);
+    assertEq(id, 0);
+    // nextId increments
+    assertEq(_bf.nextId(), 1);
+    // stored struct
+    IBreadfund.Breadfund memory stored = _bf.breadfunds(id);
+    assertEq(stored.owner, b.owner);
+    // members mapping and reverse index
+    assertTrue(_bf.isMember(id, _alice));
+    assertTrue(_bf.isMember(id, _bob));
+    uint256[] memory aIds = _bf.getMemberBreadfunds(_alice);
+    uint256[] memory bIds = _bf.getMemberBreadfunds(_bob);
+    assertEq(aIds.length, 1);
+    assertEq(bIds.length, 1);
+    assertEq(aIds[0], id);
+    assertEq(bIds[0], id);
+  }
+
+  // ---------- decommission ----------
+  function test_DecommissionWhenBreadfundIsNotDecommissionable() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    vm.expectRevert(IBreadfund.NotDecommissionable.selector);
+    _bf.decommission(id);
+  }
+
+  // Basic positive path: create balances and decommission after marking a missed deposit
+  function test_DecommissionWhenBreadfundIsDecommissionable() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+
+    // advance time one epoch so epoch 0 is past; leave a missed deposit => decommissionable
+    vm.warp(b.breadfundStart + b.epochDuration);
+
+    // seed balances
+    vm.prank(_alice);
+    _bf.deposit(id, 10 ether);
+    vm.prank(_bob);
+    _bf.deposit(id, 20 ether);
+
+    uint256 preBalanceAlice = _token.balanceOf(_alice);
+    uint256 preBalanceBob = _token.balanceOf(_bob);
+    uint256 withdrawableAlice = _bf.memberWithdrawableBalance(id, _alice);
+    uint256 withdrawableBob = _bf.memberWithdrawableBalance(id, _bob);
+    uint256 totalBalance = _bf.breadfundBalance(id);
+
+    vm.expectEmit(true, false, false, true);
+    emit IBreadfund.BreadfundDecommissioned(id);
+    _bf.decommission(id);
+
+    // withdrawables transferred
+    assertEq(_token.balanceOf(_alice), preBalanceAlice + withdrawableAlice);
+    assertEq(_token.balanceOf(_bob), preBalanceBob + withdrawableBob);
+    // struct deleted
+    IBreadfund.Breadfund memory afterB = _bf.breadfunds(id);
+    assertEq(afterB.owner, address(0));
+    // remaining equally split
+    uint256 remaining = totalBalance - withdrawableAlice - withdrawableBob;
+    uint256 equalShare = remaining / 2;
+    assertEq(_token.balanceOf(_alice), preBalanceAlice + withdrawableAlice + equalShare);
+    assertEq(_token.balanceOf(_bob), preBalanceBob + withdrawableBob + equalShare);
+  }
+
+  // ---------- deposit ----------
+  function test_DepositWhenBreadfundOwnerIsZeroAddress() external {
+    vm.expectRevert(IBreadfund.NotCommissioned.selector);
+    vm.prank(_alice);
+    _bf.deposit(999, 1 ether);
+  }
+
+  function test_DepositWhenCallerIsNotInIsMemberMapping() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    vm.expectRevert(IBreadfund.NotMember.selector);
+    vm.prank(_carol);
+    _bf.deposit(id, 1 ether);
+  }
+
+  function test_DepositWhenDepositValueIsZero() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.expectRevert(IBreadfund.InvalidDepositAmount.selector);
+    vm.prank(_alice);
+    _bf.deposit(id, 0);
+  }
+
+  function test_DepositWhenCurrentTimeIsBeforeBreadfundStartTime() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.breadfundStart = block.timestamp + 1 days;
+    uint256 id = _bf.create(b);
+    vm.expectRevert(IBreadfund.DepositBeforeBreadfundStart.selector);
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+  }
+
+  function test_DepositWhenCurrentTimeEqualsBreadfundStartTime() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    vm.warp(b.breadfundStart);
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+    assertEq(_bf.breadfundBalance(id), 1 ether + b.fixedDeposit + b.initialDeposit);
+  }
+
+  function test_DepositWhenMemberAlreadyDepositedInCurrentEpoch() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+    vm.expectRevert(IBreadfund.AlreadyDeposited.selector);
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+  }
+
+  function test_DepositWhenTokenTransferFromFails() external {
+    _allowToken(address(_failToken));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_failToken));
+    uint256 id = _bf.create(b);
+    vm.expectRevert(Breadfund.TransferFailed.selector);
+    vm.prank(_alice);
+    _bf.deposit(id, 1);
+  }
+
+  function test_DepositWhenMakingFirstDeposit() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    uint256 value = 5 ether;
+    uint256 expectedTotal = value + b.fixedDeposit + b.initialDeposit;
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.FundsDeposited(id, _alice, expectedTotal);
+    vm.prank(_alice);
+    _bf.deposit(id, value);
+    assertEq(_bf.breadfundMemberContribute(id, _alice), value);
+    assertTrue(_bf.hasMadeFirstDeposit(id, _alice));
+    assertEq(_bf.breadfundBalance(id), expectedTotal);
+    assertEq(_bf.memberWithdrawableBalance(id, _alice), value * b.ratio);
+    uint256 epoch = _bf.getCurrentEpochIndex(id);
+    assertTrue(_bf.epochMemberDeposits(id, epoch, _alice));
+  }
+
+  function test_DepositWhenMakingSubsequentDeposits() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 5 ether);
+    uint256 value = 3 ether;
+    uint256 expectedTotal = value + b.fixedDeposit;
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.FundsDeposited(id, _alice, expectedTotal);
+    vm.prank(_alice);
+    _bf.deposit(id, value);
+    assertEq(_bf.breadfundMemberContribute(id, _alice), 5 ether); // unchanged
+    assertEq(_bf.memberWithdrawableBalance(id, _alice), (5 ether + value) * b.ratio);
+  }
+
+  function test_DepositWhenRatioIsZero() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.ratio = 0;
+    uint256 id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 10 ether);
+    assertEq(_bf.memberWithdrawableBalance(id, _alice), 0);
+    // balances still accrue
+    assertGt(_bf.breadfundBalance(id), 0);
+  }
+
+  // ---------- depositFor ----------
+  function test_DepositForWhenBreadfundOwnerIsZeroAddress() external {
+    vm.expectRevert(IBreadfund.NotCommissioned.selector);
+    vm.prank(_alice);
+    _bf.depositFor(1234, 1 ether, _alice);
+  }
+
+  function test_DepositForWhenTargetMemberIsNotInIsMemberMapping() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.expectRevert(IBreadfund.NotMember.selector);
+    vm.prank(_alice);
+    _bf.depositFor(id, 1 ether, _carol);
+  }
+
+  function test_DepositForWhenSenderIsNotAMember() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_carol);
+    _bf.depositFor(id, 1 ether, _alice);
+    assertTrue(_bf.hasMadeFirstDeposit(id, _alice));
+  }
+
+  function test_DepositForWhenDepositValueIsZero() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.expectRevert(IBreadfund.InvalidDepositAmount.selector);
+    vm.prank(_alice);
+    _bf.depositFor(id, 0, _alice);
+  }
+
+  function test_DepositForWhenCurrentTimeIsBeforeBreadfundStartTime() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.breadfundStart = block.timestamp + 1 days;
+    uint256 id = _bf.create(b);
+    vm.expectRevert(IBreadfund.DepositBeforeBreadfundStart.selector);
+    vm.prank(_alice);
+    _bf.depositFor(id, 1 ether, _alice);
+  }
+
+  function test_DepositForWhenTargetMemberAlreadyDepositedInCurrentEpoch() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_alice);
+    _bf.depositFor(id, 1 ether, _alice);
+    vm.expectRevert(IBreadfund.AlreadyDeposited.selector);
+    vm.prank(_bob);
+    _bf.depositFor(id, 1 ether, _alice);
+  }
+
+  function test_DepositForWhenTokenTransferFromFailsFromSender() external {
+    _allowToken(address(_failToken));
+    uint256 id = _bf.create(_defaultBreadfund(address(_failToken)));
+    vm.expectRevert(Breadfund.TransferFailed.selector);
+    vm.prank(_alice);
+    _bf.depositFor(id, 1 ether, _alice);
+  }
+
+  function test_DepositForWhenMakingFirstDepositForTargetMember() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_bob);
+    _bf.depositFor(id, 2 ether, _alice);
+    assertEq(_bf.breadfundMemberContribute(id, _alice), 2 ether);
+    assertTrue(_bf.hasMadeFirstDeposit(id, _alice));
+  }
+
+  // ---------- withdraw ----------
+  function test_WithdrawWhenBreadfundOwnerIsZeroAddress() external {
+    vm.expectRevert(IBreadfund.NotCommissioned.selector);
+    vm.prank(_alice);
+    _bf.withdraw(999, 1);
+  }
+
+  function test_WithdrawWhenCallerIsNotInIsMemberMapping() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.expectRevert(IBreadfund.NotMember.selector);
+    vm.prank(_carol);
+    _bf.withdraw(id, 1);
+  }
+
+  function test_WithdrawWhenDaysRequestedIsZero() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_alice);
+    _bf.deposit(id, 30 ether);
+    uint256 beforeBal = _token.balanceOf(_alice);
+    vm.prank(_alice);
+    _bf.withdraw(id, 0);
+    // zero transfer still emits and counts as small withdraw
+    assertEq(_token.balanceOf(_alice), beforeBal);
+    assertEq(_bf.smallWithdrawsCount(id, _bf.getCurrentEpochIndex(id), _alice), 1);
+  }
+
+  function test_WithdrawWhenRequestedWithdrawalAmountExceedsMemberWithdrawableBalance() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+    vm.expectRevert(IBreadfund.NotWithdrawable.selector);
+    vm.prank(_alice);
+    _bf.withdraw(id, 31); // likely exceeds withdrawable
+  }
+
+  function test_WithdrawWhenWithdrawalAmountIsBelowThreshold() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.autoThreshold = 100 ether; // small path
+    uint256 id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 30 ether);
+    uint256 before = _token.balanceOf(_alice);
+    vm.prank(_alice);
+    _bf.withdraw(id, 1);
+    assertGt(_token.balanceOf(_alice), before);
+    assertLt(_bf.memberWithdrawableBalance(id, _alice), 30 ether * b.ratio);
+  }
+
+  function test_WithdrawWhenWithdrawalAmountIsAboveAutoThresholdCreatesRequest() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.autoThreshold = 0; // any withdraw above 0 goes to request path
+    uint256 id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 30 ether);
+    vm.prank(_alice);
+    _bf.withdraw(id, 1);
+    assertEq(_bf.nextIdRequest(), 1);
+    IBreadfund.Request memory req = _bf.requests(0);
+    assertEq(req.owner, _alice);
+    assertEq(req.breadfundId, id);
+  }
+
+  // ---------- createRequest / contest / execute / vote (happy paths) ----------
+  function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 30 ether);
+    // create request via withdraw above threshold
+    vm.prank(_alice);
+    _bf.withdraw(id, 2); // large enough -> request
+    reqId = 0;
+  }
+
+  function test_ContestValid() external {
+    (uint256 id, uint256 reqId) = _createFundAndRequest();
+    // bob is member, within contest window
+    vm.prank(_bob);
+    _bf.contest(reqId);
+    assertTrue(_bf.isContested(reqId));
+  }
+
+  function test_ExecuteContestedWithdrawlWhenContestWindowIsStillOpen() external {
+    (, uint256 reqId) = _createFundAndRequest();
+    // Should do nothing while still within window and not contested
+    _bf.executeContestedWithdrawl(reqId);
+    assertFalse(_bf.isExecuted(reqId));
+  }
+
+  function test_ExecuteContestedWithdrawlWhenRequestIsContested() external {
+    (, uint256 reqId) = _createFundAndRequest();
+    vm.prank(_bob);
+    _bf.contest(reqId);
+    vm.warp(block.timestamp + 10 days);
+    _bf.executeContestedWithdrawl(reqId);
+    assertFalse(_bf.isExecuted(reqId));
+  }
+
+  function test_ExecuteContestedWithdrawlWhenContestWindowHasPassedAndRequestWasNotContested() external {
+    (, uint256 reqId) = _createFundAndRequest();
+    vm.warp(block.timestamp + 10 days); // beyond window
+    IBreadfund.Request memory rq = _bf.requests(reqId);
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.WithdrawalAutoExecuted(reqId, rq.owner, rq.amount);
+    _bf.executeContestedWithdrawl(reqId);
+    assertTrue(_bf.isExecuted(reqId));
+  }
+
+  function test_VoteHappyPathYesAndExecuteOnConsensusExceeded() external {
+    _allowToken(address(_token));
+    // 3 members
+    address[] memory members = new address[](3);
+    members[0] = _alice;
+    members[1] = _bob;
+    members[2] = _carol;
+    IBreadfund.Breadfund memory b = IBreadfund.Breadfund({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 5,
+      consensusThreshold: 60,
+      breadfundStart: block.timestamp,
+      token: address(_token),
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      ratio: 1,
+      autoThreshold: 0, // force request path
+      contestWindow: 3 days,
+      votingWindow: 30 days,
+      currentEpoch: 0,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+    uint256 id = _bf.create(b);
+    vm.prank(_alice);
+    _bf.deposit(id, 30 ether);
+    vm.prank(_alice);
+    _bf.withdraw(id, 1); // creates request 0
+    uint256 reqId = 0;
+    // vote yes by alice then bob (2/3 = 66% > 60%)
+    vm.prank(_alice);
+    _bf.vote(reqId, true);
+    vm.prank(_bob);
+    vm.expectEmit(true, true, false, true);
+    emit IBreadfund.WithdrawalApproved(reqId, _alice, 0);
+    _bf.vote(reqId, true);
+    assertTrue(_bf.isExecuted(reqId));
+  }
+
+  // ---------- views ----------
+  function test_IsTokenAllowedWhenTokenIsInAllowedTokensMappingWithTrueValue() external {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(_token), true);
+    assertTrue(_bf.isTokenAllowed(address(_token)));
+  }
+
+  function test_IsTokenAllowedWhenTokenIsInAllowedTokensMappingWithFalseValue() external {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(_token), false);
+    assertFalse(_bf.isTokenAllowed(address(_token)));
+  }
+
+  function test_IsTokenAllowedWhenTokenIsNotInAllowedTokensMapping() external {
+    assertFalse(_bf.isTokenAllowed(address(_token)));
+  }
+
+  function test_IsTokenAllowedWhenTokenAddressIsZero() external {
+    vm.prank(_owner);
+    _bf.setTokenAllowed(address(0), true);
+    assertTrue(_bf.isTokenAllowed(address(0)));
+  }
+
+  function test_GetBreadfundWhenBreadfundDoesNotExist() external {
+    vm.expectRevert(IBreadfund.NotCommissioned.selector);
+    _bf.getBreadfund(123);
+  }
+
+  function test_GetBreadfundWhenBreadfundExistsAndIsCommissioned() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    uint256 id = _bf.create(b);
+    IBreadfund.Breadfund memory g = _bf.getBreadfund(id);
+    assertEq(g.owner, b.owner);
+  }
+
+  function test_GetBreadfundsWhenIdsArrayIsEmpty() external {
+    IBreadfund.Breadfund[] memory arr = _bf.getBreadfunds(new uint256[](0));
+    assertEq(arr.length, 0);
+  }
+
+  function test_GetBreadfundsWhenSomeIdsDoNotExist() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    uint256[] memory ids = new uint256[](3);
+    ids[0] = id;
+    ids[1] = 999;
+    ids[2] = 1000;
+    IBreadfund.Breadfund[] memory arr = _bf.getBreadfunds(ids);
+    assertEq(arr.length, 3);
+    assertEq(arr[0].owner, _owner);
+    assertEq(arr[1].owner, address(0));
+  }
+
+  function test_GetMemberBreadfundsWhenMemberHasNoBreadfunds() external {
+    uint256[] memory ids = _bf.getMemberBreadfunds(_carol);
+    assertEq(ids.length, 0);
+  }
+
+  function test_GetMemberBreadfundsWhenMemberHasBreadfunds() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    uint256[] memory ids = _bf.getMemberBreadfunds(_alice);
+    assertEq(ids.length, 1);
+    assertEq(ids[0], id);
+  }
+
+  function test_GetMemberBalancesWhenBreadfundDoesNotExist() external {
+    vm.expectRevert(IBreadfund.NotCommissioned.selector);
+    _bf.getMemberBalances(42);
+  }
+
+  function test_GetMemberBalancesWhenBreadfundExistsAndIsCommissioned() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    (address[] memory members, uint256[] memory balances) = _bf.getMemberBalances(id);
+    assertEq(members.length, 2);
+    assertEq(balances.length, 2);
+    assertEq(balances[0], 0);
+    assertEq(balances[1], 0);
+  }
+
+  function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsTrue() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    vm.prank(_alice);
+    _bf.deposit(id, 1 ether);
+    assertTrue(_bf.hasMemberDepositedInEpoch(id, _alice, _bf.getCurrentEpochIndex(id)));
+  }
+
+  function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsFalseOrUnset() external {
+    assertFalse(_bf.hasMemberDepositedInEpoch(0, _alice, 0));
+  }
+
+  function test_GetCurrentEpochIndexWhenCurrentTimeEdgeCases() external {
+    _allowToken(address(_token));
+    IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+    b.breadfundStart = block.timestamp + 1 days;
+    uint256 id = _bf.create(b);
+    assertEq(_bf.getCurrentEpochIndex(id), 0); // before start
+    vm.warp(b.breadfundStart);
+    assertEq(_bf.getCurrentEpochIndex(id), 0); // at start
+    vm.warp(b.breadfundStart + 1);
+    assertEq(_bf.getCurrentEpochIndex(id), 0); // just after start
+    vm.warp(b.breadfundStart + b.epochDuration);
+    assertEq(_bf.getCurrentEpochIndex(id), 1); // exactly one epoch
+    vm.warp(b.breadfundStart + 5 * b.epochDuration + 10);
+    assertEq(_bf.getCurrentEpochIndex(id), 5);
+  }
+
+  function test_IsDecommissionableWhenBreadfundDoesNotExist() external {
+    assertTrue(_bf.isDecommissionable(999));
+  }
+
+  function test_IsDecommissionableWhenBreadfundOwnerIsZeroAddress() external {
+    assertTrue(_bf.isDecommissionable(123));
+  }
+
+  function test_IsDecommissionableWhenCurrentEpochIndexIs0() external {
+    _allowToken(address(_token));
+    uint256 id = _bf.create(_defaultBreadfund(address(_token)));
+    assertFalse(_bf.isDecommissionable(id));
+  }
+}
+
