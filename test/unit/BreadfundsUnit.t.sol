@@ -638,12 +638,12 @@ contract BreadfundsUnit is Test {
     _bf.deposit(id, 30 ether);
     // create request via withdraw above threshold
     vm.prank(_alice);
-    _bf.withdraw(id, 2); // large enough -> request
+    _bf.withdraw(id, 2); // large enough for request
     reqId = 0;
   }
 
   function test_ContestValid() external {
-    (uint256 id, uint256 reqId) = _createFundAndRequest();
+    (, uint256 reqId) = _createFundAndRequest();
     // bob is member, within contest window
     vm.prank(_bob);
     _bf.contest(reqId);
@@ -733,7 +733,7 @@ contract BreadfundsUnit is Test {
     assertFalse(_bf.isTokenAllowed(address(_token)));
   }
 
-  function test_IsTokenAllowedWhenTokenIsNotInAllowedTokensMapping() external {
+  function test_IsTokenAllowedWhenTokenIsNotInAllowedTokensMapping() external view {
     assertFalse(_bf.isTokenAllowed(address(_token)));
   }
 
@@ -756,7 +756,7 @@ contract BreadfundsUnit is Test {
     assertEq(g.owner, b.owner);
   }
 
-  function test_GetBreadfundsWhenIdsArrayIsEmpty() external {
+  function test_GetBreadfundsWhenIdsArrayIsEmpty() external view {
     IBreadfund.Breadfund[] memory arr = _bf.getBreadfunds(new uint256[](0));
     assertEq(arr.length, 0);
   }
@@ -774,7 +774,7 @@ contract BreadfundsUnit is Test {
     assertEq(arr[1].owner, address(0));
   }
 
-  function test_GetMemberBreadfundsWhenMemberHasNoBreadfunds() external {
+  function test_GetMemberBreadfundsWhenMemberHasNoBreadfunds() external view {
     uint256[] memory ids = _bf.getMemberBreadfunds(_carol);
     assertEq(ids.length, 0);
   }
@@ -810,7 +810,7 @@ contract BreadfundsUnit is Test {
     assertTrue(_bf.hasMemberDepositedInEpoch(id, _alice, _bf.getCurrentEpochIndex(id)));
   }
 
-  function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsFalseOrUnset() external {
+  function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsFalseOrUnset() external view {
     assertFalse(_bf.hasMemberDepositedInEpoch(0, _alice, 0));
   }
 
@@ -830,11 +830,11 @@ contract BreadfundsUnit is Test {
     assertEq(_bf.getCurrentEpochIndex(id), 5);
   }
 
-  function test_IsDecommissionableWhenBreadfundDoesNotExist() external {
+  function test_IsDecommissionableWhenBreadfundDoesNotExist() external view {
     assertTrue(_bf.isDecommissionable(999));
   }
 
-  function test_IsDecommissionableWhenBreadfundOwnerIsZeroAddress() external {
+  function test_IsDecommissionableWhenBreadfundOwnerIsZeroAddress() external view {
     assertTrue(_bf.isDecommissionable(123));
   }
 
