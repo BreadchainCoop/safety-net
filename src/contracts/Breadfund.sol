@@ -106,9 +106,19 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     for (uint256 i = 0; i < _breadfundMembersLength; i++) {
       address _member = _breadfund.members[i];
       if (_member == address(0)) revert InvalidMemberAddress();
+      for (uint256 j = 0; j < i; j++) {
+        if (_breadfund.members[j] == _member) {
+          revert DuplicateMember();
+        }
+      }
+    }
+
+    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
+      address _member = _breadfund.members[i];
       isMember[_id][_member] = true;
       memberBreadfunds[_member].push(_id);
     }
+
 
     _breadfund.id = _id;
     breadfunds[_id] = _breadfund;
