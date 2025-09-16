@@ -119,7 +119,6 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       memberBreadfunds[_member].push(_id);
     }
 
-
     _breadfund.id = _id;
     breadfunds[_id] = _breadfund;
 
