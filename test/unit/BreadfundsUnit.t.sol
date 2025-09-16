@@ -48,11 +48,12 @@ contract BreadfundsUnit is Test {
     _token = new MockERC20('Mock', 'MOCK');
     _failToken = new FailERC20();
 
-    // fund members with ample tokens
+    // Fund members with ample tokens
     _token.mint(_alice, 1_000_000 ether);
     _token.mint(_bob, 1_000_000 ether);
     _token.mint(_carol, 1_000_000 ether);
-    // approve Breadfund to pull funds
+
+    // Approve Breadfund to pull funds
     vm.startPrank(_alice);
     _token.approve(address(_bf), type(uint256).max);
     vm.stopPrank();
@@ -112,9 +113,11 @@ contract BreadfundsUnit is Test {
         )
       )
     );
-    // owner set
+
+    // Owner set
     assertEq(fresh.owner(), _alice);
-    // cannot initialize twice
+
+    // Cannot initialize twice
     vm.expectRevert(abi.encodeWithSignature('InvalidInitialization()'));
     fresh.initialize(_alice);
   }
@@ -324,12 +327,15 @@ contract BreadfundsUnit is Test {
     );
     uint256 id = _bf.create(b);
     assertEq(id, 0);
+
     // nextId increments
     assertEq(_bf.nextId(), 1);
-    // stored struct
+
+    // Stored struct
     IBreadfund.Breadfund memory stored = _bf.getBreadfund(id);
     assertEq(stored.owner, b.owner);
-    // members mapping and reverse index
+
+    // Members mapping and reverse index
     assertTrue(_bf.isMember(id, _alice));
     assertTrue(_bf.isMember(id, _bob));
     uint256[] memory aIds = _bf.getMemberBreadfunds(_alice);
@@ -349,16 +355,16 @@ contract BreadfundsUnit is Test {
     _bf.decommission(id);
   }
 
-  // Basic positive path: create balances and decommission after marking a missed deposit
+  // Create balances and decommission after marking a missed deposit
   function test_DecommissionWhenBreadfundIsDecommissionable() external {
     _allowToken(address(_token));
     IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
     uint256 id = _bf.create(b);
 
-    // advance time one epoch so epoch 0 is past; leave a missed deposit => decommissionable
+    // Advance time one epoch so epoch 0 is past; leave a missed deposit => decommissionable
     vm.warp(b.breadfundStart + b.epochDuration);
 
-    // seed balances
+    // Seed balances
     vm.prank(_alice);
     _bf.deposit(id, 10 ether);
     vm.prank(_bob);
@@ -374,10 +380,11 @@ contract BreadfundsUnit is Test {
     emit IBreadfund.BreadfundDecommissioned(id);
     _bf.decommission(id);
 
-    // struct deleted (getBreadfund should revert for decommissioned entries)
+    // Struct deleted (getBreadfund should revert for decommissioned entries)
     vm.expectRevert(IBreadfund.NotCommissioned.selector);
     _bf.getBreadfund(id);
-    // remaining equally split
+
+    // Remaining equally split
     uint256 remaining = totalBalance - withdrawableAlice - withdrawableBob;
     uint256 equalShare = remaining / 2;
     assertEq(_token.balanceOf(_alice), preBalanceAlice + withdrawableAlice + equalShare);
@@ -471,6 +478,7 @@ contract BreadfundsUnit is Test {
     uint256 id = _bf.create(b);
     vm.prank(_alice);
     _bf.deposit(id, 5 ether);
+
     // Move to next epoch to allow another deposit
     vm.warp(b.breadfundStart + b.epochDuration);
     uint256 value = 3 ether;
@@ -479,7 +487,9 @@ contract BreadfundsUnit is Test {
     emit IBreadfund.FundsDeposited(id, _alice, expectedTotal);
     vm.prank(_alice);
     _bf.deposit(id, value);
-    assertEq(_bf.breadfundMemberContribute(id, _alice), 5 ether); // unchanged
+
+    // Unchanged
+    assertEq(_bf.breadfundMemberContribute(id, _alice), 5 ether); 
     assertEq(_bf.memberWithdrawableBalance(id, _alice), (5 ether + value) * b.ratio);
   }
 
@@ -491,7 +501,6 @@ contract BreadfundsUnit is Test {
     vm.prank(_alice);
     _bf.deposit(id, 10 ether);
     assertEq(_bf.memberWithdrawableBalance(id, _alice), 0);
-    // balances still accrue
     assertGt(_bf.breadfundBalance(id), 0);
   }
 
@@ -587,7 +596,8 @@ contract BreadfundsUnit is Test {
     uint256 beforeBal = _token.balanceOf(_alice);
     vm.prank(_alice);
     _bf.withdraw(id, 0);
-    // zero transfer still emits and counts as small withdraw
+
+    // Zero transfer still emits and counts as small withdraw
     assertEq(_token.balanceOf(_alice), beforeBal);
     assertEq(_bf.smallWithdrawsCount(id, _bf.getCurrentEpochIndex(id), _alice), 1);
   }
@@ -599,7 +609,9 @@ contract BreadfundsUnit is Test {
     _bf.deposit(id, 1 ether);
     vm.expectRevert(IBreadfund.NotWithdrawable.selector);
     vm.prank(_alice);
-    _bf.withdraw(id, 31); // likely exceeds withdrawable
+
+    // Likely exceeds withdrawable
+    _bf.withdraw(id, 31); 
   }
 
   function test_WithdrawWhenWithdrawalAmountIsBelowThreshold() external {
@@ -635,20 +647,25 @@ contract BreadfundsUnit is Test {
   function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
     _allowToken(address(_token));
     IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
+
     // Ensure withdraw goes through request path
     b.autoThreshold = 1;
     id = _bf.create(b);
     vm.prank(_alice);
     _bf.deposit(id, 30 ether);
-    // create request via withdraw above threshold
+
+    // Create request via withdraw above threshold
     vm.prank(_alice);
-    _bf.withdraw(id, 2); // large enough for request
+
+    // Large enough for request
+    _bf.withdraw(id, 2); 
     reqId = 0;
   }
 
   function test_ContestValid() external {
     (, uint256 reqId) = _createFundAndRequest();
-    // bob is member, within contest window
+
+    // Bob is member, within contest window
     vm.prank(_bob);
     _bf.contest(reqId);
     assertTrue(_bf.isContested(reqId));
@@ -656,6 +673,7 @@ contract BreadfundsUnit is Test {
 
   function test_ExecuteContestedWithdrawalWhenContestWindowIsStillOpen() external {
     (, uint256 reqId) = _createFundAndRequest();
+
     // Should do nothing while still within window and not contested
     _bf.executeContestedWithdrawal(reqId);
     assertFalse(_bf.isExecuted(reqId));
@@ -672,7 +690,9 @@ contract BreadfundsUnit is Test {
 
   function test_ExecuteContestedWithdrawalWhenContestWindowHasPassedAndRequestWasNotContested() external {
     (, uint256 reqId) = _createFundAndRequest();
-    vm.warp(block.timestamp + 10 days); // beyond window
+
+    // Beyond window
+    vm.warp(block.timestamp + 10 days); 
     (address rqOwner, , , , , uint256 rqAmount) = _bf.requests(reqId);
     vm.expectEmit(true, true, false, true);
     emit IBreadfund.WithdrawalAutoExecuted(reqId, rqOwner, rqAmount);
@@ -682,6 +702,7 @@ contract BreadfundsUnit is Test {
 
   function test_VoteHappyPathYesAndExecuteOnConsensusExceeded() external {
     _allowToken(address(_token));
+
     // 3 members
     address[] memory members = new address[](3);
     members[0] = _alice;
@@ -699,7 +720,9 @@ contract BreadfundsUnit is Test {
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
       ratio: 1,
-      autoThreshold: 1, // force request path
+
+      // Force request path
+      autoThreshold: 1, 
       contestWindow: 3 days,
       votingWindow: 30 days,
       currentEpoch: 0,
@@ -710,9 +733,12 @@ contract BreadfundsUnit is Test {
     vm.prank(_alice);
     _bf.deposit(id, 30 ether);
     vm.prank(_alice);
-    _bf.withdraw(id, 1); // creates request 0
+
+    // Creates request 0
+    _bf.withdraw(id, 1); 
     uint256 reqId = 0;
-    // vote yes by alice then bob (2/3 = 66% > 60%)
+
+    // Vote yes by alice then bob (2/3 = 66% > 60%)
     vm.prank(_alice);
     _bf.vote(reqId, true);
     vm.prank(_bob);
@@ -819,13 +845,21 @@ contract BreadfundsUnit is Test {
     IBreadfund.Breadfund memory b = _defaultBreadfund(address(_token));
     b.breadfundStart = block.timestamp + 1 days;
     uint256 id = _bf.create(b);
-    assertEq(_bf.getCurrentEpochIndex(id), 0); // before start
+
+    // Before start
+    assertEq(_bf.getCurrentEpochIndex(id), 0); 
     vm.warp(b.breadfundStart);
-    assertEq(_bf.getCurrentEpochIndex(id), 0); // at start
+
+    // At start
+    assertEq(_bf.getCurrentEpochIndex(id), 0); 
     vm.warp(b.breadfundStart + 1);
-    assertEq(_bf.getCurrentEpochIndex(id), 0); // just after start
+
+    // Just after start
+    assertEq(_bf.getCurrentEpochIndex(id), 0); 
     vm.warp(b.breadfundStart + b.epochDuration);
-    assertEq(_bf.getCurrentEpochIndex(id), 1); // exactly one epoch
+
+    // Exactly one epoch
+    assertEq(_bf.getCurrentEpochIndex(id), 1); 
     vm.warp(b.breadfundStart + 5 * b.epochDuration + 10);
     assertEq(_bf.getCurrentEpochIndex(id), 5);
   }
