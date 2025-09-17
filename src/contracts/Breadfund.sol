@@ -192,6 +192,16 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /// @inheritdoc IBreadfund
   function createRequest(Request memory request) external override returns (uint256) {
+    if (request.owner != msg.sender) revert InvalidOwner();
+    if (!isMember[request.breadfundId][msg.sender]) revert NotMember();
+
+    if (breadfunds[request.breadfundId].owner == address(0)) revert NotCommissioned();
+    if (request.amount == 0) revert InvalidRequest();
+
+    request.timestamp = block.timestamp;
+    request.yesVotes = 0;
+    request.noVotes = 0;
+
     return _createRequest(request);
   }
 
