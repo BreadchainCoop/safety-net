@@ -69,6 +69,12 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
+  /// @dev Require that msg.sender is a member of the given breadfund
+  modifier onlyMemberOf(uint256 _breadfundId) {
+    if (!isMember[_breadfundId][msg.sender]) revert NotMember();
+    _;
+  }
+
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -191,10 +197,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function createRequest(Request memory _request) external override returns (uint256) {
+  function createRequest(Request memory _request) external override onlyMemberOf(_request.breadfundId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
-    if (!isMember[_request.breadfundId][msg.sender]) revert NotMember();
-
     if (breadfunds[_request.breadfundId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
 
@@ -206,11 +210,10 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc IBreadfund
-  function contest(uint256 _requestId) external override nonReentrant {
+  function contest(uint256 _requestId) external override nonReentrant onlyMemberOf(requests[_requestId].breadfundId) {
     Request storage _request = requests[_requestId];
 
     if (!_isContestable(_requestId)) revert ContestWindowClosed();
-    if (!isMember[_request.breadfundId][msg.sender]) revert NotMember();
     if (isContested[_requestId]) revert AlreadyContested();
 
     isContested[_requestId] = true;
