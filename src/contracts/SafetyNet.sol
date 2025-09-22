@@ -16,34 +16,34 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
-  /// @notice ID counter used to assign unique identifiers to each SafetyNet
+  /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
   /// @notice ID counter used to assign unique identifiers to each request
   uint256 public nextIdRequest;
 
-  /// @notice Stores all created SafetyNets indexed by their unique ID
+  /// @notice Stores all created Safety Nets indexed by their unique ID
   mapping(uint256 id => SafetyNet safetyNet) public safetyNets;
 
-  /// @notice Indicates whether a specific address is a member of the SafetyNet with the given ID
+  /// @notice Indicates whether a specific address is a member of the Safety Net with the given ID
   mapping(uint256 id => mapping(address member => bool status)) public isMember;
 
-  /// @notice Lists all SafetyNet IDs that a given member has joined
+  /// @notice Lists all Safety Net IDs that a given member has joined
   mapping(address member => uint256[] ids) public memberSafetyNets;
 
-  /// @notice Tracks personal savings of each member in a given SafetyNet
+  /// @notice Tracks personal savings of each member in a given Safety Net
   mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public safetyNetMemberContribute;
 
-  /// @notice Tracks withdrawable amount for each member in a given SafetyNet
+  /// @notice Tracks withdrawable amount for each member in a given Safety Net
   mapping(uint256 id => mapping(address member => uint256 withdrawableBalance)) public memberWithdrawableBalance;
 
-  /// @notice Holds the total balance of each SafetyNet
+  /// @notice Holds the total balance of each Safety Net
   mapping(uint256 id => uint256 balance) public safetyNetBalance;
 
-  /// @notice Indicates whether a specific ERC20 token is allowed for use in SafetyNets
+  /// @notice Indicates whether a specific ERC20 token is allowed for use in Safety Nets
   mapping(address token => bool status) public allowedTokens;
 
-  /// @notice Tracks whether a member has made their first deposit in a specific SafetyNet
+  /// @notice Tracks whether a member has made their first deposit in a specific Safety Net
   mapping(uint256 id => mapping(address member => bool hasDeposited)) public hasMadeFirstDeposit;
 
   /// @notice Lists all requests indexed by their unique ID
@@ -62,14 +62,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
-  /// @notice Tracks the number of small withdrawals performed in a SafetyNet from a member during one epoch
+  /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
     public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
-  /// @dev Require that msg.sender is a member of the given SafetyNet
+  /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
     if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
     _;
@@ -405,7 +405,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /**
    * @dev Make a withdrawal
-   * @param _id The ID of the SafetyNet
+   * @param _id The ID of the Safety Net
    * @param _member The address of the member making the withdrawal
    * @param _daysRequested The number of days for which the member is requesting a withdrawal
    * @notice If the requested amount is small, it is transferred directly to the member
@@ -447,7 +447,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  /// @dev Calculates the daily withdrawal for a member in a SafetyNet
+  /// @dev Calculates the daily withdrawal for a member in a Safety Net
   function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
     uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
     uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
@@ -471,7 +471,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return _withdrawAmount <= _autoThreshold;
   }
 
-  /// @dev Return if a specified SafetyNet is decommissioned by checking if an owner is set
+  /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
   function _isDecommissioned(SafetyNet memory _safetyNet) internal pure returns (bool) {
     return _safetyNet.owner == address(0);
   }

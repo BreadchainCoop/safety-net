@@ -2,23 +2,23 @@
 pragma solidity ^0.8.28;
 
 /// @title Safety Net Collective Savings Contract Interface
-/// @notice This interface defines the structure and interaction logic for SafetyNet, a group savings and voting system.
+/// @notice This interface defines the structure and interaction logic for Safety Net, a group savings and voting system.
 /// @dev All function inputs/outputs are documented via NatSpec for external visibility.
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
-interface ISafetyNet {
+// interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Struct defining a Safety Net group
-  /// @param id Unique identifier for the SafetyNet
-  /// @param owner The creator of the SafetyNet
-  /// @param minimumMembers Minimum number of members required to create a SafetyNet
-  /// @param maximumMembers Maximum number of members allowed in the SafetyNet
+  /// @param id Unique identifier for the Safety Net
+  /// @param owner The creator of the Safety Net
+  /// @param minimumMembers Minimum number of members required to create a Safety Net
+  /// @param maximumMembers Maximum number of members allowed in the Safety Net
   /// @param consensusThreshold Percentage of members required to approve a request
-  /// @param safetyNetStart Timestamp when the SafetyNet becomes active
+  /// @param safetyNetStart Timestamp when the Safety Net becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
@@ -48,9 +48,9 @@ interface ISafetyNet {
     uint256 smallWithdrawsLimit;
   }
 
-  /// @notice Struct defining a withdraw request within a SafetyNet
+  /// @notice Struct defining a withdraw request within a Safety Net
   /// @param owner The request initiator
-  /// @param safetyNetId ID of the related SafetyNet
+  /// @param safetyNetId ID of the related Safety Net
   /// @param timestamp Creation time of the request
   /// @param yesVotes Number of yes votes received
   /// @param noVotes Number of no votes received
@@ -68,7 +68,7 @@ interface ISafetyNet {
                             EVENTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Emitted when a new SafetyNet is created
+  /// @notice Emitted when a new Safety Net is created
   event SafetyNetCreated(
     uint256 indexed id,
     uint256 minimumMembers,
@@ -84,16 +84,16 @@ interface ISafetyNet {
     uint256 smallWithdrawsLimit
   );
 
-  /// @notice Emitted when a SafetyNet is decommissioned
+  /// @notice Emitted when a Safety Net is decommissioned
   event SafetyNetDecommissioned(uint256 indexed id);
 
-  /// @notice Emitted when a member deposits to a SafetyNet
+  /// @notice Emitted when a member deposits to a Safety Net
   event FundsDeposited(uint256 indexed id, address indexed member, uint256 amount);
 
-  /// @notice Emitted when a member withdraws from a SafetyNet
+  /// @notice Emitted when a member withdraws from a Safety Net
   event FundsWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
 
-  /// @notice Emitted when a token is allowed or disallowed for SafetyNet use
+  /// @notice Emitted when a token is allowed or disallowed for Safety Net use
   event TokenAllowed(address indexed token, bool indexed allowed);
 
   /// @notice Emitted when a new request is created
@@ -130,28 +130,28 @@ interface ISafetyNet {
   /// @notice Thrown when a deposit has already been made for the period
   error AlreadyDeposited();
 
-  /// @notice Thrown when trying to create a duplicate SafetyNet
+  /// @notice Thrown when trying to create a duplicate Safety Net
   error AlreadyExists();
 
-  /// @notice Thrown when the SafetyNet ID is not found
+  /// @notice Thrown when the Safety Net ID is not found
   error InvalidSafetyNet();
 
   /// @notice Thrown if the fund is not in an active state
   error NotCommissioned();
 
-  /// @notice Thrown if the user is not a SafetyNet member
+  /// @notice Thrown if the user is not a Safety Net member
   error NotMember();
 
-  /// @notice Thrown if the SafetyNet cannot be decommissioned yet
+  /// @notice Thrown if the Safety Net cannot be decommissioned yet
   error NotDecommissionable();
 
-  /// @notice Thrown if the SafetyNet cannot be withdrawn from
+  /// @notice Thrown if the Safety Net cannot be withdrawn from
   error NotWithdrawable();
 
   /// @notice Thrown when the deposit window is closed
   error DepositWindowClosed();
 
-  /// @notice Thrown when the SafetyNet has expired
+  /// @notice Thrown when the Safety Net has expired
   error SafetyNetExpired();
 
   /// @notice Thrown when the deposit exceeds allowed limits
@@ -166,7 +166,7 @@ interface ISafetyNet {
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
 
-  /// @notice Thrown for an invalid SafetyNet start time
+  /// @notice Thrown for an invalid Safety Net start time
   error InvalidSafetyNetStartTime();
 
   /// @notice Thrown when indexing fails
@@ -231,41 +231,41 @@ interface ISafetyNet {
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Initializes the SafetyNet interface for an owner
-  /// @param owner The address that will control the SafetyNet
+  /// @notice Initializes the Safety Net interface for an owner
+  /// @param owner The address that will control the Safety Net
   function initialize(address owner) external;
 
-  /// @notice Toggles whether a token is allowed for use in SafetyNets
+  /// @notice Toggles whether a token is allowed for use in Safety Nets
   /// @param token The ERC20 token address
   /// @param allowed Whether the token is allowed or not
   function setTokenAllowed(address token, bool allowed) external;
 
-  /// @notice Creates a new SafetyNet
-  /// @param safetyNet The SafetyNet configuration
-  /// @return id The unique ID of the newly created SafetyNet
+  /// @notice Creates a new Safety Net
+  /// @param safetyNet The Safety Net configuration
+  /// @return id The unique ID of the newly created Safety Net
   function create(SafetyNet memory safetyNet) external returns (uint256);
 
-  /// @notice Decommissions an existing SafetyNet
-  /// @param id ID of the SafetyNet to decommission
+  /// @notice Decommissions an existing Safety Net
+  /// @param id ID of the Safety Net to decommission
   function decommission(uint256 id) external;
 
-  /// @notice Makes a deposit into a SafetyNet
-  /// @param id The SafetyNet ID
+  /// @notice Makes a deposit into a Safety Net
+  /// @param id The Safety Net ID
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
-  /// @notice Makes a deposit into a SafetyNet for another member
-  /// @param id The SafetyNet ID
+  /// @notice Makes a deposit into a Safety Net for another member
+  /// @param id The Safety Net ID
   /// @param value Amount to deposit
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
 
-  /// @notice Makes a withdrawal from a SafetyNet
-  /// @param id The SafetyNet ID
+  /// @notice Makes a withdrawal from a Safety Net
+  /// @param id The Safety Net ID
   /// @param daysRequested Number of days for calculating withdrawal amount
   function withdraw(uint256 id, uint256 daysRequested) external;
 
-  /// @notice Creates a new request for withdraw from a SafetyNet
+  /// @notice Creates a new request for withdraw from a Safety Net
   /// @param request The withdraw request details
   /// @return id The request ID
   function createRequest(Request memory request) external returns (uint256);
@@ -287,23 +287,23 @@ interface ISafetyNet {
                             VIEW
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Retrieves a single SafetyNet by ID
-  /// @param id The SafetyNet ID
-  /// @return safetyNet The SafetyNet struct
+  /// @notice Retrieves a single Safety Net by ID
+  /// @param id The Safety Net ID
+  /// @return safetyNet The Safety Net struct
   function getSafetyNet(uint256 id) external view returns (SafetyNet memory);
 
-  /// @notice Retrieves multiple SafetyNets by IDs
-  /// @param ids Array of SafetyNet IDs
-  /// @return safetyNets Array of SafetyNet structs
+  /// @notice Retrieves multiple Safety Nets by IDs
+  /// @param ids Array of Safety Net IDs
+  /// @return safetyNets Array of Safety Net structs
   function getSafetyNets(uint256[] calldata ids) external view returns (SafetyNet[] memory);
 
-  /// @notice Returns all SafetyNets a member is part of
+  /// @notice Returns all Safety Nets a member is part of
   /// @param member Address of the member
-  /// @return ids List of SafetyNet IDs the member has joined
+  /// @return ids List of Safety Net IDs the member has joined
   function getMemberSafetyNets(address member) external view returns (uint256[] memory);
 
-  /// @notice Gets the balances of each member in a SafetyNet
-  /// @param id SafetyNet ID
+  /// @notice Gets the balances of each member in a Safety Net
+  /// @param id Safety Net ID
   /// @return members Array of member addresses
   /// @return balances Array of corresponding balances
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
@@ -313,18 +313,18 @@ interface ISafetyNet {
   /// @return allowed True if the token is allowed, false otherwise
   function isTokenAllowed(address token) external view returns (bool);
 
-  /// @notice Gets the current epoch index for a SafetyNet (calculated from time)
-  /// @param safetyNetId The SafetyNet ID
+  /// @notice Gets the current epoch index for a Safety Net (calculated from time)
+  /// @param safetyNetId The Safety Net ID
   /// @return epochIndex The current epoch index based on time elapsed
   function getCurrentEpochIndex(uint256 safetyNetId) external view returns (uint256);
 
-  /// @notice Checks if a SafetyNet is eligible for decommission
-  /// @param safetyNetId The SafetyNet ID
+  /// @notice Checks if a Safety Net is eligible for decommission
+  /// @param safetyNetId The Safety Net ID
   /// @return decommissionable True if the safetyNet can be decommissioned (when someone missed a payment)
   function isDecommissionable(uint256 safetyNetId) external view returns (bool);
 
   /// @notice Checks if a member has deposited in a specific epoch
-  /// @param safetyNetId The SafetyNet ID
+  /// @param safetyNetId The Safety Net ID
   /// @param member The member address
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
