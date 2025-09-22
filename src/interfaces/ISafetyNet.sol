@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/// @title SafetyNet Collective Savings Contract Interface
-/// @notice This interface defines the structure and interaction logic for SafetyNets, a group savings and voting system.
+/// @title Safety Net Collective Savings Contract Interface
+/// @notice This interface defines the structure and interaction logic for SafetyNet, a group savings and voting system.
 /// @dev All function inputs/outputs are documented via NatSpec for external visibility.
 /// @author @exo404
 /// @author @valeriooconte
@@ -12,7 +12,7 @@ interface ISafetyNet {
                             STRUCTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Struct defining a SafetyNet group
+  /// @notice Struct defining a Safety Net group
   /// @param id Unique identifier for the SafetyNet
   /// @param owner The creator of the SafetyNet
   /// @param minimumMembers Minimum number of members required to create a SafetyNet
