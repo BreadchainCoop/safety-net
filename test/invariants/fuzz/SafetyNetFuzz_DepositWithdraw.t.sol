@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
-import {IBreadfund} from "src/interfaces/IBreadfund.sol";
+import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
+import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
 
-contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
+contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   function testFuzz_Soak_ManyDepositsAndWithdrawals(
     uint8 epochsRaw, uint8 opsRaw, uint256 extraSeed
   ) public {
     uint256 epochs = bound(uint256(epochsRaw), 2, 12);
     uint256 ops    = bound(uint256(opsRaw),    5, 40);
 
-    IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.breadfundStart = block.timestamp;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
+    cfg.safetyNetStart = block.timestamp;
     cfg.members        = defaultMembers;
     cfg.ratio          = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
-    _mintApprove(member1, 1e24, address(breadfund));
-    _mintApprove(member2, 1e24, address(breadfund));
-    _mintApprove(member3, 1e24, address(breadfund));
+    _mintApprove(member1, 1e24, address(safetyNet));
+    _mintApprove(member2, 1e24, address(safetyNet));
+    _mintApprove(member3, 1e24, address(safetyNet));
 
     uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, epochs, ops, extraSeed)));
 
@@ -39,44 +39,44 @@ contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
 
   // ── Case 1: Deposits — 1 per member per epoch; flag set; balance increases
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
-    uint256 epochIdx = breadfund.getCurrentEpochIndex(id);
-    uint256 beforeW  = breadfund.memberWithdrawableBalance(id, actor);
+    uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
+    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
     uint256 v        = 1e18 + (seed % 1e18);
-    bool already     = breadfund.hasMemberDepositedInEpoch(id, actor, epochIdx);
+    bool already     = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
 
     vm.prank(actor);
     if (already) {
-      vm.expectRevert(IBreadfund.AlreadyDeposited.selector);
-      try breadfund.deposit(id, v) { } catch {}
+      vm.expectRevert(ISafetyNet.AlreadyDeposited.selector);
+      try safetyNet.deposit(id, v) { } catch {}
       return;
     }
 
-    breadfund.deposit(id, v);
-    assertTrue(breadfund.hasMemberDepositedInEpoch(id, actor, epochIdx), "epoch flag set");
-    uint256 afterW = breadfund.memberWithdrawableBalance(id, actor);
+    safetyNet.deposit(id, v);
+    assertTrue(safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx), "epoch flag set");
+    uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
     assertEq(afterW, beforeW + v, "withdrawable += v");
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
-  function _caseSmallWithdraw(uint256 id, address actor, uint256 seed, IBreadfund.Breadfund memory cfg) external {
-    uint256 epochIdx = breadfund.getCurrentEpochIndex(id);
-    uint256 contrib  = breadfund.breadfundMemberContribute(id, actor);
-    uint256 beforeW  = breadfund.memberWithdrawableBalance(id, actor);
+  function _caseSmallWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
+    uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
+    uint256 contrib  = safetyNet.memberContribute(id, actor);
+    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
 
     uint256 daysReq = 1 + (seed % 3);
     uint256 want    = (contrib / 30) * daysReq;
 
-    uint256 cntBefore  = breadfund.smallWithdrawsCount(id, epochIdx, actor);
+    uint256 cntBefore  = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
     uint256 balBefore  = token.balanceOf(actor);
     bool withinLimit   = cntBefore < cfg.smallWithdrawsLimit;
     bool smallByAmt    = (want <= cfg.autoThreshold);
     bool enoughBalance = (want <= beforeW);
 
     vm.prank(actor);
-    try breadfund.withdraw(id, daysReq) {
-      uint256 nowW  = breadfund.memberWithdrawableBalance(id, actor);
+    try safetyNet.withdraw(id, daysReq) {
+      uint256 nowW  = safetyNet.memberWithdrawableBalance(id, actor);
       uint256 balNow = token.balanceOf(actor);
-      uint256 cntNow = breadfund.smallWithdrawsCount(id, epochIdx, actor);
+      uint256 cntNow = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
 
       if (want == 0) {
         // Intentional: zero-amount small withdraw still increments counter (balance unchanged)
@@ -96,62 +96,62 @@ contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
   }
 
   // ── Case 3: Large withdrawals — create a request; execution after contest window
-  function _caseLargeWithdraw(uint256 id, address actor, uint256 seed, IBreadfund.Breadfund memory cfg) external {
-    uint256 contrib  = breadfund.breadfundMemberContribute(id, actor);
-    uint256 beforeW  = breadfund.memberWithdrawableBalance(id, actor);
+  function _caseLargeWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
+    uint256 contrib  = safetyNet.memberContribute(id, actor);
+    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
     uint256 daysReq  = 40 + (seed % 40);
     uint256 want     = (contrib / 30) * daysReq;
 
-    uint256 reqsBefore = breadfund.nextIdRequest();
+    uint256 reqsBefore = safetyNet.nextIdRequest();
 
     vm.prank(actor);
-    try breadfund.withdraw(id, daysReq) {
-      uint256 reqsAfter = breadfund.nextIdRequest();
+    try safetyNet.withdraw(id, daysReq) {
+      uint256 reqsAfter = safetyNet.nextIdRequest();
       if (want > cfg.autoThreshold) {
         if (want <= beforeW && want > 0) {
           assertEq(reqsAfter, reqsBefore + 1, "large creates request");
           uint256 reqId = reqsAfter - 1;
           (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) =
-            breadfund.requests(reqId);
+            safetyNet.requests(reqId);
           assertEq(owner, actor);
           assertEq(amount, want);
           assertEq(yesVotes, 0);
           assertEq(noVotes, 0);
           assertGe(block.timestamp, ts);
-          assertFalse(breadfund.isExecuted(reqId));
+          assertFalse(safetyNet.isExecuted(reqId));
 
           if ((seed & 1) == 1) {
             vm.warp(block.timestamp + cfg.contestWindow + 1);
-            vm.prank(actor); 
-            try breadfund.executeContestedWithdrawal(reqId) {
-              assertTrue(breadfund.isExecuted(reqId));
+            vm.prank(actor);
+            try safetyNet.executeContestedWithdrawal(reqId) {
+              assertTrue(safetyNet.isExecuted(reqId));
             } catch { }
           }
         } else {
-          assertEq(breadfund.nextIdRequest(), reqsBefore, "no request if insufficient");
+          assertEq(safetyNet.nextIdRequest(), reqsBefore, "no request if insufficient");
         }
       }
     } catch { }
   }
 
   // ── Case 4: Request execution attempt — only possible after contest window
-  function _caseMaybeExecuteLatest(IBreadfund.Breadfund memory cfg, address actor) external {
-    uint256 nReq = breadfund.nextIdRequest();
+  function _caseMaybeExecuteLatest(ISafetyNet.SafetyNet memory cfg, address actor) external {
+    uint256 nReq = safetyNet.nextIdRequest();
     if (nReq == 0) return;
 
     uint256 reqId = nReq - 1;
     vm.warp(block.timestamp + cfg.contestWindow + 1);
     vm.prank(actor);
-    try breadfund.executeContestedWithdrawal(reqId) { } catch {}
+    try safetyNet.executeContestedWithdrawal(reqId) { } catch {}
   }
 
   /// Small-withdraw limit fuzzing
   function testFuzz_SmallWithdrawsRespectLimit(uint8 daysReqRaw, uint8 extraWithdrawsRaw) public {
-    IBreadfund.Breadfund memory cfg = safeCfg;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = defaultMembers;
     cfg.ratio = 1;
-    cfg.breadfundStart = block.timestamp;
-    uint256 id = breadfund.create(cfg);
+    cfg.safetyNetStart = block.timestamp;
+    uint256 id = safetyNet.create(cfg);
 
     uint256 daysRequested  = bound(uint256(daysReqRaw), 1, 3);
     uint256 extraWithdraws = bound(uint256(extraWithdrawsRaw), 0, 2);
@@ -179,24 +179,24 @@ contract BreadfundFuzz_DepositWithdraw is BreadfundFuzzBase {
     if (dep < planned) dep = planned;
 
     uint256 totalNeeded = dep + cfg.initialDeposit + cfg.fixedDeposit;
-    _mintApprove(member1, totalNeeded, address(breadfund));
+    _mintApprove(member1, totalNeeded, address(safetyNet));
     vm.prank(member1);
-    breadfund.deposit(id, dep);
+    safetyNet.deposit(id, dep);
 
     for (uint256 i = 0; i < cfg.smallWithdrawsLimit; i++) {
       vm.prank(member1);
-      breadfund.withdraw(id, daysRequested);
+      safetyNet.withdraw(id, daysRequested);
     }
 
     for (uint256 j = 0; j < extraWithdraws; j++) {
       vm.prank(member1);
-      vm.expectRevert(IBreadfund.ExceedsSmallWithdrawalLimit.selector);
-      breadfund.withdraw(id, daysRequested);
+      vm.expectRevert(ISafetyNet.ExceedsSmallWithdrawalLimit.selector);
+      safetyNet.withdraw(id, daysRequested);
     }
 
     // After advancing to new epoch, limit resets
     vm.warp(block.timestamp + cfg.epochDuration + 1);
     vm.prank(member1);
-    breadfund.withdraw(id, daysRequested);
+    safetyNet.withdraw(id, daysRequested);
   }
 }

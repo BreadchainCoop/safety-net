@@ -5,45 +5,45 @@ import {OwnableUpgradeable} from '@openzeppelin-upgradeable/access/OwnableUpgrad
 import {IERC20} from '@openzeppelin/token/ERC20/IERC20.sol';
 import {ReentrancyGuard} from '@openzeppelin/utils/ReentrancyGuard.sol';
 
-import {IBreadfund} from '../interfaces/IBreadfund.sol';
+import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 
-/// @title Breadfund
+/// @title SafetyNet
 /// @notice Simple implementation of a Broodfond for ERC20 tokens
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
-contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
+contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
-  /// @notice ID counter used to assign unique identifiers to each Breadfund
+  /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
   /// @notice ID counter used to assign unique identifiers to each request
   uint256 public nextIdRequest;
 
-  /// @notice Stores all created Breadfunds indexed by their unique ID
-  mapping(uint256 id => Breadfund breadfund) public breadfunds;
+  /// @notice Stores all created Safety Nets indexed by their unique ID
+  mapping(uint256 id => SafetyNet safetyNet) public safetyNets;
 
-  /// @notice Indicates whether a specific address is a member of the Breadfund with the given ID
+  /// @notice Indicates whether a specific address is a member of the Safety Net with the given ID
   mapping(uint256 id => mapping(address member => bool status)) public isMember;
 
-  /// @notice Lists all Breadfund IDs that a given member has joined
-  mapping(address member => uint256[] ids) public memberBreadfunds;
+  /// @notice Lists all Safety Net IDs that a given member has joined
+  mapping(address member => uint256[] ids) public memberSafetyNets;
 
-  /// @notice Tracks personal savings of each member in a given Breadfund
-  mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public breadfundMemberContribute;
+  /// @notice Tracks personal savings of each member in a given Safety Net
+  mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public safetyNetMemberContribute;
 
-  /// @notice Tracks withdrawable amount for each member in a given Breadfund
+  /// @notice Tracks withdrawable amount for each member in a given Safety Net
   mapping(uint256 id => mapping(address member => uint256 withdrawableBalance)) public memberWithdrawableBalance;
 
-  /// @notice Holds the total balance of each Breadfund
-  mapping(uint256 id => uint256 balance) public breadfundBalance;
+  /// @notice Holds the total balance of each Safety Net
+  mapping(uint256 id => uint256 balance) public safetyNetBalance;
 
-  /// @notice Indicates whether a specific ERC20 token is allowed for use in Breadfunds
+  /// @notice Indicates whether a specific ERC20 token is allowed for use in Safety Nets
   mapping(address token => bool status) public allowedTokens;
 
-  /// @notice Tracks whether a member has made their first deposit in a specific Breadfund
+  /// @notice Tracks whether a member has made their first deposit in a specific Safety Net
   mapping(uint256 id => mapping(address member => bool hasDeposited)) public hasMadeFirstDeposit;
 
   /// @notice Lists all requests indexed by their unique ID
@@ -59,19 +59,19 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 id => bool executed) public isExecuted;
 
   /// @notice Tracks which members have deposited in each epoch
-  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => bool))) public
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
-  /// @notice Tracks the number of small withdrawals performed in a Breadfund from a member during one epoch
-  mapping(uint256 breadfundId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
+  /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
     public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
-  /// @dev Require that msg.sender is a member of the given breadfund
-  modifier onlyMemberOf(uint256 _breadfundId) {
-    if (!isMember[_breadfundId][msg.sender]) revert NotMember();
+  /// @dev Require that msg.sender is a member of the given Safety Net
+  modifier onlyMemberOf(uint256 _safetyNetId) {
+    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
     _;
   }
 
@@ -80,126 +80,126 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     _disableInitializers();
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function initialize(address _owner) external override initializer {
     __Ownable_init_unchained(_owner);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function setTokenAllowed(address _token, bool _allowed) external override onlyOwner {
     allowedTokens[_token] = _allowed;
     emit TokenAllowed(_token, _allowed);
   }
 
-  /// @inheritdoc IBreadfund
-  function create(Breadfund memory _breadfund) external override nonReentrant returns (uint256 _id) {
+  /// @inheritdoc ISafetyNet
+  function create(SafetyNet memory _safetyNet) external override nonReentrant returns (uint256 _id) {
     _id = nextId++;
 
-    if (breadfunds[_id].owner != address(0)) revert AlreadyExists();
-    if (!allowedTokens[_breadfund.token]) revert TokenNotAllowed();
-    if (_breadfund.breadfundStart == 0) revert InvalidBreadfundStartTime();
-    if (_breadfund.owner == address(0)) revert InvalidOwner();
-    if (_breadfund.initialDeposit <= 0) revert InvalidInitialDeposit();
-    if (_breadfund.fixedDeposit <= 0) revert InvalidFixedDeposit();
-    if (_breadfund.autoThreshold <= 0) revert InvalidThreshold();
-    if (_breadfund.minimumMembers < 2) revert InvalidMinimumMembers();
-    if (_breadfund.maximumMembers < _breadfund.minimumMembers) revert InvalidMaximumMembers();
-    if (_breadfund.epochDuration == 0) revert InvalidEpochDuration();
-    if (_breadfund.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
+    if (safetyNets[_id].owner != address(0)) revert AlreadyExists();
+    if (!allowedTokens[_safetyNet.token]) revert TokenNotAllowed();
+    if (_safetyNet.safetyNetStart == 0) revert InvalidSafetyNetStartTime();
+    if (_safetyNet.owner == address(0)) revert InvalidOwner();
+    if (_safetyNet.initialDeposit <= 0) revert InvalidInitialDeposit();
+    if (_safetyNet.fixedDeposit <= 0) revert InvalidFixedDeposit();
+    if (_safetyNet.autoThreshold <= 0) revert InvalidThreshold();
+    if (_safetyNet.minimumMembers < 2) revert InvalidMinimumMembers();
+    if (_safetyNet.maximumMembers < _safetyNet.minimumMembers) revert InvalidMaximumMembers();
+    if (_safetyNet.epochDuration == 0) revert InvalidEpochDuration();
+    if (_safetyNet.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
 
-    uint256 _breadfundMembersLength = _breadfund.members.length;
+    uint256 _safetyNetMembersLength = _safetyNet.members.length;
 
-    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-      address _member = _breadfund.members[i];
+    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+      address _member = _safetyNet.members[i];
       if (_member == address(0)) revert InvalidMemberAddress();
       for (uint256 j = 0; j < i; j++) {
-        if (_breadfund.members[j] == _member) {
+        if (_safetyNet.members[j] == _member) {
           revert DuplicateMember();
         }
       }
     }
 
-    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-      address _member = _breadfund.members[i];
+    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+      address _member = _safetyNet.members[i];
       isMember[_id][_member] = true;
-      memberBreadfunds[_member].push(_id);
+      memberSafetyNets[_member].push(_id);
     }
 
-    _breadfund.id = _id;
-    breadfunds[_id] = _breadfund;
+    _safetyNet.id = _id;
+    safetyNets[_id] = _safetyNet;
 
-    emit BreadfundCreated(
+    emit SafetyNetCreated(
       _id,
-      _breadfund.minimumMembers,
-      _breadfund.maximumMembers,
-      _breadfund.consensusThreshold,
-      _breadfund.members,
-      _breadfund.token,
-      _breadfund.initialDeposit,
-      _breadfund.fixedDeposit,
-      _breadfund.ratio,
-      _breadfund.autoThreshold,
-      _breadfund.epochDuration,
-      _breadfund.smallWithdrawsLimit
+      _safetyNet.minimumMembers,
+      _safetyNet.maximumMembers,
+      _safetyNet.consensusThreshold,
+      _safetyNet.members,
+      _safetyNet.token,
+      _safetyNet.initialDeposit,
+      _safetyNet.fixedDeposit,
+      _safetyNet.ratio,
+      _safetyNet.autoThreshold,
+      _safetyNet.epochDuration,
+      _safetyNet.smallWithdrawsLimit
     );
     return _id;
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function decommission(uint256 _id) external override nonReentrant {
-    Breadfund memory _breadfund = breadfunds[_id];
-    uint256 _breadfundMembersLength = _breadfund.members.length;
+    SafetyNet memory _safetyNet = safetyNets[_id];
+    uint256 _safetyNetMembersLength = _safetyNet.members.length;
 
     if (!isDecommissionable(_id)) revert NotDecommissionable();
 
-    uint256 _balance = breadfundBalance[_id];
+    uint256 _balance = safetyNetBalance[_id];
 
-    breadfundBalance[_id] = 0;
+    safetyNetBalance[_id] = 0;
 
-    for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-      address _member = _breadfund.members[i];
+    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+      address _member = _safetyNet.members[i];
       uint256 _amount = memberWithdrawableBalance[_id][_member];
       if (_amount > 0) {
         memberWithdrawableBalance[_id][_member] = 0;
         _balance -= _amount;
 
-        if (!IERC20(_breadfund.token).transfer(_member, _amount)) revert TransferFailed();
+        if (!IERC20(_safetyNet.token).transfer(_member, _amount)) revert TransferFailed();
       }
     }
 
     if (_balance > 0) {
-      uint256 _amount = _balance / _breadfundMembersLength;
+      uint256 _amount = _balance / _safetyNetMembersLength;
 
-      for (uint256 i = 0; i < _breadfundMembersLength; i++) {
-        address _member = _breadfund.members[i];
-        if (!IERC20(_breadfund.token).transfer(_member, _amount)) revert TransferFailed();
+      for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+        address _member = _safetyNet.members[i];
+        if (!IERC20(_safetyNet.token).transfer(_member, _amount)) revert TransferFailed();
       }
     }
 
-    delete breadfunds[_id];
+    delete safetyNets[_id];
 
-    emit BreadfundDecommissioned(_id);
+    emit SafetyNetDecommissioned(_id);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function deposit(uint256 _id, uint256 _value) external override nonReentrant {
     _deposit(_id, _value, msg.sender);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function depositFor(uint256 _id, uint256 _value, address _member) external override nonReentrant {
     _deposit(_id, _value, _member);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function withdraw(uint256 _id, uint256 _daysRequested) external override nonReentrant {
     _withdraw(_id, msg.sender, _daysRequested);
   }
 
-  /// @inheritdoc IBreadfund
-  function createRequest(Request memory _request) external override onlyMemberOf(_request.breadfundId) returns (uint256) {
+  /// @inheritdoc ISafetyNet
+  function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
-    if (breadfunds[_request.breadfundId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
 
     _request.timestamp = block.timestamp;
@@ -209,8 +209,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return _createRequest(_request);
   }
 
-  /// @inheritdoc IBreadfund
-  function contest(uint256 _requestId) external override nonReentrant onlyMemberOf(requests[_requestId].breadfundId) {
+  /// @inheritdoc ISafetyNet
+  function contest(uint256 _requestId) external override nonReentrant onlyMemberOf(requests[_requestId].safetyNetId) {
     Request storage _request = requests[_requestId];
 
     if (!_isContestable(_requestId)) revert ContestWindowClosed();
@@ -221,23 +221,23 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     emit WithdrawalContested(_requestId, _request.owner, block.timestamp);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function executeContestedWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
-    Breadfund memory _breadfund = breadfunds[_request.breadfundId];
+    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
 
     // Can only auto-execute if contest window has passed and request was not contested
     if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
-      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
+      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
 
   function vote(uint256 _requestId, bool _vote) external override nonReentrant {
-    if (!isMember[requests[_requestId].breadfundId][msg.sender]) revert NotMember();
+    if (!isMember[requests[_requestId].safetyNetId][msg.sender]) revert NotMember();
     if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
     if (!_isVotingOngoing(_requestId)) revert VotingWindowClosed();
     if (isExecuted[_requestId]) revert AlreadyExecuted();
@@ -252,94 +252,94 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     // Check if consensus has been reached after this vote
     Request memory _request = requests[_requestId];
-    Breadfund memory _breadfund = breadfunds[_request.breadfundId];
+    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
 
-    if (_request.yesVotes > _breadfund.members.length * _breadfund.consensusThreshold / 100) {
+    if (_request.yesVotes > _safetyNet.members.length * _safetyNet.consensusThreshold / 100) {
       // Consensus reached - execute withdrawal immediately
       isExecuted[_requestId] = true;
       emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
-      if (!IERC20(_breadfund.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
+      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
 
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
 
-  /// @inheritdoc IBreadfund
-  function getBreadfund(uint256 _id) external view override returns (Breadfund memory _breadfund) {
-    _breadfund = breadfunds[_id];
+  /// @inheritdoc ISafetyNet
+  function getSafetyNet(uint256 _id) external view override returns (SafetyNet memory _safetyNet) {
+    _safetyNet = safetyNets[_id];
 
-    if (_isDecommissioned(_breadfund)) revert NotCommissioned();
+    if (_isDecommissioned(_safetyNet)) revert NotCommissioned();
   }
 
-  /// @inheritdoc IBreadfund
-  function getBreadfunds(uint256[] calldata _ids) external view override returns (Breadfund[] memory _breadfunds) {
-    _breadfunds = new Breadfund[](_ids.length);
+  /// @inheritdoc ISafetyNet
+  function getSafetyNets(uint256[] calldata _ids) external view override returns (SafetyNet[] memory _safetyNets) {
+    _safetyNets = new SafetyNet[](_ids.length);
 
     for (uint256 i = 0; i < _ids.length; i++) {
-      _breadfunds[i] = breadfunds[_ids[i]];
+      _safetyNets[i] = safetyNets[_ids[i]];
     }
   }
 
-  /// @inheritdoc IBreadfund
-  function getMemberBreadfunds(address _member) external view override returns (uint256[] memory _ids) {
-    return memberBreadfunds[_member];
+  /// @inheritdoc ISafetyNet
+  function getMemberSafetyNets(address _member) external view override returns (uint256[] memory _ids) {
+    return memberSafetyNets[_member];
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function getMemberBalances(uint256 _id)
     external
     view
     override
     returns (address[] memory _members, uint256[] memory _balances)
   {
-    Breadfund memory _breadfund = breadfunds[_id];
+    SafetyNet memory _safetyNet = safetyNets[_id];
 
-    if (_isDecommissioned(_breadfund)) revert NotCommissioned();
+    if (_isDecommissioned(_safetyNet)) revert NotCommissioned();
 
-    _balances = new uint256[](_breadfund.members.length);
-    for (uint256 i = 0; i < _breadfund.members.length; i++) {
-      _balances[i] = memberWithdrawableBalance[_id][_breadfund.members[i]];
+    _balances = new uint256[](_safetyNet.members.length);
+    for (uint256 i = 0; i < _safetyNet.members.length; i++) {
+      _balances[i] = memberWithdrawableBalance[_id][_safetyNet.members[i]];
     }
 
-    return (_breadfund.members, _balances);
+    return (_safetyNet.members, _balances);
   }
 
-  /// @inheritdoc IBreadfund
+  /// @inheritdoc ISafetyNet
   function hasMemberDepositedInEpoch(
-    uint256 _breadfundId,
+    uint256 _safetyNetId,
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
-    return epochMemberDeposits[_breadfundId][_epochIndex][_member];
+    return epochMemberDeposits[_safetyNetId][_epochIndex][_member];
   }
 
-  /// @inheritdoc IBreadfund
-  function getCurrentEpochIndex(uint256 _breadfundId) public view override returns (uint256) {
-    Breadfund memory breadfund = breadfunds[_breadfundId];
+  /// @inheritdoc ISafetyNet
+  function getCurrentEpochIndex(uint256 _safetyNetId) public view override returns (uint256) {
+    SafetyNet memory safetyNet = safetyNets[_safetyNetId];
 
-    if (block.timestamp < breadfund.breadfundStart) {
+    if (block.timestamp < safetyNet.safetyNetStart) {
       return 0;
     }
 
-    return (block.timestamp - breadfund.breadfundStart) / breadfund.epochDuration;
+    return (block.timestamp - safetyNet.safetyNetStart) / safetyNet.epochDuration;
   }
 
-  /// @inheritdoc IBreadfund
-  function isDecommissionable(uint256 _breadfundId) public view override returns (bool) {
-    Breadfund memory breadfund = breadfunds[_breadfundId];
+  /// @inheritdoc ISafetyNet
+  function isDecommissionable(uint256 _safetyNetId) public view override returns (bool) {
+    SafetyNet memory safetyNet = safetyNets[_safetyNetId];
 
-    if (breadfund.owner == address(0)) {
+    if (safetyNet.owner == address(0)) {
       return true;
     }
 
-    uint256 currentEpochIndex = getCurrentEpochIndex(_breadfundId);
+    uint256 currentEpochIndex = getCurrentEpochIndex(_safetyNetId);
 
     for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
-      for (uint256 i = 0; i < breadfund.members.length; i++) {
-        if (!epochMemberDeposits[_breadfundId][epochIndex][breadfund.members[i]]) {
+      for (uint256 i = 0; i < safetyNet.members.length; i++) {
+        if (!epochMemberDeposits[_safetyNetId][epochIndex][safetyNet.members[i]]) {
           return true;
         }
       }
@@ -354,12 +354,12 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
    *      The method "transferFrom()" requires "approve()" front-end side
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
-    Breadfund storage _breadfund = breadfunds[_id];
+    SafetyNet storage _safetyNet = safetyNets[_id];
 
-    if (_breadfund.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
     if (_value <= 0) revert InvalidDepositAmount();
-    if (block.timestamp < _breadfund.breadfundStart) revert DepositBeforeBreadfundStart();
+    if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
 
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
 
@@ -367,20 +367,20 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
       revert AlreadyDeposited();
     }
 
-    uint256 _totalDeposit = _value + _breadfund.fixedDeposit;
+    uint256 _totalDeposit = _value + _safetyNet.fixedDeposit;
 
     if (!hasMadeFirstDeposit[_id][_member]) {
-      breadfundMemberContribute[_id][_member] = _value;
-      _totalDeposit += _breadfund.initialDeposit;
+      safetyNetMemberContribute[_id][_member] = _value;
+      _totalDeposit += _safetyNet.initialDeposit;
       hasMadeFirstDeposit[_id][_member] = true;
     }
 
-    breadfundBalance[_id] += _totalDeposit;
-    memberWithdrawableBalance[_id][_member] += _value * _breadfund.ratio;
+    safetyNetBalance[_id] += _totalDeposit;
+    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
 
     epochMemberDeposits[_id][currentEpochIndex][_member] = true;
 
-    if (!IERC20(_breadfund.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
+    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _totalDeposit);
   }
@@ -395,7 +395,7 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
     if (_request.owner == address(0)) revert InvalidRequest();
     if (requests[_idRequest].owner != address(0)) revert AlreadyExists();
-    if (breadfunds[_request.breadfundId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
 
     requests[_idRequest] = _request;
 
@@ -405,38 +405,38 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
 
   /**
    * @dev Make a withdrawal
-   * @param _id The ID of the Breadfund
+   * @param _id The ID of the Safety Net
    * @param _member The address of the member making the withdrawal
    * @param _daysRequested The number of days for which the member is requesting a withdrawal
    * @notice If the requested amount is small, it is transferred directly to the member
    *         If the requested amount is large, a request is created for approval
    */
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
-    Breadfund memory _breadfund = breadfunds[_id];
+    SafetyNet memory _safetyNet = safetyNets[_id];
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
 
-    if (_breadfund.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
 
-    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _breadfund.ratio);
+    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.ratio);
 
     uint256 _withdrawAmount = _dailyWithdrawableAmount * _daysRequested;
 
     if (_withdrawAmount > memberWithdrawableBalance[_id][_member]) revert NotWithdrawable();
 
-    if (_isSmall(_breadfund.autoThreshold, _withdrawAmount)) {
+    if (_isSmall(_safetyNet.autoThreshold, _withdrawAmount)) {
       smallWithdrawsCount[_id][currentEpochIndex][_member]++;
-      if (smallWithdrawsCount[_id][currentEpochIndex][_member] > _breadfund.smallWithdrawsLimit) {
+      if (smallWithdrawsCount[_id][currentEpochIndex][_member] > _safetyNet.smallWithdrawsLimit) {
         revert ExceedsSmallWithdrawalLimit();
       }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
-      if (!IERC20(_breadfund.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
+      if (!IERC20(_safetyNet.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       Request memory _request = Request({
         owner: _member,
-        breadfundId: _id,
+        safetyNetId: _id,
         timestamp: block.timestamp,
         yesVotes: 0,
         noVotes: 0,
@@ -447,9 +447,9 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  /// @dev Calculates the daily withdrawal for a member in a Breadfund
+  /// @dev Calculates the daily withdrawal for a member in a Safety Net
   function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
-    uint256 _memberContribute = breadfundMemberContribute[_id][_member];
+    uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
     uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
     return _monthlyWithdrawalAmount / DAYS_IN_A_MONTH;
   }
@@ -457,13 +457,13 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Check if a request is contestable by comparing the current timestamp with the request's timestamp and the contest window
   function _isContestable(uint256 _idRequest) internal view returns (bool) {
     Request memory _request = requests[_idRequest];
-    return block.timestamp <= (_request.timestamp + breadfunds[_request.breadfundId].contestWindow);
+    return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].contestWindow);
   }
 
   /// @dev Check if a request's voting window is open by comparing the current timestamp with the request's timestamp and the voting window
   function _isVotingOngoing(uint256 _idRequest) internal view returns (bool) {
     Request memory _request = requests[_idRequest];
-    return block.timestamp <= (_request.timestamp + breadfunds[_request.breadfundId].votingWindow);
+    return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].votingWindow);
   }
 
   /// @dev
@@ -471,8 +471,8 @@ contract Breadfund is IBreadfund, ReentrancyGuard, OwnableUpgradeable {
     return _withdrawAmount <= _autoThreshold;
   }
 
-  /// @dev Return if a specified Breadfund is decommissioned by checking if an owner is set
-  function _isDecommissioned(Breadfund memory _breadfund) internal pure returns (bool) {
-    return _breadfund.owner == address(0);
+  /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
+  function _isDecommissioned(SafetyNet memory _safetyNet) internal pure returns (bool) {
+    return _safetyNet.owner == address(0);
   }
 }

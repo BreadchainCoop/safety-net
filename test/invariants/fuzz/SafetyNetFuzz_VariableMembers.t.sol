@@ -3,10 +3,10 @@ pragma solidity ^0.8.28;
 
 
 
-import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
-import {IBreadfund} from "src/interfaces/IBreadfund.sol";
+import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
+import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
 
-contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
+contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Fuzz: deposits across epochs for variable members.
   /// -------------------------------------------------------------------------
@@ -18,16 +18,16 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
     uint256 ops    = bound(uint256(opsRaw),     5, 30);
 
     address[] memory members = _makeMembers(m);
-    IBreadfund.Breadfund memory cfg = safeCfg;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = members;
     cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
-    cfg.breadfundStart = block.timestamp;
+    cfg.safetyNetStart = block.timestamp;
     cfg.ratio = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
     for (uint256 i = 0; i < m; i++) {
-      _mintApprove(members[i], 1e24, address(breadfund));
+      _mintApprove(members[i], 1e24, address(safetyNet));
     }
 
     for (uint256 e = 0; e < epochs; e++) {
@@ -36,7 +36,7 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
         address actor = members[seed % m];
         uint256 v = 1e18 + (seed % 1e18);
         vm.prank(actor);
-        try breadfund.deposit(id, v) {} catch {}
+        try safetyNet.deposit(id, v) {} catch {}
       }
       vm.warp(block.timestamp + cfg.epochDuration + 1);
     }
@@ -53,18 +53,18 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
     uint256 ops    = bound(uint256(opsRaw),     5, 30);
 
     address[] memory members = _makeMembers(m);
-    IBreadfund.Breadfund memory cfg = safeCfg;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = members;
     cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
-    cfg.breadfundStart = block.timestamp;
+    cfg.safetyNetStart = block.timestamp;
     cfg.ratio = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
     for (uint256 i = 0; i < m; i++) {
-      _mintApprove(members[i], 1e24, address(breadfund));
+      _mintApprove(members[i], 1e24, address(safetyNet));
       vm.prank(members[i]);
-      try breadfund.deposit(id, 5e18) {} catch {}
+      try safetyNet.deposit(id, 5e18) {} catch {}
     }
 
     for (uint256 e = 0; e < epochs; e++) {
@@ -73,7 +73,7 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
         address actor = members[seed % m];
         uint256 daysReq = 1 + (seed % 3);
         vm.prank(actor);
-        try breadfund.withdraw(id, daysReq) {} catch {}
+        try safetyNet.withdraw(id, daysReq) {} catch {}
       }
       vm.warp(block.timestamp + cfg.epochDuration + 1);
     }
@@ -90,18 +90,18 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
     uint256 ops    = bound(uint256(opsRaw),     5, 30);
 
     address[] memory members = _makeMembers(m);
-    IBreadfund.Breadfund memory cfg = safeCfg;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = members;
     cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
-    cfg.breadfundStart = block.timestamp;
+    cfg.safetyNetStart = block.timestamp;
     cfg.ratio = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
     for (uint256 i = 0; i < m; i++) {
-      _mintApprove(members[i], 1e24, address(breadfund));
+      _mintApprove(members[i], 1e24, address(safetyNet));
       vm.prank(members[i]);
-      try breadfund.deposit(id, 1e19) {} catch {}
+      try safetyNet.deposit(id, 1e19) {} catch {}
     }
 
     for (uint256 e = 0; e < epochs; e++) {
@@ -110,7 +110,7 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
         address actor = members[seed % m];
         uint256 daysReq = 40 + (seed % 40);
         vm.prank(actor);
-        try breadfund.withdraw(id, daysReq) {} catch {}
+        try safetyNet.withdraw(id, daysReq) {} catch {}
       }
       vm.warp(block.timestamp + cfg.epochDuration + 1);
     }
@@ -127,18 +127,18 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
     uint256 ops    = bound(uint256(opsRaw),     5, 30);
 
     address[] memory members = _makeMembers(m);
-    IBreadfund.Breadfund memory cfg = safeCfg;
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = members;
     cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
-    cfg.breadfundStart = block.timestamp;
+    cfg.safetyNetStart = block.timestamp;
     cfg.ratio = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
     for (uint256 i = 0; i < m; i++) {
-      _mintApprove(members[i], 1e24, address(breadfund));
+      _mintApprove(members[i], 1e24, address(safetyNet));
       vm.prank(members[i]);
-      try breadfund.deposit(id, 1e19) {} catch {}
+      try safetyNet.deposit(id, 1e19) {} catch {}
     }
 
     for (uint256 e = 0; e < epochs; e++) {
@@ -149,14 +149,14 @@ contract BreadfundFuzz_VariableMembers is BreadfundFuzzBase {
         // Create a large withdraw request occasionally.
         uint256 daysReq = 40 + (seed % 40);
         vm.prank(actor);
-        try breadfund.withdraw(id, daysReq) {} catch {}
+        try safetyNet.withdraw(id, daysReq) {} catch {}
 
         // If a request exists, occasionally fast-forward past contest window and execute.
-        if (breadfund.nextIdRequest() > 0 && (seed & 1) == 1) {
-          uint256 reqId = breadfund.nextIdRequest() - 1;
+        if (safetyNet.nextIdRequest() > 0 && (seed & 1) == 1) {
+          uint256 reqId = safetyNet.nextIdRequest() - 1;
           vm.warp(block.timestamp + cfg.contestWindow + 1);
           vm.prank(actor);
-          try breadfund.executeContestedWithdrawal(reqId) {} catch {}
+          try safetyNet.executeContestedWithdrawal(reqId) {} catch {}
         }
       }
       vm.warp(block.timestamp + cfg.epochDuration + 1);
