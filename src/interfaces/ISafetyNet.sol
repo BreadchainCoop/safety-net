@@ -7,7 +7,7 @@ pragma solidity ^0.8.28;
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
-// interface ISafetyNet {
+ interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
   //////////////////////////////////////////////////////////////*/
