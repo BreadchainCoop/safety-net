@@ -60,7 +60,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
   function _caseSmallWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
-    uint256 contrib  = safetyNet.memberContribute(id, actor);
+    uint256 contrib  = safetyNet.safetyNetMemberContribute(id, actor);
     uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
 
     uint256 daysReq = 1 + (seed % 3);
@@ -97,7 +97,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
 
   // ── Case 3: Large withdrawals — create a request; execution after contest window
   function _caseLargeWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
-    uint256 contrib  = safetyNet.memberContribute(id, actor);
+    uint256 contrib  = safetyNet.safetyNetMemberContribute(id, actor);
     uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
     uint256 daysReq  = 40 + (seed % 40);
     uint256 want     = (contrib / 30) * daysReq;
