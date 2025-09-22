@@ -178,6 +178,9 @@ interface IBreadfund {
   /// @notice Thrown if a member address is invalid
   error InvalidMemberAddress();
 
+  /// @notice Thrown if the member list has duplicates
+  error DuplicateMember();
+
   /// @notice Thrown for bad initial deposit configuration
   error InvalidInitialDeposit();
 
