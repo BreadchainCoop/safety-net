@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 
-import {BreadfundFuzzBase} from "./BreadfundFuzzBase.t.sol";
-import {IBreadfund} from "src/interfaces/IBreadfund.sol";
+import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
+import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
 
-contract BreadfundFuzz_Decommission is BreadfundFuzzBase {
+contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Scenario: "Crazy decommissions" with uneven deposits and skipped epochs.
   /// Steps:
@@ -26,16 +26,16 @@ contract BreadfundFuzz_Decommission is BreadfundFuzzBase {
     uint256 dep3 = bound(dep3Raw, 1e17, 5e19);
     uint256 skipEpochs = bound(uint256(skipEpochsRaw), 1, 4);
 
-    IBreadfund.Breadfund memory cfg = safeCfg;
-    cfg.breadfundStart = block.timestamp; 
-    cfg.members = defaultMembers; 
+    ISafetyNet.SafetyNet memory cfg = safeCfg;
+    cfg.safetyNetStart = block.timestamp;
+    cfg.members = defaultMembers;
     cfg.ratio = 1;
-    uint256 id = breadfund.create(cfg);
+    uint256 id = safetyNet.create(cfg);
 
     // Pre-fund with enough allowance for multiple deposits.
-    _mintApprove(member1, dep1 + dep1 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(breadfund));
-    _mintApprove(member2, dep2 + dep2 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(breadfund));
-    _mintApprove(member3, dep3 + dep3 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(breadfund));
+    _mintApprove(member1, dep1 + dep1 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(safetyNet));
+    _mintApprove(member2, dep2 + dep2 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(safetyNet));
+    _mintApprove(member3, dep3 + dep3 + 2 * (cfg.initialDeposit + cfg.fixedDeposit), address(safetyNet));
 
     // Initial deposits
     _depositAs(member1, id, dep1);
@@ -50,13 +50,13 @@ contract BreadfundFuzz_Decommission is BreadfundFuzzBase {
 
     // Advance further epochs → fund should now be decommissionable
     vm.warp(block.timestamp + cfg.epochDuration * skipEpochs + 1);
-    assertTrue(breadfund.isDecommissionable(id), "decommissionable after a missed epoch");
+    assertTrue(safetyNet.isDecommissionable(id), "decommissionable after a missed epoch");
 
     // Snapshot before decommission
-    uint256 cBalBefore = token.balanceOf(address(breadfund));
-    uint256 w1 = breadfund.memberWithdrawableBalance(id, member1);
-    uint256 w2 = breadfund.memberWithdrawableBalance(id, member2);
-    uint256 w3 = breadfund.memberWithdrawableBalance(id, member3);
+    uint256 cBalBefore = token.balanceOf(address(safetyNet));
+    uint256 w1 = safetyNet.memberWithdrawableBalance(id, member1);
+    uint256 w2 = safetyNet.memberWithdrawableBalance(id, member2);
+    uint256 w3 = safetyNet.memberWithdrawableBalance(id, member3);
     uint256 sumW = w1 + w2 + w3;
 
     assertGe(cBalBefore, sumW, "contract covers withdrawables here");
@@ -71,16 +71,16 @@ contract BreadfundFuzz_Decommission is BreadfundFuzzBase {
     uint256 m3Before = token.balanceOf(member3);
 
     // Execute decommission
-    breadfund.decommission(id);
+    safetyNet.decommission(id);
 
     // Fund should be marked as not commissioned anymore
-    vm.expectRevert(IBreadfund.NotCommissioned.selector);
-    breadfund.getBreadfund(id);
+    vm.expectRevert(ISafetyNet.NotCommissioned.selector);
+    safetyNet.getSafetyNet(id);
 
     // All withdrawables zeroed out
-    assertEq(breadfund.memberWithdrawableBalance(id, member1), 0);
-    assertEq(breadfund.memberWithdrawableBalance(id, member2), 0);
-    assertEq(breadfund.memberWithdrawableBalance(id, member3), 0);
+    assertEq(safetyNet.memberWithdrawableBalance(id, member1), 0);
+    assertEq(safetyNet.memberWithdrawableBalance(id, member2), 0);
+    assertEq(safetyNet.memberWithdrawableBalance(id, member3), 0);
 
     // Members receive withdrawables + fair share of the split
     uint256 m1After = token.balanceOf(member1);
@@ -92,7 +92,7 @@ contract BreadfundFuzz_Decommission is BreadfundFuzzBase {
     assertEq(m3After - m3Before, w3 + split);
 
     // Dust remainder (if any) stays in the contract
-    uint256 cBalAfter = token.balanceOf(address(breadfund));
+    uint256 cBalAfter = token.balanceOf(address(safetyNet));
     assertEq(cBalAfter, remainder, "dust remainder retained");
   }
 }

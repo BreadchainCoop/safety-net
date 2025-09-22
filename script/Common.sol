@@ -5,19 +5,19 @@ import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
 import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {Script} from 'forge-std/Script.sol';
 
-import {Breadfund} from '../src/contracts/Breadfund.sol';
+import {SafetyNet} from '../src/contracts/SafetyNet.sol';
 
 /**
  * @title Common Contract
- * @author Breadchain
- * @notice This contract is used to deploy an upgradeable Saving Circles contract
+ * @author Bread Cooperative
+ * @notice This contract is used to deploy an upgradeable SafetyNet contract
  * @dev This contract is intended for use in Scripts and Integration Tests
  */
 contract Common is Script {
   function setUp() public virtual {}
 
-  function _deployBreadfund() internal returns (Breadfund) {
-    return new Breadfund();
+  function _deploySafetyNet() internal returns (SafetyNet) {
+    return new SafetyNet();
   }
 
   function _deployProxyAdmin(address _admin) internal returns (ProxyAdmin) {
@@ -34,9 +34,9 @@ contract Common is Script {
 
   function _deployContracts(address _admin) internal returns (TransparentUpgradeableProxy) {
     return _deployTransparentProxy(
-      address(_deployBreadfund()),
+      address(_deploySafetyNet()),
       address(_deployProxyAdmin(_admin)),
-      abi.encodeWithSelector(Breadfund.initialize.selector, _admin)
+      abi.encodeWithSelector(SafetyNet.initialize.selector, _admin)
     );
   }
 }

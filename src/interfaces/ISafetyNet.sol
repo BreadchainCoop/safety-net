@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-/// @title Breadfund Collective Savings Contract Interface
-/// @notice This interface defines the structure and interaction logic for Breadfunds, a group savings and voting system.
+/// @title SafetyNet Collective Savings Contract Interface
+/// @notice This interface defines the structure and interaction logic for SafetyNets, a group savings and voting system.
 /// @dev All function inputs/outputs are documented via NatSpec for external visibility.
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
-interface IBreadfund {
+interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Struct defining a Breadfund group
-  /// @param id Unique identifier for the Breadfund
-  /// @param owner The creator of the Breadfund
-  /// @param minimumMembers Minimum number of members required to create a Breadfund
-  /// @param maximumMembers Maximum number of members allowed in the Breadfund
+  /// @notice Struct defining a SafetyNet group
+  /// @param id Unique identifier for the SafetyNet
+  /// @param owner The creator of the SafetyNet
+  /// @param minimumMembers Minimum number of members required to create a SafetyNet
+  /// @param maximumMembers Maximum number of members allowed in the SafetyNet
   /// @param consensusThreshold Percentage of members required to approve a request
-  /// @param breadfundStart Timestamp when the fund becomes active
+  /// @param safetyNetStart Timestamp when the SafetyNet becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
@@ -28,13 +28,13 @@ interface IBreadfund {
   /// @param currentEpoch Current epoch index
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
-  struct Breadfund {
+  struct SafetyNet {
     uint256 id;
     address owner;
     uint256 minimumMembers;
     uint256 maximumMembers;
     uint256 consensusThreshold;
-    uint256 breadfundStart;
+    uint256 safetyNetStart;
     address token;
     address[] members;
     uint256 initialDeposit;
@@ -48,16 +48,16 @@ interface IBreadfund {
     uint256 smallWithdrawsLimit;
   }
 
-  /// @notice Struct defining a withdraw request within a Breadfund
+  /// @notice Struct defining a withdraw request within a SafetyNet
   /// @param owner The request initiator
-  /// @param breadfundId ID of the related Breadfund
+  /// @param safetyNetId ID of the related SafetyNet
   /// @param timestamp Creation time of the request
   /// @param yesVotes Number of yes votes received
   /// @param noVotes Number of no votes received
   /// @param amount Amount requested for withdrawal
   struct Request {
     address owner;
-    uint256 breadfundId;
+    uint256 safetyNetId;
     uint256 timestamp;
     uint256 yesVotes;
     uint256 noVotes;
@@ -68,8 +68,8 @@ interface IBreadfund {
                             EVENTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Emitted when a new Breadfund is created
-  event BreadfundCreated(
+  /// @notice Emitted when a new SafetyNet is created
+  event SafetyNetCreated(
     uint256 indexed id,
     uint256 minimumMembers,
     uint256 maximumMembers,
@@ -84,16 +84,16 @@ interface IBreadfund {
     uint256 smallWithdrawsLimit
   );
 
-  /// @notice Emitted when a Breadfund is decommissioned
-  event BreadfundDecommissioned(uint256 indexed id);
+  /// @notice Emitted when a SafetyNet is decommissioned
+  event SafetyNetDecommissioned(uint256 indexed id);
 
-  /// @notice Emitted when a member deposits to a Breadfund
+  /// @notice Emitted when a member deposits to a SafetyNet
   event FundsDeposited(uint256 indexed id, address indexed member, uint256 amount);
 
-  /// @notice Emitted when a member withdraws from a Breadfund
+  /// @notice Emitted when a member withdraws from a SafetyNet
   event FundsWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
 
-  /// @notice Emitted when a token is allowed or disallowed for Breadfund use
+  /// @notice Emitted when a token is allowed or disallowed for SafetyNet use
   event TokenAllowed(address indexed token, bool indexed allowed);
 
   /// @notice Emitted when a new request is created
@@ -130,35 +130,35 @@ interface IBreadfund {
   /// @notice Thrown when a deposit has already been made for the period
   error AlreadyDeposited();
 
-  /// @notice Thrown when trying to create a duplicate Breadfund
+  /// @notice Thrown when trying to create a duplicate SafetyNet
   error AlreadyExists();
 
-  /// @notice Thrown when the Breadfund ID is not found
-  error InvalidBreadfund();
+  /// @notice Thrown when the SafetyNet ID is not found
+  error InvalidSafetyNet();
 
   /// @notice Thrown if the fund is not in an active state
   error NotCommissioned();
 
-  /// @notice Thrown if the user is not a Breadfund member
+  /// @notice Thrown if the user is not a SafetyNet member
   error NotMember();
 
-  /// @notice Thrown if the Breadfund cannot be decommissioned yet
+  /// @notice Thrown if the SafetyNet cannot be decommissioned yet
   error NotDecommissionable();
 
-  /// @notice Thrown if the Breadfund cannot be withdrawn from
+  /// @notice Thrown if the SafetyNet cannot be withdrawn from
   error NotWithdrawable();
 
   /// @notice Thrown when the deposit window is closed
   error DepositWindowClosed();
 
-  /// @notice Thrown when the Breadfund has expired
-  error BreadfundExpired();
+  /// @notice Thrown when the SafetyNet has expired
+  error SafetyNetExpired();
 
   /// @notice Thrown when the deposit exceeds allowed limits
   error ExceedsDepositAmount();
 
   /// @notice Thrown if attempting to deposit before the fund starts
-  error DepositBeforeBreadfundStart();
+  error DepositBeforeSafetyNetStart();
 
   /// @notice Thrown if the specified token is not whitelisted
   error TokenNotAllowed();
@@ -166,8 +166,8 @@ interface IBreadfund {
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
 
-  /// @notice Thrown for an invalid Breadfund start time
-  error InvalidBreadfundStartTime();
+  /// @notice Thrown for an invalid SafetyNet start time
+  error InvalidSafetyNetStartTime();
 
   /// @notice Thrown when indexing fails
   error InvalidCurrentIndex();
@@ -231,41 +231,41 @@ interface IBreadfund {
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Initializes the Breadfund interface for an owner
-  /// @param owner The address that will control the Breadfund
+  /// @notice Initializes the SafetyNet interface for an owner
+  /// @param owner The address that will control the SafetyNet
   function initialize(address owner) external;
 
-  /// @notice Toggles whether a token is allowed for use in Breadfunds
+  /// @notice Toggles whether a token is allowed for use in SafetyNets
   /// @param token The ERC20 token address
   /// @param allowed Whether the token is allowed or not
   function setTokenAllowed(address token, bool allowed) external;
 
-  /// @notice Creates a new Breadfund
-  /// @param breadfund The Breadfund configuration
-  /// @return id The unique ID of the newly created Breadfund
-  function create(Breadfund memory breadfund) external returns (uint256);
+  /// @notice Creates a new SafetyNet
+  /// @param safetyNet The SafetyNet configuration
+  /// @return id The unique ID of the newly created SafetyNet
+  function create(SafetyNet memory safetyNet) external returns (uint256);
 
-  /// @notice Decommissions an existing Breadfund
-  /// @param id ID of the Breadfund to decommission
+  /// @notice Decommissions an existing SafetyNet
+  /// @param id ID of the SafetyNet to decommission
   function decommission(uint256 id) external;
 
-  /// @notice Makes a deposit into a Breadfund
-  /// @param id The Breadfund ID
+  /// @notice Makes a deposit into a SafetyNet
+  /// @param id The SafetyNet ID
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
-  /// @notice Makes a deposit into a Breadfund for another member
-  /// @param id The Breadfund ID
+  /// @notice Makes a deposit into a SafetyNet for another member
+  /// @param id The SafetyNet ID
   /// @param value Amount to deposit
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
 
-  /// @notice Makes a withdrawal from a Breadfund
-  /// @param id The Breadfund ID
+  /// @notice Makes a withdrawal from a SafetyNet
+  /// @param id The SafetyNet ID
   /// @param daysRequested Number of days for calculating withdrawal amount
   function withdraw(uint256 id, uint256 daysRequested) external;
 
-  /// @notice Creates a new request for withdraw from a Breadfund
+  /// @notice Creates a new request for withdraw from a SafetyNet
   /// @param request The withdraw request details
   /// @return id The request ID
   function createRequest(Request memory request) external returns (uint256);
@@ -287,23 +287,23 @@ interface IBreadfund {
                             VIEW
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Retrieves a single Breadfund by ID
-  /// @param id The Breadfund ID
-  /// @return breadfund The Breadfund struct
-  function getBreadfund(uint256 id) external view returns (Breadfund memory);
+  /// @notice Retrieves a single SafetyNet by ID
+  /// @param id The SafetyNet ID
+  /// @return safetyNet The SafetyNet struct
+  function getSafetyNet(uint256 id) external view returns (SafetyNet memory);
 
-  /// @notice Retrieves multiple Breadfunds by IDs
-  /// @param ids Array of Breadfund IDs
-  /// @return breadfunds Array of Breadfund structs
-  function getBreadfunds(uint256[] calldata ids) external view returns (Breadfund[] memory);
+  /// @notice Retrieves multiple SafetyNets by IDs
+  /// @param ids Array of SafetyNet IDs
+  /// @return safetyNets Array of SafetyNet structs
+  function getSafetyNets(uint256[] calldata ids) external view returns (SafetyNet[] memory);
 
-  /// @notice Returns all Breadfunds a member is part of
+  /// @notice Returns all SafetyNets a member is part of
   /// @param member Address of the member
-  /// @return ids List of Breadfund IDs the member has joined
-  function getMemberBreadfunds(address member) external view returns (uint256[] memory);
+  /// @return ids List of SafetyNet IDs the member has joined
+  function getMemberSafetyNets(address member) external view returns (uint256[] memory);
 
-  /// @notice Gets the balances of each member in a Breadfund
-  /// @param id Breadfund ID
+  /// @notice Gets the balances of each member in a SafetyNet
+  /// @param id SafetyNet ID
   /// @return members Array of member addresses
   /// @return balances Array of corresponding balances
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
@@ -313,23 +313,23 @@ interface IBreadfund {
   /// @return allowed True if the token is allowed, false otherwise
   function isTokenAllowed(address token) external view returns (bool);
 
-  /// @notice Gets the current epoch index for a Breadfund (calculated from time)
-  /// @param breadfundId The Breadfund ID
+  /// @notice Gets the current epoch index for a SafetyNet (calculated from time)
+  /// @param safetyNetId The SafetyNet ID
   /// @return epochIndex The current epoch index based on time elapsed
-  function getCurrentEpochIndex(uint256 breadfundId) external view returns (uint256);
+  function getCurrentEpochIndex(uint256 safetyNetId) external view returns (uint256);
 
-  /// @notice Checks if a Breadfund is eligible for decommission
-  /// @param breadfundId The Breadfund ID
-  /// @return decommissionable True if the breadfund can be decommissioned (when someone missed a payment)
-  function isDecommissionable(uint256 breadfundId) external view returns (bool);
+  /// @notice Checks if a SafetyNet is eligible for decommission
+  /// @param safetyNetId The SafetyNet ID
+  /// @return decommissionable True if the safetyNet can be decommissioned (when someone missed a payment)
+  function isDecommissionable(uint256 safetyNetId) external view returns (bool);
 
   /// @notice Checks if a member has deposited in a specific epoch
-  /// @param breadfundId The Breadfund ID
+  /// @param safetyNetId The SafetyNet ID
   /// @param member The member address
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
   function hasMemberDepositedInEpoch(
-    uint256 breadfundId,
+    uint256 safetyNetId,
     address member,
     uint256 epochIndex
   ) external view returns (bool);

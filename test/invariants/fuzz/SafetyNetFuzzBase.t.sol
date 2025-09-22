@@ -5,17 +5,17 @@ pragma solidity ^0.8.28;
 
 // ───────────────────────────── Imports ─────────────────────────────
 import {Test} from "forge-std/Test.sol";
-import {Breadfund} from "src/contracts/Breadfund.sol";
-import {IBreadfund} from "src/interfaces/IBreadfund.sol";
+import {SafetyNet} from "src/contracts/SafetyNet.sol";
+import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "@openzeppelin/proxy/transparent/ProxyAdmin.sol";
 import {MockERC20} from "test/mocks/MockERC20.sol";
 
 /// @notice Shared base for all fuzz suites: deploys proxy + token, provides defaults & helpers.
-abstract contract BreadfundFuzzBase is Test {
+abstract contract SafetyNetFuzzBase is Test {
   // Implementation / proxy
-  Breadfund internal implementation;
-  Breadfund internal breadfund;
+  SafetyNet internal implementation;
+  SafetyNet internal safetyNet;
   ProxyAdmin internal proxyAdmin;
   TransparentUpgradeableProxy internal proxy;
 
@@ -30,7 +30,7 @@ abstract contract BreadfundFuzzBase is Test {
   address[] internal defaultMembers;
 
   // Safe default template (filled in setUp)
-  IBreadfund.Breadfund internal safeCfg;
+  ISafetyNet.SafetyNet internal safeCfg;
 
   // Defaults (chosen to be permissive but safe for fuzzing)
   uint256 internal constant SAFE_MIN_MEMBERS = 3;
@@ -47,7 +47,7 @@ abstract contract BreadfundFuzzBase is Test {
 
   /**
    * setUp
-   * - Creates a proxy-admin + proxy-wrapped Breadfund, initialized with `owner_`.
+   * - Creates a proxy-admin + proxy-wrapped SafetyNet, initialized with `owner_`.
    * - Deploys and allow-lists a MockERC20 used across tests.
    * - Prepares a baseline config `safeCfg` reused by fuzz suites.
    */
@@ -64,31 +64,31 @@ abstract contract BreadfundFuzzBase is Test {
     vm.label(address(token), "MockERC20");
 
     // implementation + proxy admin
-    implementation = new Breadfund();
-    vm.label(address(implementation), "Breadfund_Impl");
+    implementation = new SafetyNet();
+    vm.label(address(implementation), "SafetyNet_Impl");
     proxyAdmin = new ProxyAdmin(owner_);
     vm.label(address(proxyAdmin), "ProxyAdmin");
 
     // proxy (initialize owner)
-    bytes memory initData = abi.encodeWithSelector(Breadfund.initialize.selector, owner_);
+    bytes memory initData = abi.encodeWithSelector(SafetyNet.initialize.selector, owner_);
     proxy = new TransparentUpgradeableProxy(address(implementation), address(proxyAdmin), initData);
-    vm.label(address(proxy), "Breadfund_Proxy");
+    vm.label(address(proxy), "SafetyNet_Proxy");
 
     // use proxy via impl ABI
-    breadfund = Breadfund(address(proxy));
-    vm.label(address(breadfund), "Breadfund");
+    safetyNet = SafetyNet(address(proxy));
+    vm.label(address(safetyNet), "SafetyNet");
 
     // allow token
-    breadfund.setTokenAllowed(address(token), true);
+    safetyNet.setTokenAllowed(address(token), true);
 
     // default config template
-    IBreadfund.Breadfund memory cfg;
+    ISafetyNet.SafetyNet memory cfg;
     cfg.id = 0;
     cfg.owner = owner_;
     cfg.minimumMembers = SAFE_MIN_MEMBERS;
     cfg.maximumMembers = SAFE_MAX_MEMBERS;
     cfg.consensusThreshold = SAFE_CONSENSUS;
-    cfg.breadfundStart = block.timestamp + 1 days; // future by default
+    cfg.safetyNetStart = block.timestamp + 1 days; // future by default
     cfg.token = address(token);
     cfg.members = defaultMembers;
     cfg.initialDeposit = SAFE_INITIAL_DEPOSIT;
@@ -121,7 +121,7 @@ abstract contract BreadfundFuzzBase is Test {
   function _makeMembers(uint256 n) internal pure returns (address[] memory m) {
     m = new address[](n);
     for (uint256 i = 0; i < n; i++) {
-      m[i] = address(uint160(uint256(keccak256(abi.encodePacked(i, "BREADFUND_MEMBER")))));
+      m[i] = address(uint160(uint256(keccak256(abi.encodePacked(i, "SAFETYNET_MEMBER")))));
     }
   }
 
@@ -138,32 +138,32 @@ abstract contract BreadfundFuzzBase is Test {
     uint256 needed = value + safeCfg.initialDeposit + safeCfg.fixedDeposit;
     token.mint(who, needed);
     vm.startPrank(who);
-    token.approve(address(breadfund), type(uint256).max);
-    breadfund.deposit(id, value);
+    token.approve(address(safetyNet), type(uint256).max);
+    safetyNet.deposit(id, value);
     vm.stopPrank();
   }
 
   /**
-   * @dev Deploys an *isolated* Breadfund+token pair to avoid state coupling with the base instance.
+   * @dev Deploys an *isolated* SafetyNet+token pair to avoid state coupling with the base instance.
    * Useful for tests that need independent economics (e.g., ratio experiments).
    */
-  function _deployIsolatedFund() internal returns (Breadfund localFund, MockERC20 localToken) {
+  function _deployIsolatedFund() internal returns (SafetyNet localFund, MockERC20 localToken) {
     localToken = new MockERC20("TestToken", "TST");
     vm.label(address(localToken), "Local_TestToken");
 
-    Breadfund impl = new Breadfund();
-    vm.label(address(impl), "Local_Breadfund_Impl");
-    bytes memory init = abi.encodeWithSelector(Breadfund.initialize.selector, address(this));
+    SafetyNet impl = new SafetyNet();
+    vm.label(address(impl), "Local_SafetyNet_Impl");
+    bytes memory init = abi.encodeWithSelector(SafetyNet.initialize.selector, address(this));
 
     address proxyAdminAddr = address(0xA11C3);
     vm.label(proxyAdminAddr, "Local_ProxyAdmin");
 
     TransparentUpgradeableProxy localProxy =
       new TransparentUpgradeableProxy(address(impl), proxyAdminAddr, init);
-    vm.label(address(localProxy), "Local_Breadfund_Proxy");
+    vm.label(address(localProxy), "Local_SafetyNet_Proxy");
 
-    localFund = Breadfund(address(localProxy));
-    vm.label(address(localFund), "Local_Breadfund");
+    localFund = SafetyNet(address(localProxy));
+    vm.label(address(localFund), "Local_SafetyNet");
     localFund.setTokenAllowed(address(localToken), true);
   }
 
@@ -187,7 +187,7 @@ abstract contract BreadfundFuzzBase is Test {
   function _assertSmallCounterBound(
     uint256 _id, uint256 epochIdx, address who, uint256 limit
   ) internal view {
-    uint256 cnt = breadfund.smallWithdrawsCount(_id, epochIdx, who);
+    uint256 cnt = safetyNet.smallWithdrawsCount(_id, epochIdx, who);
     assertLe(cnt, limit, "small-withdraw counter bounded by limit");
   }
 }
