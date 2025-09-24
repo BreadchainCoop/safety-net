@@ -267,14 +267,15 @@ contract SafetyNetUnit is Test {
     _sn.create(sn);
   }
 
-  function test_CreateWhenMembersArrayContainsDuplicates() external {
+  function test_CreateWhenMembersArrayContainsDuplicates_reverts() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
     
     // Duplicate
     sn.members[1] = _alice; 
-    uint256 id = _sn.create(sn);
-    assertTrue(_sn.isMember(id, _alice));
+
+    vm.expectRevert(ISafetyNet.DuplicateMember.selector);
+    _sn.create(sn);
   }
 
   function test_CreateWhenConsensusThresholdIsZero() external {
