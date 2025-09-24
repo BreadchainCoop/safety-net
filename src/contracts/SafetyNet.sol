@@ -32,7 +32,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   mapping(address member => uint256[] ids) public memberSafetyNets;
 
   /// @notice Tracks personal savings of each member in a given Safety Net
-  mapping(uint256 id => mapping(address member => uint256 monthlyContribute)) public safetyNetMemberContribute;
+  mapping(uint256 id => mapping(address member => uint256 monthlyContribution)) public memberContributions;
 
   /// @notice Tracks withdrawable amount for each member in a given Safety Net
   mapping(uint256 id => mapping(address member => uint256 withdrawableBalance)) public memberWithdrawableBalance;
@@ -370,7 +370,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 _totalDeposit = _value + _safetyNet.fixedDeposit;
 
     if (!hasMadeFirstDeposit[_id][_member]) {
-      safetyNetMemberContribute[_id][_member] = _value;
+      memberContributions[_id][_member] = _value;
       _totalDeposit += _safetyNet.initialDeposit;
       hasMadeFirstDeposit[_id][_member] = true;
     }
@@ -449,8 +449,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @dev Calculates the daily withdrawal for a member in a Safety Net
   function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
-    uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
-    uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
+    uint256 _memberContribution = memberContributions[_id][_member];
+    uint256 _monthlyWithdrawalAmount = _memberContribution * _ratio;
     return _monthlyWithdrawalAmount / DAYS_IN_A_MONTH;
   }
 

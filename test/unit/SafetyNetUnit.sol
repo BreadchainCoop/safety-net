@@ -466,7 +466,7 @@ contract SafetyNetUnit is Test {
     emit ISafetyNet.FundsDeposited(id, _alice, expectedTotal);
     vm.prank(_alice);
     _sn.deposit(id, value);
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), value);
+    assertEq(_sn.memberContributions(id, _alice), value);
     assertTrue(_sn.hasMadeFirstDeposit(id, _alice));
     assertEq(_sn.safetyNetBalance(id), expectedTotal);
     assertEq(_sn.memberWithdrawableBalance(id, _alice), value * sn.ratio);
@@ -491,7 +491,7 @@ contract SafetyNetUnit is Test {
     _sn.deposit(id, value);
 
     // Unchanged
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), 5 ether);
+    assertEq(_sn.memberContributions(id, _alice), 5 ether);
     assertEq(_sn.memberWithdrawableBalance(id, _alice), (5 ether + value) * sn.ratio);
   }
 
@@ -570,7 +570,7 @@ contract SafetyNetUnit is Test {
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
     vm.prank(_bob);
     _sn.depositFor(id, 2 ether, _alice);
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), 2 ether);
+    assertEq(_sn.memberContributions(id, _alice), 2 ether);
     assertTrue(_sn.hasMadeFirstDeposit(id, _alice));
   }
 
