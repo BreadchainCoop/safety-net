@@ -267,7 +267,7 @@ contract SafetyNetUnit is Test {
     _sn.create(sn);
   }
 
-  function test_CreateWhenMembersArrayContainsDuplicates_reverts() external {
+  function test_CreateWhenMembersArrayContainsDuplicates() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
     

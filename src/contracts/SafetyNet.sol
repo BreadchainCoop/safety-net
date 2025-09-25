@@ -75,6 +75,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _;
   }
 
+  /// @dev Ensures member has enough withdrawable balance and deducts it from both member and SafetyNet
+  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
+    if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
+      revert NotWithdrawable();
+    }
+    memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
+    safetyNetBalance[_safetyNetId] -= _amount;
+  }
+
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -230,15 +239,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     // Can only auto-execute if contest window has passed and request was not contested
     if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
-      if (memberWithdrawableBalance[_request.safetyNetId][_request.owner] < _request.amount) {
-        revert NotWithdrawable();
-      }
-
-      memberWithdrawableBalance[_request.safetyNetId][_request.owner] -= _request.amount;
-      safetyNetBalance[_request.safetyNetId] -= _request.amount;
+      _deduct(_request.safetyNetId, _request.owner, _request.amount);
 
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
+
       if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
@@ -263,12 +268,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (_request.yesVotes > _safetyNet.members.length * _safetyNet.consensusThreshold / 100) {
       // Consensus reached - execute withdrawal immediately
-      if (memberWithdrawableBalance[_request.safetyNetId][_request.owner] < _request.amount) {
-        revert NotWithdrawable();
-      }
-
-      memberWithdrawableBalance[_request.safetyNetId][_request.owner] -= _request.amount;
-      safetyNetBalance[_request.safetyNetId] -= _request.amount;
+      _deduct(_request.safetyNetId, _request.owner, _request.amount);
 
       isExecuted[_requestId] = true;
       emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
