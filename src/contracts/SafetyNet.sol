@@ -75,15 +75,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _;
   }
 
-  /// @dev Ensures member has enough withdrawable balance and deducts it from both member and SafetyNet
-  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
-    if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
-      revert NotWithdrawable();
-    }
-    memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
-    safetyNetBalance[_safetyNetId] -= _amount;
-  }
-
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -488,5 +479,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
   function _isDecommissioned(SafetyNet memory _safetyNet) internal pure returns (bool) {
     return _safetyNet.owner == address(0);
+  }
+
+  /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance. 
+  ///      Reverts with `NotWithdrawable` if balance is insufficient.
+  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
+    if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
+      revert NotWithdrawable();
+    }
+    memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
+    safetyNetBalance[_safetyNetId] -= _amount;
   }
 }
