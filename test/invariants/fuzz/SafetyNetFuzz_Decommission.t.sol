@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
-import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
-import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
+import {SafetyNetFuzzBase} from './SafetyNetFuzzBase.t.sol';
+import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 
 contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
@@ -19,7 +18,10 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
   ///  - Dust remainder stays inside the contract.
   /// -------------------------------------------------------------------------
   function testFuzz_CrazyDecommissions_DistributeOnMissedPayments(
-    uint256 dep1Raw, uint256 dep2Raw, uint256 dep3Raw, uint8 skipEpochsRaw
+    uint256 dep1Raw,
+    uint256 dep2Raw,
+    uint256 dep3Raw,
+    uint8 skipEpochsRaw
   ) public {
     uint256 dep1 = bound(dep1Raw, 1e17, 5e19);
     uint256 dep2 = bound(dep2Raw, 1e17, 5e19);
@@ -50,7 +52,7 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
 
     // Advance further epochs → fund should now be decommissionable
     vm.warp(block.timestamp + cfg.epochDuration * skipEpochs + 1);
-    assertTrue(safetyNet.isDecommissionable(id), "decommissionable after a missed epoch");
+    assertTrue(safetyNet.isDecommissionable(id), 'decommissionable after a missed epoch');
 
     // Snapshot before decommission
     uint256 cBalBefore = token.balanceOf(address(safetyNet));
@@ -59,7 +61,7 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     uint256 w3 = safetyNet.memberWithdrawableBalance(id, member3);
     uint256 sumW = w1 + w2 + w3;
 
-    assertGe(cBalBefore, sumW, "contract covers withdrawables here");
+    assertGe(cBalBefore, sumW, 'contract covers withdrawables here');
 
     // Split of remainder among 3 members (equal share)
     uint256 remaining = cBalBefore - sumW;
@@ -93,6 +95,6 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
 
     // Dust remainder (if any) stays in the contract
     uint256 cBalAfter = token.balanceOf(address(safetyNet));
-    assertEq(cBalAfter, remainder, "dust remainder retained");
+    assertEq(cBalAfter, remainder, 'dust remainder retained');
   }
 }

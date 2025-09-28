@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
-
-import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
-import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
+import {SafetyNetFuzzBase} from './SafetyNetFuzzBase.t.sol';
+import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 
 contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Fuzz: deposits across epochs for variable members.
   /// -------------------------------------------------------------------------
-  function testFuzz_Deposits_AcrossEpochs(
-    uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed
-  ) public {
-    uint256 m      = bound(uint256(membersRaw), 3, 25);
-    uint256 epochs = bound(uint256(epochsRaw),  2, 8);
-    uint256 ops    = bound(uint256(opsRaw),     5, 30);
+  function testFuzz_Deposits_AcrossEpochs(uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed) public {
+    uint256 m = bound(uint256(membersRaw), 3, 25);
+    uint256 epochs = bound(uint256(epochsRaw), 2, 8);
+    uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(m);
     ISafetyNet.SafetyNet memory cfg = safeCfg;
@@ -45,12 +41,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Fuzz: small withdrawals (1–3 days) across epochs.
   /// -------------------------------------------------------------------------
-  function testFuzz_SmallWithdraws_AcrossEpochs(
-    uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed
-  ) public {
-    uint256 m      = bound(uint256(membersRaw), 3, 25);
-    uint256 epochs = bound(uint256(epochsRaw),  2, 8);
-    uint256 ops    = bound(uint256(opsRaw),     5, 30);
+  function testFuzz_SmallWithdraws_AcrossEpochs(uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed) public {
+    uint256 m = bound(uint256(membersRaw), 3, 25);
+    uint256 epochs = bound(uint256(epochsRaw), 2, 8);
+    uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(m);
     ISafetyNet.SafetyNet memory cfg = safeCfg;
@@ -82,12 +76,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Fuzz: large withdrawals (40–79 days) that may create requests.
   /// -------------------------------------------------------------------------
-  function testFuzz_LargeWithdraws_CreateRequests(
-    uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed
-  ) public {
-    uint256 m      = bound(uint256(membersRaw), 3, 25);
-    uint256 epochs = bound(uint256(epochsRaw),  2, 8);
-    uint256 ops    = bound(uint256(opsRaw),     5, 30);
+  function testFuzz_LargeWithdraws_CreateRequests(uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed) public {
+    uint256 m = bound(uint256(membersRaw), 3, 25);
+    uint256 epochs = bound(uint256(epochsRaw), 2, 8);
+    uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(m);
     ISafetyNet.SafetyNet memory cfg = safeCfg;
@@ -120,11 +112,14 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// Fuzz: execute the latest request after contest window.
   /// -------------------------------------------------------------------------
   function testFuzz_ExecuteLatestRequest_WhenWindowElapsed(
-    uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed
+    uint8 membersRaw,
+    uint8 epochsRaw,
+    uint8 opsRaw,
+    uint256 seed
   ) public {
-    uint256 m      = bound(uint256(membersRaw), 3, 25);
-    uint256 epochs = bound(uint256(epochsRaw),  2, 8);
-    uint256 ops    = bound(uint256(opsRaw),     5, 30);
+    uint256 m = bound(uint256(membersRaw), 3, 25);
+    uint256 epochs = bound(uint256(epochsRaw), 2, 8);
+    uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(m);
     ISafetyNet.SafetyNet memory cfg = safeCfg;

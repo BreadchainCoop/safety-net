@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
-
-import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
-import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
+import {SafetyNetFuzzBase} from './SafetyNetFuzzBase.t.sol';
+import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 
 contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
@@ -14,20 +12,18 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   ///  - After contest window elapses, an execution call succeeds.
   ///  - Beneficiary's balance increases; request marked executed.
   /// -------------------------------------------------------------------------
-  function testFuzz_LargeWithdrawal_RequestAndAutoExecute(
-    uint256 depositValueRaw, uint8 extraDaysRaw
-  ) public {
+  function testFuzz_LargeWithdrawal_RequestAndAutoExecute(uint256 depositValueRaw, uint8 extraDaysRaw) public {
     uint256 depositValue = bound(depositValueRaw, 5e18, 1e22);
 
     ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = defaultMembers; 
-    cfg.ratio = 1; 
+    cfg.members = defaultMembers;
+    cfg.ratio = 1;
     cfg.safetyNetStart = block.timestamp;
     uint256 id = safetyNet.create(cfg);
 
     uint256 totalNeeded = depositValue + cfg.initialDeposit + cfg.fixedDeposit;
     _mintApprove(member1, totalNeeded, address(safetyNet));
-    vm.prank(member1); 
+    vm.prank(member1);
     safetyNet.deposit(id, depositValue);
 
     // Choose a daysRequested that ensures "large" classification.
@@ -36,14 +32,14 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     if (daysRequested > 30) daysRequested = 30;
     if (minDaysToBeLarge > 30) daysRequested = 30;
 
-    vm.prank(member1); 
+    vm.prank(member1);
     safetyNet.withdraw(id, daysRequested);
     uint256 reqId = safetyNet.nextIdRequest() - 1;
 
     vm.warp(block.timestamp + cfg.contestWindow + 1);
 
     uint256 balBefore = token.balanceOf(member1);
-    vm.prank(member2); 
+    vm.prank(member2);
     safetyNet.executeContestedWithdrawal(reqId);
     uint256 balAfter = token.balanceOf(member1);
 
@@ -56,10 +52,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   /// For m members and threshold T%, exactly floor(m*T/100) YES must NOT execute;
   /// strictly more than that must execute.
   /// -------------------------------------------------------------------------
-  function testFuzz_Voting_ThresholdBoundary(
-    uint8 membersRaw,
-    uint8 consensusPctRaw
-  ) public {
+  function testFuzz_Voting_ThresholdBoundary(uint8 membersRaw, uint8 consensusPctRaw) public {
     uint256 m = bound(uint256(membersRaw), 3, 20);
     uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
 
@@ -105,14 +98,14 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       vm.prank(members[i]);
       safetyNet.vote(reqId, true);
     }
-    assertFalse(safetyNet.isExecuted(reqId), "== threshold must not execute");
+    assertFalse(safetyNet.isExecuted(reqId), '== threshold must not execute');
 
     // One more YES crosses the threshold.
     if (needed + 1 < m) {
       uint256 balBefore = token.balanceOf(members[0]);
       vm.prank(members[needed + 1]);
       safetyNet.vote(reqId, true);
-      assertTrue(safetyNet.isExecuted(reqId), "> threshold executes");
+      assertTrue(safetyNet.isExecuted(reqId), '> threshold executes');
       uint256 balAfter = token.balanceOf(members[0]);
       assertGt(balAfter, balBefore);
     }
@@ -125,10 +118,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   ///  - Contested requests must NOT auto-execute on timeout,
   ///    and executeContestedWithdrawal should not succeed.
   /// -------------------------------------------------------------------------
-  function testFuzz_Voting_Windows_And_Contest_BlockAutoExec(
-    uint32 votingSecsRaw,
-    uint32 contestSecsRaw
-  ) public {
+  function testFuzz_Voting_Windows_And_Contest_BlockAutoExec(uint32 votingSecsRaw, uint32 contestSecsRaw) public {
     uint256 votingWin = bound(uint256(votingSecsRaw), 1 hours, 3 days);
     uint256 contestWin = bound(uint256(contestSecsRaw), 1 hours, 3 days);
 
@@ -191,10 +181,9 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
 
     // Attempt execution; it should not mark executed for contested request.
     vm.prank(member3);
-    try safetyNet.executeContestedWithdrawal(req2) { } catch { }
-    assertFalse(safetyNet.isExecuted(req2), "contested request must not auto-execute");
+    try safetyNet.executeContestedWithdrawal(req2) {} catch {}
+    assertFalse(safetyNet.isExecuted(req2), 'contested request must not auto-execute');
   }
-
 
   /// -------------------------------------------------------------------------
   /// Scenario: Vote-heavy fuzz — random voting with bias until consensus or timeout.
@@ -204,7 +193,10 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   ///  - If consensus not reached by votes, allow post-window execution attempt.
   /// -------------------------------------------------------------------------
   function testFuzz_Voting_ConsensusOrTimeout(
-    uint8 memberCountRaw, uint8 consensusPctRaw, uint8 yesBiasRaw, uint256 randSeed
+    uint8 memberCountRaw,
+    uint8 consensusPctRaw,
+    uint8 yesBiasRaw,
+    uint256 randSeed
   ) public {
     uint256 m = bound(uint256(memberCountRaw), 3, 20);
     uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
@@ -212,29 +204,32 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
 
     address[] memory members = _makeMembers(m);
     ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = members; 
-    cfg.minimumMembers = 2; 
+    cfg.members = members;
+    cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
-    cfg.consensusThreshold = consensus; 
+    cfg.consensusThreshold = consensus;
     cfg.safetyNetStart = block.timestamp;
-    cfg.votingWindow = 1 days; 
+    cfg.votingWindow = 1 days;
     cfg.contestWindow = 1 days;
     uint256 id = safetyNet.create(cfg);
 
     // Seed balances; ignore per-member deposit failure to keep exploring.
     for (uint256 i = 0; i < m; i++) {
       _mintApprove(members[i], 5e21, address(safetyNet));
-      vm.prank(members[i]); try safetyNet.deposit(id, 5e18) { } catch { }
+      vm.prank(members[i]);
+      try safetyNet.deposit(id, 5e18) {} catch {}
     }
 
     uint256 depositValue = 5e18;
     uint256 totalNeeded = depositValue + cfg.initialDeposit + cfg.fixedDeposit;
     _mintApprove(members[0], totalNeeded, address(safetyNet));
-    vm.prank(members[0]); try safetyNet.deposit(id, depositValue) { } catch { }
+    vm.prank(members[0]);
+    try safetyNet.deposit(id, depositValue) {} catch {}
     uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
     uint256 daysRequested = minDaysToBeLarge + 3;
 
-    vm.prank(members[0]); safetyNet.withdraw(id, daysRequested);
+    vm.prank(members[0]);
+    safetyNet.withdraw(id, daysRequested);
     uint256 reqId = safetyNet.nextIdRequest() - 1;
 
     // Randomized voting pass
@@ -242,13 +237,15 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       address voter = members[i];
       randSeed = uint256(keccak256(abi.encodePacked(randSeed, i)));
       bool voteYes = (randSeed % 100) < yesBias;
-      vm.prank(voter); try safetyNet.vote(reqId, voteYes) { } catch { }
+      vm.prank(voter);
+      try safetyNet.vote(reqId, voteYes) {} catch {}
     }
 
     // If not executed by consensus, try after contest window.
     if (!safetyNet.isExecuted(reqId)) {
       vm.warp(block.timestamp + cfg.contestWindow + 1);
-      vm.prank(members[m-1]); try safetyNet.executeContestedWithdrawal(reqId) { } catch { }
+      vm.prank(members[m - 1]);
+      try safetyNet.executeContestedWithdrawal(reqId) {} catch {}
     }
 
     assertTrue(true); // sanity: no catastrophic revert

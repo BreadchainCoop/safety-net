@@ -197,7 +197,12 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
+  function createRequest(Request memory _request)
+    external
+    override
+    onlyMemberOf(_request.safetyNetId)
+    returns (uint256)
+  {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
@@ -481,7 +486,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return _safetyNet.owner == address(0);
   }
 
-  /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance. 
+  /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance.
   ///      Reverts with `NotWithdrawable` if balance is insufficient.
   function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
     if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
