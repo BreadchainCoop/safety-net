@@ -76,7 +76,12 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
   /// -------------------------------------------------------------------------
   /// Fuzz: large withdrawals (40–79 days) that may create requests.
   /// -------------------------------------------------------------------------
-  function testFuzz_LargeWithdraws_CreateRequests(uint8 membersRaw, uint8 epochsRaw, uint8 opsRaw, uint256 seed) public {
+  function testFuzz_LargeWithdraws_CreateRequests(
+    uint8 membersRaw,
+    uint8 epochsRaw,
+    uint8 opsRaw,
+    uint256 seed
+  ) public {
     uint256 m = bound(uint256(membersRaw), 3, 25);
     uint256 epochs = bound(uint256(epochsRaw), 2, 8);
     uint256 ops = bound(uint256(opsRaw), 5, 30);

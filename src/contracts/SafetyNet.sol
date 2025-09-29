@@ -63,8 +63,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     epochMemberDeposits;
 
   /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
-  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
-    public smallWithdrawsCount;
+  mapping(
+    uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))
+  ) public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
@@ -445,12 +446,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       Request memory _request = Request({
-        owner: _member,
-        safetyNetId: _id,
-        timestamp: block.timestamp,
-        yesVotes: 0,
-        noVotes: 0,
-        amount: _withdrawAmount
+        owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount
       });
       uint256 _idRequest = _createRequest(_request);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
