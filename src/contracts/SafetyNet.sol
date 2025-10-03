@@ -63,8 +63,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     epochMemberDeposits;
 
   /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
-  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount)))
-    public smallWithdrawsCount;
+  mapping(
+    uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))
+  ) public smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
@@ -197,7 +198,12 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
+  function createRequest(Request memory _request)
+    external
+    override
+    onlyMemberOf(_request.safetyNetId)
+    returns (uint256)
+  {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
@@ -230,8 +236,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     // Can only auto-execute if contest window has passed and request was not contested
     if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
+      _deduct(_request.safetyNetId, _request.owner, _request.amount);
+
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
+
       if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
@@ -256,6 +265,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (_request.yesVotes > _safetyNet.members.length * _safetyNet.consensusThreshold / 100) {
       // Consensus reached - execute withdrawal immediately
+      _deduct(_request.safetyNetId, _request.owner, _request.amount);
+
       isExecuted[_requestId] = true;
       emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
       if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
@@ -435,12 +446,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       Request memory _request = Request({
-        owner: _member,
-        safetyNetId: _id,
-        timestamp: block.timestamp,
-        yesVotes: 0,
-        noVotes: 0,
-        amount: _withdrawAmount
+        owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount
       });
       uint256 _idRequest = _createRequest(_request);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
@@ -474,5 +480,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
   function _isDecommissioned(SafetyNet memory _safetyNet) internal pure returns (bool) {
     return _safetyNet.owner == address(0);
+  }
+
+  /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance.
+  ///      Reverts with `NotWithdrawable` if balance is insufficient.
+  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
+    if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
+      revert NotWithdrawable();
+    }
+    memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
+    safetyNetBalance[_safetyNetId] -= _amount;
   }
 }

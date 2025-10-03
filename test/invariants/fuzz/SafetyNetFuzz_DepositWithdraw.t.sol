@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
-import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
+import {SafetyNetFuzzBase} from './SafetyNetFuzzBase.t.sol';
+import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 
 contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
-  function testFuzz_Soak_ManyDepositsAndWithdrawals(
-    uint8 epochsRaw, uint8 opsRaw, uint256 extraSeed
-  ) public {
+  function testFuzz_Soak_ManyDepositsAndWithdrawals(uint8 epochsRaw, uint8 opsRaw, uint256 extraSeed) public {
     uint256 epochs = bound(uint256(epochsRaw), 2, 12);
-    uint256 ops    = bound(uint256(opsRaw),    5, 40);
+    uint256 ops = bound(uint256(opsRaw), 5, 40);
 
     ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.safetyNetStart = block.timestamp;
-    cfg.members        = defaultMembers;
-    cfg.ratio          = 1;
+    cfg.members = defaultMembers;
+    cfg.ratio = 1;
     uint256 id = safetyNet.create(cfg);
 
     _mintApprove(member1, 1e24, address(safetyNet));
@@ -40,47 +38,47 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   // ── Case 1: Deposits — 1 per member per epoch; flag set; balance increases
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
-    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
-    uint256 v        = 1e18 + (seed % 1e18);
-    bool already     = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
+    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
+    uint256 v = 1e18 + (seed % 1e18);
+    bool already = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
 
     vm.prank(actor);
     if (already) {
       vm.expectRevert(ISafetyNet.AlreadyDeposited.selector);
-      try safetyNet.deposit(id, v) { } catch {}
+      try safetyNet.deposit(id, v) {} catch {}
       return;
     }
 
     safetyNet.deposit(id, v);
-    assertTrue(safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx), "epoch flag set");
+    assertTrue(safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx), 'epoch flag set');
     uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
-    assertEq(afterW, beforeW + v, "withdrawable += v");
+    assertEq(afterW, beforeW + v, 'withdrawable += v');
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
   function _caseSmallWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
-    uint256 contrib  = safetyNet.memberContribute(id, actor);
-    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
+    uint256 contrib = safetyNet.safetyNetMemberContribute(id, actor);
+    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
 
     uint256 daysReq = 1 + (seed % 3);
-    uint256 want    = (contrib / 30) * daysReq;
+    uint256 want = (contrib / 30) * daysReq;
 
-    uint256 cntBefore  = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
-    uint256 balBefore  = token.balanceOf(actor);
-    bool withinLimit   = cntBefore < cfg.smallWithdrawsLimit;
-    bool smallByAmt    = (want <= cfg.autoThreshold);
+    uint256 cntBefore = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
+    uint256 balBefore = token.balanceOf(actor);
+    bool withinLimit = cntBefore < cfg.smallWithdrawsLimit;
+    bool smallByAmt = (want <= cfg.autoThreshold);
     bool enoughBalance = (want <= beforeW);
 
     vm.prank(actor);
     try safetyNet.withdraw(id, daysReq) {
-      uint256 nowW  = safetyNet.memberWithdrawableBalance(id, actor);
+      uint256 nowW = safetyNet.memberWithdrawableBalance(id, actor);
       uint256 balNow = token.balanceOf(actor);
       uint256 cntNow = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
 
       if (want == 0) {
         // Intentional: zero-amount small withdraw still increments counter (balance unchanged)
-        assertEq(nowW,  beforeW);
+        assertEq(nowW, beforeW);
         assertEq(balNow, balBefore);
         assertEq(cntNow, cntBefore + 1);
         _assertSmallCounterBound(id, epochIdx, actor, cfg.smallWithdrawsLimit);
@@ -90,17 +88,17 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
         assertEq(cntNow, cntBefore + 1);
         _assertSmallCounterBound(id, epochIdx, actor, cfg.smallWithdrawsLimit);
       } else {
-        assertTrue(false, "withdraw succeeded though conditions not met");
+        assertTrue(false, 'withdraw succeeded though conditions not met');
       }
     } catch { /* many branches legitimately revert */ }
   }
 
   // ── Case 3: Large withdrawals — create a request; execution after contest window
   function _caseLargeWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
-    uint256 contrib  = safetyNet.memberContribute(id, actor);
-    uint256 beforeW  = safetyNet.memberWithdrawableBalance(id, actor);
-    uint256 daysReq  = 40 + (seed % 40);
-    uint256 want     = (contrib / 30) * daysReq;
+    uint256 contrib = safetyNet.safetyNetMemberContribute(id, actor);
+    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
+    uint256 daysReq = 40 + (seed % 40);
+    uint256 want = (contrib / 30) * daysReq;
 
     uint256 reqsBefore = safetyNet.nextIdRequest();
 
@@ -109,10 +107,9 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
       uint256 reqsAfter = safetyNet.nextIdRequest();
       if (want > cfg.autoThreshold) {
         if (want <= beforeW && want > 0) {
-          assertEq(reqsAfter, reqsBefore + 1, "large creates request");
+          assertEq(reqsAfter, reqsBefore + 1, 'large creates request');
           uint256 reqId = reqsAfter - 1;
-          (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) =
-            safetyNet.requests(reqId);
+          (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) = safetyNet.requests(reqId);
           assertEq(owner, actor);
           assertEq(amount, want);
           assertEq(yesVotes, 0);
@@ -125,13 +122,13 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
             vm.prank(actor);
             try safetyNet.executeContestedWithdrawal(reqId) {
               assertTrue(safetyNet.isExecuted(reqId));
-            } catch { }
+            } catch {}
           }
         } else {
-          assertEq(safetyNet.nextIdRequest(), reqsBefore, "no request if insufficient");
+          assertEq(safetyNet.nextIdRequest(), reqsBefore, 'no request if insufficient');
         }
       }
-    } catch { }
+    } catch {}
   }
 
   // ── Case 4: Request execution attempt — only possible after contest window
@@ -142,7 +139,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 reqId = nReq - 1;
     vm.warp(block.timestamp + cfg.contestWindow + 1);
     vm.prank(actor);
-    try safetyNet.executeContestedWithdrawal(reqId) { } catch {}
+    try safetyNet.executeContestedWithdrawal(reqId) {} catch {}
   }
 
   /// Small-withdraw limit fuzzing
@@ -153,7 +150,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     cfg.safetyNetStart = block.timestamp;
     uint256 id = safetyNet.create(cfg);
 
-    uint256 daysRequested  = bound(uint256(daysReqRaw), 1, 3);
+    uint256 daysRequested = bound(uint256(daysReqRaw), 1, 3);
     uint256 extraWithdraws = bound(uint256(extraWithdrawsRaw), 0, 2);
 
     // craft deposit size so each withdraw is under autoThreshold

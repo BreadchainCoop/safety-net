@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Test} from 'forge-std/Test.sol';
+import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
+import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {stdError} from 'forge-std/StdError.sol';
+import {Test} from 'forge-std/Test.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 import {MockERC20} from 'test/mocks/MockERC20.sol';
-import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
-import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 
 contract FailERC20 {
   string public name = 'FailERC20';
@@ -38,11 +38,7 @@ contract SafetyNetUnit is Test {
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
     address proxy = address(
-      new TransparentUpgradeableProxy(
-        impl,
-        admin,
-        abi.encodeWithSelector(SafetyNet.initialize.selector, _owner)
-      )
+      new TransparentUpgradeableProxy(impl, admin, abi.encodeWithSelector(SafetyNet.initialize.selector, _owner))
     );
     _sn = SafetyNet(proxy);
     _token = new MockERC20('Mock', 'MOCK');
@@ -255,7 +251,7 @@ contract SafetyNetUnit is Test {
     sn.members = new address[](0);
     uint256 id = _sn.create(sn);
     assertEq(id, 0);
-    (address[] memory members, ) = _sn.getMemberBalances(id);
+    (address[] memory members,) = _sn.getMemberBalances(id);
     assertEq(members.length, 0);
   }
 
@@ -270,11 +266,12 @@ contract SafetyNetUnit is Test {
   function test_CreateWhenMembersArrayContainsDuplicates() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    
+
     // Duplicate
-    sn.members[1] = _alice; 
-    uint256 id = _sn.create(sn);
-    assertTrue(_sn.isMember(id, _alice));
+    sn.members[1] = _alice;
+
+    vm.expectRevert(ISafetyNet.DuplicateMember.selector);
+    _sn.create(sn);
   }
 
   function test_CreateWhenConsensusThresholdIsZero() external {
@@ -619,9 +616,9 @@ contract SafetyNetUnit is Test {
   function test_WithdrawWhenWithdrawalAmountIsBelowThreshold() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    
+
     // Small path
-    sn.autoThreshold = 100 ether; 
+    sn.autoThreshold = 100 ether;
     uint256 id = _sn.create(sn);
     vm.prank(_alice);
     _sn.deposit(id, 30 ether);
@@ -636,18 +633,18 @@ contract SafetyNetUnit is Test {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
     // Any withdraw > 1 wei goes to request path
-    sn.autoThreshold = 1; 
+    sn.autoThreshold = 1;
     uint256 id = _sn.create(sn);
     vm.prank(_alice);
     _sn.deposit(id, 30 ether);
     vm.prank(_alice);
     _sn.withdraw(id, 1);
     assertEq(_sn.nextIdRequest(), 1);
-    (address reqOwner, uint256 reqSafetyNetId, , , , ) = _sn.requests(0);
+    (address reqOwner, uint256 reqSafetyNetId,,,,) = _sn.requests(0);
     assertEq(reqOwner, _alice);
     assertEq(reqSafetyNetId, id);
   }
-  
+
   // ---------- createRequest / contest / execute / vote (happy paths) ----------
   function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
     _allowToken(address(_token));
@@ -663,7 +660,7 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
 
     // Large enough for request
-    _sn.withdraw(id, 2); 
+    _sn.withdraw(id, 2);
     reqId = 0;
   }
 
@@ -697,8 +694,8 @@ contract SafetyNetUnit is Test {
     (, uint256 reqId) = _createFundAndRequest();
 
     // Beyond window
-    vm.warp(block.timestamp + 10 days); 
-    (address rqOwner, , , , , uint256 rqAmount) = _sn.requests(reqId);
+    vm.warp(block.timestamp + 10 days);
+    (address rqOwner,,,,, uint256 rqAmount) = _sn.requests(reqId);
     vm.expectEmit(true, true, false, true);
     emit ISafetyNet.WithdrawalAutoExecuted(reqId, rqOwner, rqAmount);
     _sn.executeContestedWithdrawal(reqId);
@@ -725,9 +722,8 @@ contract SafetyNetUnit is Test {
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
       ratio: 1,
-
       // Force request path
-      autoThreshold: 1, 
+      autoThreshold: 1,
       contestWindow: 3 days,
       votingWindow: 30 days,
       currentEpoch: 0,
@@ -740,7 +736,7 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
 
     // Creates request 0
-    _sn.withdraw(id, 1); 
+    _sn.withdraw(id, 1);
     uint256 reqId = 0;
 
     // Vote yes by alice then bob (2/3 = 66% > 60%)
@@ -852,19 +848,19 @@ contract SafetyNetUnit is Test {
     uint256 id = _sn.create(sn);
 
     // Before start
-    assertEq(_sn.getCurrentEpochIndex(id), 0); 
+    assertEq(_sn.getCurrentEpochIndex(id), 0);
     vm.warp(sn.safetyNetStart);
 
     // At start
-    assertEq(_sn.getCurrentEpochIndex(id), 0); 
+    assertEq(_sn.getCurrentEpochIndex(id), 0);
     vm.warp(sn.safetyNetStart + 1);
 
     // Just after start
-    assertEq(_sn.getCurrentEpochIndex(id), 0); 
+    assertEq(_sn.getCurrentEpochIndex(id), 0);
     vm.warp(sn.safetyNetStart + sn.epochDuration);
 
     // Exactly one epoch
-    assertEq(_sn.getCurrentEpochIndex(id), 1); 
+    assertEq(_sn.getCurrentEpochIndex(id), 1);
     vm.warp(sn.safetyNetStart + 5 * sn.epochDuration + 10);
     assertEq(_sn.getCurrentEpochIndex(id), 5);
   }
