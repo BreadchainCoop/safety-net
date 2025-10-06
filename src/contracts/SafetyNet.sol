@@ -62,6 +62,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
+  /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public
+    epochMemberDepositedAmount;
+
   /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
   mapping(
     uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))
@@ -327,6 +331,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return epochMemberDeposits[_safetyNetId][_epochIndex][_member];
   }
 
+  /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
+  function dueRemainingThisEpoch(uint256 _id, address _member) external view returns (uint256) {
+    uint256 epochIndex = getCurrentEpochIndex(_id);
+    uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
+    uint256 target = safetyNets[_id].fixedDeposit;
+    return paid >= target ? 0 : (target - paid);
+  }
+
   /// @inheritdoc ISafetyNet
   function getCurrentEpochIndex(uint256 _safetyNetId) public view override returns (uint256) {
     SafetyNet memory safetyNet = safetyNets[_safetyNetId];
@@ -363,6 +375,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit amount is added to the total amount
    *      The method "transferFrom()" requires "approve()" front-end side
+   *      Each epoch, a member must pay exactly `fixedDeposit`.
+   *      Partial deposits are allowed until the epoch sum == fixedDeposit.
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     SafetyNet storage _safetyNet = safetyNets[_id];
@@ -378,22 +392,36 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       revert AlreadyDeposited();
     }
 
-    uint256 _totalDeposit = _value + _safetyNet.fixedDeposit;
+    uint256 epochTarget = _safetyNet.fixedDeposit;
 
+    bool chargeInitial = false;
     if (!hasMadeFirstDeposit[_id][_member]) {
-      safetyNetMemberContribute[_id][_member] = _value;
-      _totalDeposit += _safetyNet.initialDeposit;
       hasMadeFirstDeposit[_id][_member] = true;
+      safetyNetMemberContribute[_id][_member] = epochTarget;
+      chargeInitial = true;
     }
 
-    safetyNetBalance[_id] += _totalDeposit;
+    uint256 contributedSoFar = epochMemberDepositedAmount[_id][currentEpochIndex][_member];
+    if (contributedSoFar + _value > epochTarget) {
+      revert ExceedsDepositAmount();
+    }
+
+    uint256 totalTransfer = _value + (chargeInitial ? _safetyNet.initialDeposit : 0);
+
+    safetyNetBalance[_id] += totalTransfer;
+
     memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
 
-    epochMemberDeposits[_id][currentEpochIndex][_member] = true;
+    uint256 newCumulative = contributedSoFar + _value;
+    epochMemberDepositedAmount[_id][currentEpochIndex][_member] = newCumulative;
 
-    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
+    if (newCumulative == epochTarget) {
+      epochMemberDeposits[_id][currentEpochIndex][_member] = true;
+    }
 
-    emit FundsDeposited(_id, _member, _totalDeposit);
+    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), totalTransfer)) revert TransferFailed();
+
+    emit FundsDeposited(_id, _member, totalTransfer);
   }
 
   /**
@@ -441,6 +469,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
         revert ExceedsSmallWithdrawalLimit();
       }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
+      safetyNetBalance[_id] -= _withdrawAmount;
       if (!IERC20(_safetyNet.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
