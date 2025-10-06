@@ -18,23 +18,29 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     ISafetyNet.SafetyNet memory cfg = safeCfg;
     cfg.members = defaultMembers;
     cfg.ratio = 1;
+    cfg.autoThreshold = 1;
     cfg.safetyNetStart = block.timestamp;
     uint256 id = safetyNet.create(cfg);
 
-    uint256 totalNeeded = depositValue + cfg.initialDeposit + cfg.fixedDeposit;
-    _mintApprove(member1, totalNeeded, address(safetyNet));
+    uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+    if (due == 0) {
+      vm.warp(block.timestamp + cfg.epochDuration + 1);
+      due = safetyNet.dueRemainingThisEpoch(id, member1);
+    }
+    uint256 pay = depositValue > due ? due : depositValue;
+    _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
     vm.prank(member1);
-    safetyNet.deposit(id, depositValue);
+    safetyNet.deposit(id, pay);
 
     // Choose a daysRequested that ensures "large" classification.
-    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
-    uint256 daysRequested = minDaysToBeLarge + (uint256(extraDaysRaw) % 10) + 1;
-    if (daysRequested > 30) daysRequested = 30;
-    if (minDaysToBeLarge > 30) daysRequested = 30;
+    uint256 contrib = safetyNet.safetyNetMemberContribute(id, member1);
+    uint256 daysRequested = 1 + (uint256(extraDaysRaw) % 5);
 
     vm.prank(member1);
     safetyNet.withdraw(id, daysRequested);
-    uint256 reqId = safetyNet.nextIdRequest() - 1;
+    uint256 n = safetyNet.nextIdRequest();
+    assertGt(n, 0, 'expected a request');
+    uint256 reqId = n - 1;
 
     vm.warp(block.timestamp + cfg.contestWindow + 1);
 
@@ -63,6 +69,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     cfg.minimumMembers = 2;
     cfg.maximumMembers = m;
     cfg.consensusThreshold = consensus;
+    cfg.autoThreshold = 1;
     cfg.safetyNetStart = block.timestamp;
     cfg.votingWindow = 7 days;
     cfg.contestWindow = 7 days;
@@ -72,25 +79,35 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     // Seed deposits for members[1..m-1]
     uint256 depEach = 2e18;
     for (uint256 i = 1; i < m; i++) {
-      _mintApprove(members[i], depEach + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-      vm.prank(members[i]);
-      safetyNet.deposit(id, depEach);
+      uint256 dueI = safetyNet.dueRemainingThisEpoch(id, members[i]);
+      if (dueI > 0) {
+        uint256 payI = depEach > dueI ? dueI : depEach;
+        _mintApprove(members[i], payI + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+        vm.prank(members[i]);
+        safetyNet.deposit(id, payI);
+      }
     }
 
     // Single (larger) deposit for members[0] so we can make a large request
-    uint256 depositValue = 5e18;
-    _mintApprove(members[0], depositValue + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    vm.prank(members[0]);
-    safetyNet.deposit(id, depositValue);
+    uint256 due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    if (due0 == 0) {
+      vm.warp(block.timestamp + cfg.epochDuration + 1);
+      due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    }
 
-    // Compute days to classify as "large" based on that one deposit
-    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
-    if (minDaysToBeLarge > 30) minDaysToBeLarge = 30;
-    uint256 daysRequested = minDaysToBeLarge == 0 ? 1 : minDaysToBeLarge;
+    uint256 depositValue0 = 3e18;
+    uint256 pay0 = depositValue0 > due0 ? due0 : depositValue0;
+    _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+    vm.prank(members[0]);
+    safetyNet.deposit(id, pay0);
+
+    uint256 daysRequested = 1;
 
     vm.prank(members[0]);
     safetyNet.withdraw(id, daysRequested);
-    uint256 reqId = safetyNet.nextIdRequest() - 1;
+    uint256 n = safetyNet.nextIdRequest();
+    assertGt(n, 0, 'expected a request');
+    uint256 reqId = n - 1;
 
     // Exactly threshold YES votes (floor).
     uint256 needed = (m * consensus) / 100; // floor
@@ -128,27 +145,29 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     cfg.votingWindow = votingWin;
     cfg.contestWindow = contestWin;
     cfg.ratio = 1;
+    cfg.autoThreshold = 1;
 
     uint256 id = safetyNet.create(cfg);
 
     // Fund member1 and create a "large" request.
     uint256 depositValue = 2e18;
-    _mintApprove(member1, depositValue + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+    uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+    if (due == 0) {
+      vm.warp(block.timestamp + cfg.epochDuration + 1);
+      due = safetyNet.dueRemainingThisEpoch(id, member1);
+    }
+    uint256 pay = depositValue > due ? due : depositValue;
+    _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
     vm.prank(member1);
-    safetyNet.deposit(id, depositValue);
+    safetyNet.deposit(id, pay);
 
-    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
-    if (minDaysToBeLarge > 30) {
-      minDaysToBeLarge = 30;
-    }
-    uint256 daysRequested = minDaysToBeLarge;
-    if (daysRequested == 0) {
-      daysRequested = 1;
-    }
+    uint256 daysRequested = 1;
 
     vm.prank(member1);
     safetyNet.withdraw(id, daysRequested);
-    uint256 reqId = safetyNet.nextIdRequest() - 1;
+    uint256 n = safetyNet.nextIdRequest();
+    assertGt(n, 0, 'expected a request');
+    uint256 reqId = n - 1;
 
     // Only members may vote.
     address outsider = address(0xDEAD);
@@ -172,7 +191,9 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     // New request that gets contested; verify it does not auto-execute after timeout.
     vm.prank(member1);
     safetyNet.withdraw(id, daysRequested);
-    uint256 req2 = safetyNet.nextIdRequest() - 1;
+    uint256 n2 = safetyNet.nextIdRequest();
+    assertGt(n2, 0, 'expected a request');
+    uint256 req2 = n2 - 1;
 
     vm.prank(member2);
     safetyNet.contest(req2);
@@ -211,6 +232,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     cfg.safetyNetStart = block.timestamp;
     cfg.votingWindow = 1 days;
     cfg.contestWindow = 1 days;
+    cfg.autoThreshold = 1;
     uint256 id = safetyNet.create(cfg);
 
     // Seed balances; ignore per-member deposit failure to keep exploring.
@@ -220,17 +242,25 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       try safetyNet.deposit(id, 5e18) {} catch {}
     }
 
+    uint256 due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    if (due0 == 0) {
+      vm.warp(block.timestamp + cfg.epochDuration + 1);
+      due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    }
     uint256 depositValue = 5e18;
-    uint256 totalNeeded = depositValue + cfg.initialDeposit + cfg.fixedDeposit;
-    _mintApprove(members[0], totalNeeded, address(safetyNet));
+    uint256 pay0 = depositValue > due0 ? due0 : depositValue;
+    _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
     vm.prank(members[0]);
-    try safetyNet.deposit(id, depositValue) {} catch {}
-    uint256 minDaysToBeLarge = (cfg.autoThreshold * 30) / depositValue + 1;
-    uint256 daysRequested = minDaysToBeLarge + 3;
+    safetyNet.deposit(id, pay0);
+
+    // With tiny autoThreshold, any positive withdrawal amount will be "large"
+    uint256 daysRequested = 1;
 
     vm.prank(members[0]);
     safetyNet.withdraw(id, daysRequested);
-    uint256 reqId = safetyNet.nextIdRequest() - 1;
+    uint256 n = safetyNet.nextIdRequest();
+    assertGt(n, 0, 'expected a request');
+    uint256 reqId = n - 1;
 
     // Randomized voting pass
     for (uint256 i = 0; i < m && !safetyNet.isExecuted(reqId); i++) {

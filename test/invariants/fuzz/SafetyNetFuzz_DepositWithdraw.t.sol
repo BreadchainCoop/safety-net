@@ -39,20 +39,28 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
     uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
-    uint256 v = 1e18 + (seed % 1e18);
-    bool already = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
+    uint256 dueBefore = safetyNet.dueRemainingThisEpoch(id, actor);
 
-    vm.prank(actor);
-    if (already) {
-      vm.expectRevert(ISafetyNet.AlreadyDeposited.selector);
-      try safetyNet.deposit(id, v) {} catch {}
+    if (dueBefore == 0) {
+      vm.prank(actor);
+      vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+      try safetyNet.deposit(id, 1) {} catch {}
       return;
     }
 
-    safetyNet.deposit(id, v);
-    assertTrue(safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx), 'epoch flag set');
+    // Choose a positive amount within the remaining due
+    uint256 v = 1e18 + (seed % 1e18);
+    uint256 amt = v % (dueBefore + 1);
+    if (amt == 0) amt = dueBefore;
+
+    vm.prank(actor);
+    safetyNet.deposit(id, amt);
+
+    bool paidAfter = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
+    assertEq(paidAfter, amt == dueBefore, 'flag only when epoch fully paid');
+
     uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
-    assertEq(afterW, beforeW + v, 'withdrawable += v');
+    assertEq(afterW, beforeW + amt, 'withdrawable += deposited amt');
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
@@ -175,10 +183,20 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 planned = (cfg.smallWithdrawsLimit + extraWithdraws) * perWithdraw;
     if (dep < planned) dep = planned;
 
-    uint256 totalNeeded = dep + cfg.initialDeposit + cfg.fixedDeposit;
-    _mintApprove(member1, totalNeeded, address(safetyNet));
-    vm.prank(member1);
-    safetyNet.deposit(id, dep);
+    // Prefund up to `planned` while respecting per-epoch deposit caps
+    uint256 remaining = planned;
+    while (remaining > 0) {
+      uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+      if (due == 0) {
+        vm.warp(block.timestamp + cfg.epochDuration + 1);
+        continue;
+      }
+      uint256 pay = remaining > due ? due : remaining;
+      _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+      vm.prank(member1);
+      safetyNet.deposit(id, pay);
+      remaining -= pay;
+    }
 
     for (uint256 i = 0; i < cfg.smallWithdrawsLimit; i++) {
       vm.prank(member1);

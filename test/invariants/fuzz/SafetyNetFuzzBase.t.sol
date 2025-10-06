@@ -137,11 +137,17 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /// @dev Convenience: mint + approve, then deposit `value` for `who` into fund `id`.
   function _depositAs(address who, uint256 id, uint256 value) internal {
-    uint256 needed = value + safeCfg.initialDeposit + safeCfg.fixedDeposit;
+    uint256 due = safetyNet.dueRemainingThisEpoch(id, who);
+    if (due == 0) return;
+
+    uint256 amt = value > due ? due : value;
+
+    uint256 needed = amt + safeCfg.fixedDeposit + safeCfg.initialDeposit;
     token.mint(who, needed);
+
     vm.startPrank(who);
     token.approve(address(safetyNet), type(uint256).max);
-    safetyNet.deposit(id, value);
+    safetyNet.deposit(id, amt);
     vm.stopPrank();
   }
 

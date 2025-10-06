@@ -58,7 +58,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
 
-  /// @notice Tracks which members have deposited in each epoch
+  /// @notice (DEPRECATED) Tracks which members have deposited in each epoch
+  ///         Do not use for logic; use `epochMemberDepositedAmount` instead.
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
     epochMemberDeposits;
 
@@ -328,7 +329,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
-    return epochMemberDeposits[_safetyNetId][_epochIndex][_member];
+    SafetyNet memory sn = safetyNets[_safetyNetId];
+    if (sn.owner == address(0) || sn.fixedDeposit == 0) return false;
+    uint256 paid = epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member];
+    return paid >= sn.fixedDeposit;
   }
 
   /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
@@ -362,7 +366,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
       for (uint256 i = 0; i < safetyNet.members.length; i++) {
-        if (!epochMemberDeposits[_safetyNetId][epochIndex][safetyNet.members[i]]) {
+        address m = safetyNet.members[i];
+        if (epochMemberDepositedAmount[_safetyNetId][epochIndex][m] < safetyNet.fixedDeposit) {
           return true;
         }
       }
@@ -387,11 +392,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
 
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
-
-    if (epochMemberDeposits[_id][currentEpochIndex][_member]) {
-      revert AlreadyDeposited();
-    }
-
     uint256 epochTarget = _safetyNet.fixedDeposit;
 
     bool chargeInitial = false;
@@ -414,10 +414,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     uint256 newCumulative = contributedSoFar + _value;
     epochMemberDepositedAmount[_id][currentEpochIndex][_member] = newCumulative;
-
-    if (newCumulative == epochTarget) {
-      epochMemberDeposits[_id][currentEpochIndex][_member] = true;
-    }
 
     if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), totalTransfer)) revert TransferFailed();
 
