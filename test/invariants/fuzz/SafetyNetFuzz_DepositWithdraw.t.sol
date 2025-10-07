@@ -37,30 +37,46 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
 
   // ── Case 1: Deposits — 1 per member per epoch; flag set; balance increases
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
+    // need the config to read initialDeposit
+    ISafetyNet.SafetyNet memory sn = safetyNet.getSafetyNet(id);
+
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
     uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
     uint256 dueBefore = safetyNet.duesRemainingThisEpoch(id, actor);
 
     if (dueBefore == 0) {
+      // already fully paid this epoch → any extra should exceed cap
       vm.prank(actor);
       vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
       try safetyNet.deposit(id, 1) {} catch {}
       return;
     }
 
-    // Choose a positive amount within the remaining due
+    // draw a positive amount within remaining due (used for non-onboarding path)
     uint256 v = 1e18 + (seed % 1e18);
-    uint256 amt = v % (dueBefore + 1);
-    if (amt == 0) amt = dueBefore;
+    uint256 picked = v % (dueBefore + 1);
+    if (picked == 0) picked = dueBefore;
 
-    vm.prank(actor);
-    safetyNet.deposit(id, amt);
+    uint256 depositedAmt;
+
+    vm.startPrank(actor);
+    if (!safetyNet.hasMadeFirstDeposit(id, actor)) {
+      // epoch 0 – must pay exactly initialDeposit
+      safetyNet.deposit(id, sn.initialDeposit);
+      depositedAmt = sn.initialDeposit;
+    } else {
+      // subsequent epochs – partials allowed up to fixedDeposit
+      // (dueBefore > 0 here, so picked ∈ [1, dueBefore])
+      safetyNet.deposit(id, picked);
+      depositedAmt = picked;
+    }
+    vm.stopPrank();
 
     bool paidAfter = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
-    assertEq(paidAfter, amt == dueBefore, 'flag only when epoch fully paid');
+    assertEq(paidAfter, depositedAmt == dueBefore, 'flag only when epoch fully paid');
 
     uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
-    assertEq(afterW, beforeW + amt, 'withdrawable += deposited amt');
+    assertEq(afterW, beforeW + depositedAmt, 'withdrawable += deposited amt');
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
