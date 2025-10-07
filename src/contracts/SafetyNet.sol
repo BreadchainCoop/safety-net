@@ -377,46 +377,47 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /**
    * @dev Make a deposit for monthly contribute
-   *      If it's the first deposit, initialDeposit amount is added to the total amount
+   *      If it's the first deposit, initialDeposit is the total amount
    *      The method "transferFrom()" requires "approve()" front-end side
-   *      Each epoch, a member must pay exactly `fixedDeposit`.
+   *      Each epoch after initial deposit, a member must pay exactly `fixedDeposit`.
    *      Partial deposits are allowed until the epoch sum == fixedDeposit.
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
-    SafetyNet storage _safetyNet = safetyNets[_id];
+    SafetyNet storage sn = safetyNets[_id];
 
-    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+    if (sn.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (_value <= 0) revert InvalidDepositAmount();
-    if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    if (block.timestamp < sn.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    if (_value == 0) revert InvalidDepositAmount();
 
-    uint256 currentEpochIndex = getCurrentEpochIndex(_id);
-    uint256 epochTarget = _safetyNet.fixedDeposit;
+    uint256 epoch = getCurrentEpochIndex(_id);
+    bool initialDone = hasMadeFirstDeposit[_id][_member];
 
-    bool chargeInitial = false;
-    if (!hasMadeFirstDeposit[_id][_member]) {
+    uint256 epochPaid = epochMemberDepositedAmount[_id][epoch][_member];
+
+    if (!initialDone) {
+      uint256 initial = sn.initialDeposit;
+      // First month: must be first payment in the epoch AND exactly initialDeposit (no partials/multi-tx)
+      if (epochPaid != 0 || _value != initial) revert InvalidDepositAmount();
+
       hasMadeFirstDeposit[_id][_member] = true;
-      safetyNetMemberContribute[_id][_member] = epochTarget;
-      chargeInitial = true;
+      safetyNetMemberContribute[_id][_member] = sn.fixedDeposit;
+
+      // Set epoch paid to full initial
+      epochPaid = initial;
+    } else {
+      // Subsequent months: partials allowed up to fixedDeposit
+      if (epochPaid + _value > sn.fixedDeposit) revert ExceedsDepositAmount();
+      epochPaid += _value;
     }
 
-    uint256 contributedSoFar = epochMemberDepositedAmount[_id][currentEpochIndex][_member];
-    if (contributedSoFar + _value > epochTarget) {
-      revert ExceedsDepositAmount();
-    }
+    safetyNetBalance[_id] += _value;
+    memberWithdrawableBalance[_id][_member] += _value * sn.ratio;
+    epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
-    uint256 totalTransfer = _value + (chargeInitial ? _safetyNet.initialDeposit : 0);
+    if (!IERC20(sn.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
 
-    safetyNetBalance[_id] += totalTransfer;
-
-    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
-
-    uint256 newCumulative = contributedSoFar + _value;
-    epochMemberDepositedAmount[_id][currentEpochIndex][_member] = newCumulative;
-
-    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), totalTransfer)) revert TransferFailed();
-
-    emit FundsDeposited(_id, _member, totalTransfer);
+    emit FundsDeposited(_id, _member, _value);
   }
 
   /**
