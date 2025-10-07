@@ -137,7 +137,7 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /// @dev Convenience: mint + approve, then deposit `value` for `who` into fund `id`.
   function _depositAs(address who, uint256 id, uint256 value) internal {
-    uint256 due = safetyNet.dueRemainingThisEpoch(id, who);
+    uint256 due = safetyNet.duesRemainingThisEpoch(id, who);
     if (due == 0) return;
 
     uint256 amt = value > due ? due : value;

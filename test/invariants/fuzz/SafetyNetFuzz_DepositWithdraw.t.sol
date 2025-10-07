@@ -39,7 +39,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
     uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
-    uint256 dueBefore = safetyNet.dueRemainingThisEpoch(id, actor);
+    uint256 dueBefore = safetyNet.duesRemainingThisEpoch(id, actor);
 
     if (dueBefore == 0) {
       vm.prank(actor);
@@ -186,7 +186,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     // Prefund up to `planned` while respecting per-epoch deposit caps
     uint256 remaining = planned;
     while (remaining > 0) {
-      uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+      uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
       if (due == 0) {
         vm.warp(block.timestamp + cfg.epochDuration + 1);
         continue;

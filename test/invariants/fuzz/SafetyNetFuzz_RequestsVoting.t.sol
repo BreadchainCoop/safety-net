@@ -22,10 +22,10 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     cfg.safetyNetStart = block.timestamp;
     uint256 id = safetyNet.create(cfg);
 
-    uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+    uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
     if (due == 0) {
       vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due = safetyNet.dueRemainingThisEpoch(id, member1);
+      due = safetyNet.duesRemainingThisEpoch(id, member1);
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
@@ -79,7 +79,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     // Seed deposits for members[1..m-1]
     uint256 depEach = 2e18;
     for (uint256 i = 1; i < m; i++) {
-      uint256 dueI = safetyNet.dueRemainingThisEpoch(id, members[i]);
+      uint256 dueI = safetyNet.duesRemainingThisEpoch(id, members[i]);
       if (dueI > 0) {
         uint256 payI = depEach > dueI ? dueI : depEach;
         _mintApprove(members[i], payI + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
@@ -89,10 +89,10 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     }
 
     // Single (larger) deposit for members[0] so we can make a large request
-    uint256 due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    uint256 due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
     if (due0 == 0) {
       vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+      due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
     }
 
     uint256 depositValue0 = 3e18;
@@ -151,10 +151,10 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
 
     // Fund member1 and create a "large" request.
     uint256 depositValue = 2e18;
-    uint256 due = safetyNet.dueRemainingThisEpoch(id, member1);
+    uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
     if (due == 0) {
       vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due = safetyNet.dueRemainingThisEpoch(id, member1);
+      due = safetyNet.duesRemainingThisEpoch(id, member1);
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
@@ -242,10 +242,10 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       try safetyNet.deposit(id, 5e18) {} catch {}
     }
 
-    uint256 due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+    uint256 due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
     if (due0 == 0) {
       vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due0 = safetyNet.dueRemainingThisEpoch(id, members[0]);
+      due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
     }
     uint256 depositValue = 5e18;
     uint256 pay0 = depositValue > due0 ? due0 : depositValue;
