@@ -329,7 +329,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
-    SafetyNet memory sn = safetyNets[_safetyNetId];
+    ISafetyNet.SafetyNet storage sn = safetyNets[_safetyNetId];
     if (sn.owner == address(0)) return false;
     return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= sn.fixedDeposit;
   }
