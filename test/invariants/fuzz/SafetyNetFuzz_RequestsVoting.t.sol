@@ -33,7 +33,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     safetyNet.deposit(id, pay);
 
     // Choose a daysRequested that ensures "large" classification.
-    uint256 contrib = safetyNet.safetyNetMemberContribute(id, member1);
+    safetyNet.safetyNetMemberContribute(id, member1);
     uint256 daysRequested = 1 + (uint256(extraDaysRaw) % 5);
 
     vm.prank(member1);
