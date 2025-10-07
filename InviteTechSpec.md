@@ -30,7 +30,7 @@ Today, when creating a Safety Net (SafetyNet), all members must be declared upfr
 
 * Safety Net owner generates an **off-chain signed invite**.
 * Invite is shared as a link or QR code.
-* Anyone holding the invite can redeem it once to join.
+* Anyone holding the invite can redeem it once to join unless an address is specified by the invite creator.
 * Each invite is **single-use** via a `nonce`.
 * Nothing is exposed on-chain until redemption.
 
@@ -77,27 +77,26 @@ Today, when creating a Safety Net (SafetyNet), all members must be declared upfr
 
 ### 4.1 Main (“Happy”) Path
 
+* **Actor:** Owner generates a invite using `fundId, nonce` and optionally a `reedemer` and signs with EIP-712.
 * **Pre-condition:** Safety Net exists and has a defined owner.
-* **Actor:** Owner generates `(fundId, nonce, deadline)` and signs with EIP-712.
 * **System validates:**
-
   * Nonce not used.
   * Signature matches fund owner.
+  * If a reedemer is specified, the system checks if the caller address is equal to the reedemer address
 * **System persists / computes:**
-
   * Marks nonce as used.
-  * Adds `msg.sender` as member.
+  * Adds `msg.sender`/`reedemer` as member.
   * Emits `InviteRedeemed`.
-* **Post-condition:** User becomes a member of the Safety Net.
+* **Post-condition:** Caller becomes a member of the Safety Net.
 
 ### 4.2 Alternate / Error Paths
 
 | #  | Condition           | System Action           | 
 | -- | ------------------- | ----------------------- | 
 | A1 | Invite already used | `revert Invite used`    | 
-| A2 | Invite expired      | `revert Invite expired` | 
-| A3 | Invalid signer      | `revert Invalid signer` | 
-| A4 | User already member | `revert Already member` | 
+| A2 | Invalid signer      | `revert Invalid signer` | 
+| A3 | User already member | `revert Already member` | 
+| A4 | Invalid reedemer    | `revert Not Reedemer`   | 
 
 ---
 
@@ -116,6 +115,7 @@ classDiagram
     class Invite {
         +fundId: uint256
         +nonce: uint256
+        +reedemer: address
     }
     SafetyNetInvites o--> Invite : verifies
 ```
@@ -128,11 +128,11 @@ sequenceDiagram
     participant User
     participant Safety Net Contract
 
-    Owner->>Owner: Sign Invite {fundId, nonce, deadline}
+    Owner->>Owner: Sign Invite {fundId, nonce, reedemer}
     Owner->>User: Share link (Invite+sig)
 
-    User->>Safety Net Contract: redeemInvite(inv, sig)
-    Safety Net Contract->>Safety Net Contract: validate signature, nonce
+    User->>Safety Net Contract: redeemInvite(inv, sig, reedemer)
+    Safety Net Contract->>Safety Net Contract: validate signature, nonce, and that the caller is the reedemer and not already a member 
     Safety Net Contract->>Safety Net Contract: mark nonce used, add member
     Safety Net Contract-->>User: InviteRedeemed event
 ```
@@ -162,14 +162,14 @@ stateDiagram
 
 ## 7. Glossary / References
 
-* **Invite:** EIP-712 signature over `(fundId, nonce, deadline)`.
+* **Invite:** EIP-712 signature over `(fundId, nonce, reedemer)`.
 * **Nonce:** Unique value ensuring invite is one-time use.
 * **Deadline:** Expiry timestamp for the invite.
-* **Safety Net / SafetyNet:** Mutual aid group with periodic contributions.
+* **Safety Net:** Mutual aid group with periodic contributions.
 
 **Links:**
 
-* [Safety Nets repo](https://github.com/BreadchainCoop/safety-net)
+* [Safety Net repo](https://github.com/BreadchainCoop/safety-net)
 * [EIP-712 specification](https://eips.ethereum.org/EIPS/eip-712)
 
 ---
