@@ -1,132 +1,175 @@
-# Technical Spec: Safety Net Invite Function 
+---
+
+# Technical Spec – Safety Net Invite 
+
+---
 
 ## 1. Background
 
 **Problem Statement:**
-Currently, all participants must be declared at Safety Net creation, which is friction for organizers who want to start a breadfund and invite others progressively. The first proposal (on-chain stored invites) leaked discoverable data. A later proposal added counters and Merkle allowlists but was unnecessarily complex for the core use case.
+Today, when creating a Safety Net (SafetyNet), all members must be declared upfront. This makes progressive onboarding difficult and slows down organizers. The first design with on-chain stored invites exposed them publicly. A later proposal with counters and Merkle roots was too complex for the core use case.
 
-**Solution:**
-Use a **simple EIP-712 signed invite**: the Safety Net owner signs a message off-chain (fund ID, nonce, optional expiry). Anyone holding the signature can redeem it once to join the fund. No discoverability.
+**Context / History:**
+
+* [SafetyNets repository](https://github.com/BreadchainCoop/safety_net)
+* Discussion of on-chain invites → discoverability problem.
+* Discussion of counters / Merkle roots → overengineered for MVP.
 
 **Stakeholders:**
-Fund owners, prospective members, Breadchain maintainers, UI developers.
+
+* Safety Net creators / owners.
+* Prospective members invited to join.
+* Bread maintainers.
+* Frontend / UI developers.
 
 ---
 
 ## 2. Motivation
 
-**Goals:**
+**Goals & Success Stories:**
 
-* Allow progressive onboarding.
-* Keep invites private until redeemed.
-* Enforce single-use via nonce tracking.
-* Keep implementation lean and auditable for the MVP.
+* Safety Net owner generates an **off-chain signed invite**.
+* Invite is shared as a link or QR code.
+* Anyone holding the invite can redeem it once to join.
+* Each invite is **single-use** via a `nonce`.
+* Nothing is exposed on-chain until redemption.
+
+---
+
+## 3. Scope and Approaches
 
 **Non-Goals:**
 
-* Multi-use or allowlist invites (can be added later).
-* Global counter revocation.
+| Technical Functionality   | Reasoning for being off scope           | Tradeoffs                             |
+| ------------------------- | --------------------------------------- | ------------------------------------- |
+| Multi-use invites         | Simpler MVP: one signature = one invite | Cannot share one link with many users |
+| Allowlist / Merkle root   | Overkill for current goals              | Useful for enterprise, not needed now |
+| Global counter revocation | Not required for MVP                    | Cannot invalidate all invites at once |
 
 ---
 
-## 3. Flow
+**Value Proposition:**
 
-### 3.1 Main Path
-
-1. **Owner signs invite** off-chain: `(fundId, nonce, deadline)`.
-2. **Invite is shared** (link or QR containing struct + signature).
-3. **User calls `redeemInvite(inv, sig)`**.
-
-   * Contract checks:
-      * Invite not expired.
-      * Nonce not used before.
-      * Signature matches fund owner.
-      * Marks nonce used.
-      * Adds user as member.
-      * Emits `InviteRedeemed`.
-
-### 3.2 Error Paths
-
-| Condition             | Revert Reason         |
-| --------------------- | --------------------- |
-| Nonce already used    | `Invite already used` |
-| Deadline passed       | `Invite expired`      |
-| Wrong signer          | `Invalid signer`      |
-| Caller already member | `Already member`      |
+| Technical Functionality | Value                                | Tradeoffs                        |
+| ----------------------- | ------------------------------------ | -------------------------------- |
+| EIP-712 signed invites  | Private, non-discoverable on-chain   | Requires off-chain signing       |
+| Nonce (one-time use)    | Prevents replay and double use       | Storage required per invite      |
 
 ---
 
-## 4. Data Model
+**Alternative Approaches:**
 
-```solidity
-struct Invite {
-    uint256 fundId;
-    uint256 nonce;
-    uint48  deadline; // 0 = no expiry (?)
-}
+| Approach                | Pros                             | Cons                                  |
+| ----------------------- | -------------------------------- | ------------------------------------- |
+| On-chain stored invites | Easy to track, transparent state | Publicly visible, like open join      |
+
+---
+
+**Relevant Metrics:**
+
+* Invite redemption success rate.
+* Number of invites consumed vs. issued.
+* Common failure cases (expired, already used, bad signature).
+
+---
+
+## 4. Step-by-Step Flow
+
+### 4.1 Main (“Happy”) Path
+
+* **Pre-condition:** Safety Net exists and has a defined owner.
+* **Actor:** Owner generates `(fundId, nonce, deadline)` and signs with EIP-712.
+* **System validates:**
+
+  * Nonce not used.
+  * Signature matches fund owner.
+* **System persists / computes:**
+
+  * Marks nonce as used.
+  * Adds `msg.sender` as member.
+  * Emits `InviteRedeemed`.
+* **Post-condition:** User becomes a member of the Safety Net.
+
+### 4.2 Alternate / Error Paths
+
+| #  | Condition           | System Action           | 
+| -- | ------------------- | ----------------------- | 
+| A1 | Invite already used | `revert Invite used`    | 
+| A2 | Invite expired      | `revert Invite expired` | 
+| A3 | Invalid signer      | `revert Invalid signer` | 
+| A4 | User already member | `revert Already member` | 
+
+---
+
+## 5. UML Diagrams
+
+### Class Diagram
+
+```mermaid
+classDiagram
+    class SafetyNet {
+        +redeemInvite(Invite inv, bytes sig)
+        -usedNonces[fundId][nonce]: bool
+        -isMember[fundId][addr]: bool
+        -ownerOf[fundId]: address
+    }
+    class Invite {
+        +fundId: uint256
+        +nonce: uint256
+    }
+    SafetyNetInvites o--> Invite : verifies
 ```
 
-### Additional storage needed in the contract
+### Sequence Diagram
 
-```solidity
-mapping(uint256 => mapping(uint256 => bool)) public usedNonces;
+```mermaid
+sequenceDiagram
+    participant Owner
+    participant User
+    participant Safety Net Contract
+
+    Owner->>Owner: Sign Invite {fundId, nonce, deadline}
+    Owner->>User: Share link (Invite+sig)
+
+    User->>Safety Net Contract: redeemInvite(inv, sig)
+    Safety Net Contract->>Safety Net Contract: validate signature, nonce
+    Safety Net Contract->>Safety Net Contract: mark nonce used, add member
+    Safety Net Contract-->>User: InviteRedeemed event
+```
+
+### State Diagram
+
+```mermaid
+stateDiagram
+    [*] --> Valid
+    Valid --> Used : nonce consumed
 ```
 
 ---
 
-## 5. Contract API
+## 5. Edge cases and concessions
 
-### Function: `redeemInvite`
-
-```solidity
-function redeemInvite(Invite calldata inv, bytes calldata sig) external;
-```
-
-**Checks:**
-
-* `!usedNonces[inv.fundId][inv.nonce]`
-* `block.timestamp <= deadline` (if set)
-* `ECDSA.recover(inviteDigest, sig) == ownerOf[fundId]`
-* `!isMember[fundId][msg.sender]`
-
-**Effects:**
-
-* Marks nonce used.
-* Adds caller as member.
-* Emits `InviteRedeemed`.
-
-### Event
-
-```solidity
-event InviteRedeemed(uint256 indexed fundId, address indexed redeemer, uint256 nonce);
-```
+* **Single-use only:** each invite works once, then becomes invalid.
+* **No global invalidation:** leaked invites remain valid until used or expired.
 
 ---
 
-## 6. Security
-
-* **No on-chain discoverability:** invites exist only as off-chain signatures.
-* **Replay protection:** each invite has a unique `nonce`, enforced once.
-* **Expiry:** optional `deadline` caps lifetime.
-* **Signature domain binding:** EIP-712 domain separator (contract + chainId) prevents cross-chain replay.
-
----
-
-## 7. Example Link Format
-
-Off-chain, the signed invite is packaged into a URL:
-
-```
-/join?fundId=1&nonce=42&deadline=1700000000&sig=0x...
-```
-
-The frontend decodes the query, reconstructs the `Invite`, and calls `redeemInvite`.
-
----
-
-## 8. Open Questions
+## 6. Open Questions
 
 * Should fund owners be able to **invalidate unused invites** (e.g. via counter like @bagelface said) in the MVP?
-* Should invites be **transferable** (redeemed by someone other than the original recipient)?
+
+---
+
+## 7. Glossary / References
+
+* **Invite:** EIP-712 signature over `(fundId, nonce, deadline)`.
+* **Nonce:** Unique value ensuring invite is one-time use.
+* **Deadline:** Expiry timestamp for the invite.
+* **Safety Net / SafetyNet:** Mutual aid group with periodic contributions.
+
+**Links:**
+
+* [Safety Nets repo](https://github.com/BreadchainCoop/safety-net)
+* [EIP-712 specification](https://eips.ethereum.org/EIPS/eip-712)
 
 ---
