@@ -334,8 +334,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= sn.fixedDeposit;
   }
 
-  /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
-  function duesRemainingThisEpoch(uint256 _id, address _member) external view returns (uint256) {
+  /// @inheritdoc ISafetyNet
+  function duesRemainingThisEpoch(uint256 _id, address _member) external view override returns (uint256) {
     uint256 epochIndex = getCurrentEpochIndex(_id);
     uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
     uint256 target = safetyNets[_id].fixedDeposit;
