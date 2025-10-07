@@ -58,11 +58,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
 
-  /// @notice (DEPRECATED) Tracks which members have deposited in each epoch
-  ///         Do not use for logic; use `epochMemberDepositedAmount` instead.
-  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
-    epochMemberDeposits;
-
   /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public
     epochMemberDepositedAmount;
