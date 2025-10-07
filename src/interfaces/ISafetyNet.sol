@@ -318,6 +318,12 @@ interface ISafetyNet {
   /// @return epochIndex The current epoch index based on time elapsed
   function getCurrentEpochIndex(uint256 safetyNetId) external view returns (uint256);
 
+  /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
+  /// @param id Safety Net ID
+  /// @param member Member address
+  /// @return remaining Amount left to reach the fixed deposit in the current epoch
+  function duesRemainingThisEpoch(uint256 id, address member) external view returns (uint256 remaining);
+
   /// @notice Checks if a Safety Net is eligible for decommission
   /// @param safetyNetId The Safety Net ID
   /// @return decommissionable True if the safetyNet can be decommissioned (when someone missed a payment)
