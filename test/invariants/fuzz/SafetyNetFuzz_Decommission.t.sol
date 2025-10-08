@@ -28,49 +28,49 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     uint256 depositAmountMember3 = bound(dep3Raw, 1e17, 5e19);
     uint256 skipEpochs = bound(uint256(skipEpochsRaw), 1, 4);
 
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp;
-    config.members = defaultMembers;
+    config.members = _defaultMembers;
     config.ratio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     // Pre-fund with enough allowance for multiple deposits.
     _mintApprove(
-      member1,
+      _member1,
       depositAmountMember1 + depositAmountMember1 + 2 * (config.initialDeposit + config.fixedDeposit),
       address(_safetyNet)
     );
     _mintApprove(
-      member2,
+      _member2,
       depositAmountMember2 + depositAmountMember2 + 2 * (config.initialDeposit + config.fixedDeposit),
       address(_safetyNet)
     );
     _mintApprove(
-      member3,
+      _member3,
       depositAmountMember3 + depositAmountMember3 + 2 * (config.initialDeposit + config.fixedDeposit),
       address(_safetyNet)
     );
 
     // Initial deposits
-    _depositAs(member1, safetyNetId, depositAmountMember1);
-    _depositAs(member2, safetyNetId, depositAmountMember2);
-    _depositAs(member3, safetyNetId, depositAmountMember3);
+    _depositAs(_member1, safetyNetId, depositAmountMember1);
+    _depositAs(_member2, safetyNetId, depositAmountMember2);
+    _depositAs(_member3, safetyNetId, depositAmountMember3);
 
-    // Next epoch: member3 skips their payment
+    // Next epoch: _member3 skips their payment
     vm.warp(block.timestamp + config.epochDuration + 1);
-    _depositAs(member1, safetyNetId, depositAmountMember1);
-    _depositAs(member2, safetyNetId, depositAmountMember2);
-    // member3 intentionally skips
+    _depositAs(_member1, safetyNetId, depositAmountMember1);
+    _depositAs(_member2, safetyNetId, depositAmountMember2);
+    // _member3 intentionally skips
 
     // Advance further epochs → fund should now be decommissionable
     vm.warp(block.timestamp + config.epochDuration * skipEpochs + 1);
     assertTrue(_safetyNet.isDecommissionable(safetyNetId), 'decommissionable after a missed epoch');
 
     // Snapshot before decommission
-    uint256 cBalBefore = token.balanceOf(address(_safetyNet));
-    uint256 member1Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, member1);
-    uint256 member2Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, member2);
-    uint256 member3Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, member3);
+    uint256 cBalBefore = _token.balanceOf(address(_safetyNet));
+    uint256 member1Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, _member1);
+    uint256 member2Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, _member2);
+    uint256 member3Withdrawable = _safetyNet.memberWithdrawableBalance(safetyNetId, _member3);
     uint256 totalWithdrawables = member1Withdrawable + member2Withdrawable + member3Withdrawable;
 
     assertGe(cBalBefore, totalWithdrawables, 'contract covers withdrawables here');
@@ -80,9 +80,9 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     uint256 split = remaining / 3;
     uint256 remainder = remaining % 3;
 
-    uint256 member1BalanceBefore = token.balanceOf(member1);
-    uint256 member2BalanceBefore = token.balanceOf(member2);
-    uint256 member3BalanceBefore = token.balanceOf(member3);
+    uint256 member1BalanceBefore = _token.balanceOf(_member1);
+    uint256 member2BalanceBefore = _token.balanceOf(_member2);
+    uint256 member3BalanceBefore = _token.balanceOf(_member3);
 
     // Execute decommission
     _safetyNet.decommission(safetyNetId);
@@ -92,21 +92,21 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     _safetyNet.getSafetyNet(safetyNetId);
 
     // All withdrawables zeroed out
-    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, member1), 0);
-    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, member2), 0);
-    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, member3), 0);
+    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, _member1), 0);
+    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, _member2), 0);
+    assertEq(_safetyNet.memberWithdrawableBalance(safetyNetId, _member3), 0);
 
     // Members receive withdrawables + fair share of the split
-    uint256 member1BalanceAfter = token.balanceOf(member1);
-    uint256 member2BalanceAfter = token.balanceOf(member2);
-    uint256 member3BalanceAfter = token.balanceOf(member3);
+    uint256 member1BalanceAfter = _token.balanceOf(_member1);
+    uint256 member2BalanceAfter = _token.balanceOf(_member2);
+    uint256 member3BalanceAfter = _token.balanceOf(_member3);
 
     assertEq(member1BalanceAfter - member1BalanceBefore, member1Withdrawable + split);
     assertEq(member2BalanceAfter - member2BalanceBefore, member2Withdrawable + split);
     assertEq(member3BalanceAfter - member3BalanceBefore, member3Withdrawable + split);
 
     // Dust remainder (if any) stays in the contract
-    uint256 cBalAfter = token.balanceOf(address(_safetyNet));
+    uint256 cBalAfter = _token.balanceOf(address(_safetyNet));
     assertEq(cBalAfter, remainder, 'dust remainder retained');
   }
 }

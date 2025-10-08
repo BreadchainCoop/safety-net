@@ -13,7 +13,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
     uint256 successfulCreations;
 
     for (uint256 i = 0; i < safetyNetCount; i++) {
-      ISafetyNet.SafetyNet memory config = safeCfg;
+      ISafetyNet.SafetyNet memory config = _safeCfg;
       config.safetyNetStart = block.timestamp + 1;
       config.consensusThreshold = uint256((consensusBasePercentage + i) % 100);
       if (config.consensusThreshold < 1) config.consensusThreshold = 1;
@@ -29,7 +29,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
   }
 
   function test_Create_RevertsOnZeroAddressMember() public {
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp + 1;
     config.members = _threeMembers();
     config.members[0] = address(0);
@@ -39,7 +39,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
   }
 
   function test_Create_RevertsOnDisallowedToken_then_SucceedsWhenAllowed() public {
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp + 1;
 
     MockERC20 temporaryToken = new MockERC20('Tmp', 'TMP');

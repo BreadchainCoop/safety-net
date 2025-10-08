@@ -14,7 +14,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(memberCount);
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
@@ -47,7 +47,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(memberCount);
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
@@ -87,7 +87,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(memberCount);
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
@@ -127,7 +127,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 30);
 
     address[] memory members = _makeMembers(memberCount);
-    ISafetyNet.SafetyNet memory config = safeCfg;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;

@@ -17,20 +17,20 @@ abstract contract SafetyNetFuzzBase is Test {
   SafetyNet internal _implementation;
   SafetyNet internal _safetyNet;
   ProxyAdmin internal _proxyAdmin;
-  TransparentUpgradeableProxy internal proxy;
+  TransparentUpgradeableProxy internal _proxy;
 
   // Token
-  MockERC20 internal token;
+  MockERC20 internal _token;
 
   // Baseline members
-  address internal owner_;
-  address internal member1;
-  address internal member2;
-  address internal member3;
-  address[] internal defaultMembers;
+  address internal _owner;
+  address internal _member1;
+  address internal _member2;
+  address internal _member3;
+  address[] internal _defaultMembers;
 
   // Safe default template (filled in setUp)
-  ISafetyNet.SafetyNet internal safeCfg;
+  ISafetyNet.SafetyNet internal _safeCfg;
 
   // Defaults (chosen to be permissive but safe for fuzzing)
   uint256 internal constant _SAFE_MIN_MEMBERS = 3;
@@ -47,50 +47,50 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /**
    * setUp
-   * - Creates a proxy-admin + proxy-wrapped SafetyNet, initialized with `owner_`.
+   * - Creates a proxy-admin + proxy-wrapped SafetyNet, initialized with `_owner`.
    * - Deploys and allow-lists a MockERC20 used across tests.
    * - Prepares a baseline config `safeCfg` reused by fuzz suites.
    */
   function setUp() public virtual {
     // actors
-    member1 = address(0xA11CE);
-    member2 = address(0xB0B);
-    member3 = address(0xC0C0A);
-    owner_ = address(this);
-    defaultMembers = _threeMembers();
+    _member1 = address(0xA11CE);
+    _member2 = address(0xB0B);
+    _member3 = address(0xC0C0A);
+    _owner = address(this);
+    _defaultMembers = _threeMembers();
 
     // token
-    token = new MockERC20('Mock', 'MOCK');
-    vm.label(address(token), 'MockERC20');
+    _token = new MockERC20('Mock', 'MOCK');
+    vm.label(address(_token), 'MockERC20');
 
     // implementation + proxy admin
     _implementation = new SafetyNet();
     vm.label(address(_implementation), 'SafetyNet_Impl');
-    _proxyAdmin = new ProxyAdmin(owner_);
+    _proxyAdmin = new ProxyAdmin(_owner);
     vm.label(address(_proxyAdmin), 'ProxyAdmin');
 
     // proxy (initialize owner)
-    bytes memory initData = abi.encodeWithSelector(SafetyNet.initialize.selector, owner_);
-    proxy = new TransparentUpgradeableProxy(address(_implementation), address(_proxyAdmin), initData);
-    vm.label(address(proxy), 'SafetyNet_Proxy');
+    bytes memory initData = abi.encodeWithSelector(SafetyNet.initialize.selector, _owner);
+    _proxy = new TransparentUpgradeableProxy(address(_implementation), address(_proxyAdmin), initData);
+    vm.label(address(_proxy), 'SafetyNet_Proxy');
 
     // use proxy via impl ABI
-    _safetyNet = SafetyNet(address(proxy));
+    _safetyNet = SafetyNet(address(_proxy));
     vm.label(address(_safetyNet), 'SafetyNet');
 
     // allow token
-    _safetyNet.setTokenAllowed(address(token), true);
+    _safetyNet.setTokenAllowed(address(_token), true);
 
     // default config template
     ISafetyNet.SafetyNet memory cfg;
     cfg.id = 0;
-    cfg.owner = owner_;
+    cfg.owner = _owner;
     cfg.minimumMembers = _SAFE_MIN_MEMBERS;
     cfg.maximumMembers = _SAFE_MAX_MEMBERS;
     cfg.consensusThreshold = _SAFE_CONSENSUS;
     cfg.safetyNetStart = block.timestamp + 1 days; // future by default
-    cfg.token = address(token);
-    cfg.members = defaultMembers;
+    cfg.token = address(_token);
+    cfg.members = _defaultMembers;
     cfg.initialDeposit = _SAFE_INITIAL_DEPOSIT;
     cfg.fixedDeposit = _SAFE_FIXED_DEPOSIT;
     cfg.ratio = _SAFE_RATIO;
@@ -100,13 +100,13 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.currentEpoch = 0;
     cfg.epochDuration = _SAFE_EPOCH_DURATION;
     cfg.smallWithdrawsLimit = _SAFE_SMALL_WITHDRAWS_LIMIT;
-    safeCfg = cfg;
+    _safeCfg = cfg;
 
     // labels (nice for traces)
-    vm.label(owner_, 'Owner');
-    vm.label(member1, 'Member1');
-    vm.label(member2, 'Member2');
-    vm.label(member3, 'Member3');
+    vm.label(_owner, 'Owner');
+    vm.label(_member1, 'Member1');
+    vm.label(_member2, 'Member2');
+    vm.label(_member3, 'Member3');
   }
 
   // ───────────── Helpers (reused across suites) ─────────────
@@ -114,9 +114,9 @@ abstract contract SafetyNetFuzzBase is Test {
   /// @dev Returns the canonical three default members.
   function _threeMembers() internal view returns (address[] memory _member) {
     _member = new address[](3);
-    _member[0] = member1;
-    _member[1] = member2;
-    _member[2] = member3;
+    _member[0] = _member1;
+    _member[1] = _member2;
+    _member[2] = _member3;
   }
 
   /// @dev Deterministically generates `n` pseudo-members for fuzzing.
@@ -129,9 +129,9 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /// @dev Mint `amount` tokens to `who` and grant unlimited approval to `spender`.
   function _mintApprove(address who, uint256 amount, address spender) internal {
-    token.mint(who, amount);
+    _token.mint(who, amount);
     vm.startPrank(who);
-    token.approve(spender, type(uint256).max);
+    _token.approve(spender, type(uint256).max);
     vm.stopPrank();
   }
 
@@ -143,14 +143,14 @@ abstract contract SafetyNetFuzzBase is Test {
     uint256 amt = value > due ? due : value;
     // Onboarding: first deposit must be exactly initialDeposit
     if (_safetyNet.safetyNetMemberContribute(id, who) == 0) {
-      amt = safeCfg.initialDeposit;
+      amt = _safeCfg.initialDeposit;
     }
 
-    uint256 needed = amt + safeCfg.fixedDeposit + safeCfg.initialDeposit;
-    token.mint(who, needed);
+    uint256 needed = amt + _safeCfg.fixedDeposit + _safeCfg.initialDeposit;
+    _token.mint(who, needed);
 
     vm.startPrank(who);
-    token.approve(address(_safetyNet), type(uint256).max);
+    _token.approve(address(_safetyNet), type(uint256).max);
     _safetyNet.deposit(id, amt);
     vm.stopPrank();
   }
