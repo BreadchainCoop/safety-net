@@ -36,10 +36,10 @@ abstract contract SafetyNetFuzzBase is Test {
   uint256 internal constant SAFE_MIN_MEMBERS = 3;
   uint256 internal constant SAFE_MAX_MEMBERS = 10;
   uint256 internal constant SAFE_CONSENSUS = 51; // percentage
-  uint256 internal constant SAFE_INITIAL_DEPOSIT = 1e16;
-  uint256 internal constant SAFE_FIXED_DEPOSIT = 1e16;
+  uint256 internal constant SAFE_INITIAL_DEPOSIT = 225e18;
+  uint256 internal constant SAFE_FIXED_DEPOSIT = 50e18;
   uint256 internal constant SAFE_RATIO = 1; // 1x
-  uint256 internal constant SAFE_AUTO_THRESHOLD = 5e17;
+  uint256 internal constant SAFE_AUTO_THRESHOLD = 150e18;
   uint256 internal constant SAFE_CONTEST_WINDOW = 1 days;
   uint256 internal constant SAFE_VOTING_WINDOW = 3 days;
   uint256 internal constant SAFE_EPOCH_DURATION = 30 days;
@@ -112,18 +112,18 @@ abstract contract SafetyNetFuzzBase is Test {
   // ───────────── Helpers (reused across suites) ─────────────
 
   /// @dev Returns the canonical three default members.
-  function _threeMembers() internal view returns (address[] memory m) {
-    m = new address[](3);
-    m[0] = member1;
-    m[1] = member2;
-    m[2] = member3;
+  function _threeMembers() internal view returns (address[] memory _member) {
+    _member = new address[](3);
+    _member[0] = member1;
+    _member[1] = member2;
+    _member[2] = member3;
   }
 
   /// @dev Deterministically generates `n` pseudo-members for fuzzing.
-  function _makeMembers(uint256 n) internal pure returns (address[] memory m) {
-    m = new address[](n);
+  function _makeMembers(uint256 n) internal pure returns (address[] memory _member) {
+    _member = new address[](n);
     for (uint256 i = 0; i < n; i++) {
-      m[i] = address(uint160(uint256(keccak256(abi.encodePacked(i, 'SAFETYNET_MEMBER')))));
+      _member[i] = address(uint160(uint256(keccak256(abi.encodePacked(i, 'SAFETYNET_MEMBER')))));
     }
   }
 
@@ -141,6 +141,10 @@ abstract contract SafetyNetFuzzBase is Test {
     if (due == 0) return;
 
     uint256 amt = value > due ? due : value;
+    // Onboarding: first deposit must be exactly initialDeposit
+    if (!safetyNet.hasMadeFirstDeposit(id, who)) {
+      amt = safeCfg.initialDeposit;
+    }
 
     uint256 needed = amt + safeCfg.fixedDeposit + safeCfg.initialDeposit;
     token.mint(who, needed);

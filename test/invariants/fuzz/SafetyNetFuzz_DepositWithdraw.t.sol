@@ -37,8 +37,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
 
   // ── Case 1: Deposits — 1 per member per epoch; flag set; balance increases
   function _caseDeposit(uint256 id, address actor, uint256 seed) external {
-    // need the config to read initialDeposit
-    ISafetyNet.SafetyNet memory sn = safetyNet.getSafetyNet(id);
+    ISafetyNet.SafetyNet memory _safetyNet = safetyNet.getSafetyNet(id);
 
     uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
     uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
@@ -62,8 +61,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     vm.startPrank(actor);
     if (!safetyNet.hasMadeFirstDeposit(id, actor)) {
       // epoch 0 – must pay exactly initialDeposit
-      safetyNet.deposit(id, sn.initialDeposit);
-      depositedAmt = sn.initialDeposit;
+      safetyNet.deposit(id, _safetyNet.initialDeposit);
+      depositedAmt = _safetyNet.initialDeposit;
     } else {
       // subsequent epochs – partials allowed up to fixedDeposit
       // (dueBefore > 0 here, so picked ∈ [1, dueBefore])
@@ -72,8 +71,10 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     }
     vm.stopPrank();
 
+    // Re-check dues after the deposit and assert the flag reflects "fully paid"
+    uint256 dueAfter = safetyNet.duesRemainingThisEpoch(id, actor);
     bool paidAfter = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
-    assertEq(paidAfter, depositedAmt == dueBefore, 'flag only when epoch fully paid');
+    assertEq(paidAfter, dueAfter == 0, 'flag only when epoch fully paid');
 
     uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
     assertEq(afterW, beforeW + depositedAmt, 'withdrawable += deposited amt');
@@ -199,16 +200,25 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 planned = (cfg.smallWithdrawsLimit + extraWithdraws) * perWithdraw;
     if (dep < planned) dep = planned;
 
-    // Prefund up to `planned` while respecting per-epoch deposit caps
+    // Prefund up to `planned` while respecting onboarding + per-epoch caps
     uint256 remaining = planned;
     while (remaining > 0) {
+      // First ever deposit must be EXACTLY initialDeposit, independent of epoch dues.
+      if (!safetyNet.hasMadeFirstDeposit(id, member1)) {
+        _mintApprove(member1, cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+        vm.prank(member1);
+        safetyNet.deposit(id, cfg.initialDeposit);
+        continue;
+      }
+
+      // After onboarding, pay against this epoch’s remaining dues.
       uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
       if (due == 0) {
         vm.warp(block.timestamp + cfg.epochDuration + 1);
         continue;
       }
       uint256 pay = remaining > due ? due : remaining;
-      _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
+      _mintApprove(member1, pay + cfg.fixedDeposit, address(safetyNet));
       vm.prank(member1);
       safetyNet.deposit(id, pay);
       remaining -= pay;

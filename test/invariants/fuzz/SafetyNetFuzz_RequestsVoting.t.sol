@@ -29,8 +29,13 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    vm.prank(member1);
-    safetyNet.deposit(id, pay);
+    if (!safetyNet.hasMadeFirstDeposit(id, member1)) {
+      vm.prank(member1);
+      safetyNet.deposit(id, cfg.initialDeposit);
+    } else {
+      vm.prank(member1);
+      safetyNet.deposit(id, pay);
+    }
 
     // Choose a daysRequested that ensures "large" classification.
     safetyNet.safetyNetMemberContribute(id, member1);
@@ -83,8 +88,13 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       if (dueI > 0) {
         uint256 payI = depEach > dueI ? dueI : depEach;
         _mintApprove(members[i], payI + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-        vm.prank(members[i]);
-        safetyNet.deposit(id, payI);
+        if (!safetyNet.hasMadeFirstDeposit(id, members[i])) {
+          vm.prank(members[i]);
+          safetyNet.deposit(id, cfg.initialDeposit);
+        } else {
+          vm.prank(members[i]);
+          safetyNet.deposit(id, payI);
+        }
       }
     }
 
@@ -98,8 +108,13 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint256 depositValue0 = 3e18;
     uint256 pay0 = depositValue0 > due0 ? due0 : depositValue0;
     _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    vm.prank(members[0]);
-    safetyNet.deposit(id, pay0);
+    if (!safetyNet.hasMadeFirstDeposit(id, members[0])) {
+      vm.prank(members[0]);
+      safetyNet.deposit(id, cfg.initialDeposit);
+    } else {
+      vm.prank(members[0]);
+      safetyNet.deposit(id, pay0);
+    }
 
     uint256 daysRequested = 1;
 
@@ -158,8 +173,13 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    vm.prank(member1);
-    safetyNet.deposit(id, pay);
+    if (!safetyNet.hasMadeFirstDeposit(id, member1)) {
+      vm.prank(member1);
+      safetyNet.deposit(id, cfg.initialDeposit);
+    } else {
+      vm.prank(member1);
+      safetyNet.deposit(id, pay);
+    }
 
     uint256 daysRequested = 1;
 
@@ -250,8 +270,13 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint256 depositValue = 5e18;
     uint256 pay0 = depositValue > due0 ? due0 : depositValue;
     _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    vm.prank(members[0]);
-    safetyNet.deposit(id, pay0);
+    if (!safetyNet.hasMadeFirstDeposit(id, members[0])) {
+      vm.prank(members[0]);
+      safetyNet.deposit(id, cfg.initialDeposit);
+    } else {
+      vm.prank(members[0]);
+      safetyNet.deposit(id, pay0);
+    }
 
     // With tiny autoThreshold, any positive withdrawal amount will be "large"
     uint256 daysRequested = 1;
