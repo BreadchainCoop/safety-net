@@ -29,7 +29,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
-    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, member1)) {
+    if (_safetyNet.safetyNetMemberContribute(safetyNetId, member1) == 0) {
       vm.prank(member1);
       _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
@@ -88,7 +88,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
       if (dueI > 0) {
         uint256 payI = depEach > dueI ? dueI : depEach;
         _mintApprove(members[i], payI + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
-        if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[i])) {
+        if (_safetyNet.safetyNetMemberContribute(safetyNetId, members[i]) == 0) {
           vm.prank(members[i]);
           _safetyNet.deposit(safetyNetId, config.initialDeposit);
         } else {
@@ -108,7 +108,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint256 depositValue0 = 3e18;
     uint256 pay0 = depositValue0 > due0 ? due0 : depositValue0;
     _mintApprove(members[0], pay0 + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
-    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[0])) {
+    if (_safetyNet.safetyNetMemberContribute(safetyNetId, members[0]) == 0) {
       vm.prank(members[0]);
       _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
@@ -173,7 +173,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     }
     uint256 pay = depositValue > due ? due : depositValue;
     _mintApprove(member1, pay + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
-    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, member1)) {
+    if (_safetyNet.safetyNetMemberContribute(safetyNetId, member1) == 0) {
       vm.prank(member1);
       _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
@@ -270,7 +270,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint256 depositValue = 5e18;
     uint256 pay0 = depositValue > due0 ? due0 : depositValue;
     _mintApprove(members[0], pay0 + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
-    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[0])) {
+    if (_safetyNet.safetyNetMemberContribute(safetyNetId, members[0]) == 0) {
       vm.prank(members[0]);
       _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {

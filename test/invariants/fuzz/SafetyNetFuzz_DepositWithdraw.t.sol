@@ -59,7 +59,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 depositedAmount;
 
     vm.startPrank(actor);
-    if (!_safetyNet.hasMadeFirstDeposit(id, actor)) {
+    if (_safetyNet.safetyNetMemberContribute(id, actor) == 0) {
       // epoch 0 – must pay exactly initialDeposit
       _safetyNet.deposit(id, safetyNetSnapshot.initialDeposit);
       depositedAmount = safetyNetSnapshot.initialDeposit;
@@ -204,7 +204,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 remaining = planned;
     while (remaining > 0) {
       // First ever deposit must be EXACTLY initialDeposit, independent of epoch dues.
-      if (!_safetyNet.hasMadeFirstDeposit(id, member1)) {
+      if (_safetyNet.safetyNetMemberContribute(id, member1) == 0) {
         _mintApprove(member1, config.initialDeposit + config.fixedDeposit, address(_safetyNet));
         vm.prank(member1);
         _safetyNet.deposit(id, config.initialDeposit);

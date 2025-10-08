@@ -43,9 +43,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Indicates whether a specific ERC20 token is allowed for use in Safety Nets
   mapping(address token => bool status) public allowedTokens;
 
-  /// @notice Tracks whether a member has made their first deposit in a specific Safety Net
-  mapping(uint256 id => mapping(address member => bool hasDeposited)) public hasMadeFirstDeposit;
-
   /// @notice Lists all requests indexed by their unique ID
   mapping(uint256 idReq => Request request) public requests;
 
@@ -386,16 +383,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_value == 0) revert InvalidDepositAmount();
 
     uint256 epoch = getCurrentEpochIndex(_id);
-    bool initialDone = hasMadeFirstDeposit[_id][_member];
-
     uint256 epochPaid = epochMemberDepositedAmount[_id][epoch][_member];
+    // Onboarding status is derived: not onboarded if no monthly contribution set yet.
+    bool onboarding = (safetyNetMemberContribute[_id][_member] == 0);
 
-    if (!initialDone) {
+    if (onboarding) {
       uint256 initial = _safetyNet.initialDeposit;
       // First month: must be first payment in the epoch AND exactly initialDeposit (no partials/multi-tx)
       if (epochPaid != 0 || _value != initial) revert InvalidDepositAmount();
 
-      hasMadeFirstDeposit[_id][_member] = true;
       safetyNetMemberContribute[_id][_member] = _safetyNet.fixedDeposit;
 
       // Set epoch paid to full initial

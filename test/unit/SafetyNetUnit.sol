@@ -62,11 +62,11 @@ contract SafetyNetUnit is Test {
   }
 
   // ---------- helpers ----------
-  function _defaultSafetyNet(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory sn) {
+  function _defaultSafetyNet(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
     address[] memory members = new address[](2);
     members[0] = _alice;
     members[1] = _bob;
-    sn = ISafetyNet.SafetyNet({
+    _safetyNet = ISafetyNet.SafetyNet({
       id: 0,
       owner: _owner,
       minimumMembers: 2,
@@ -93,14 +93,14 @@ contract SafetyNetUnit is Test {
   }
 
   function _payInitial(uint256 id, address who) internal {
-    ISafetyNet.SafetyNet memory sn = _sn.getSafetyNet(id);
+    ISafetyNet.SafetyNet memory _safetyNet = _sn.getSafetyNet(id);
     vm.prank(who);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
   }
 
   function _nextEpoch(uint256 id) internal {
-    ISafetyNet.SafetyNet memory sn = _sn.getSafetyNet(id);
-    vm.warp(sn.safetyNetStart + sn.epochDuration);
+    ISafetyNet.SafetyNet memory _safetyNet = _sn.getSafetyNet(id);
+    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
   }
 
   // ---------- initialize ----------
@@ -162,105 +162,105 @@ contract SafetyNetUnit is Test {
 
   // ---------- create ----------
   function test_CreateWhenTokenIsNotInAllowedTokensMapping() external {
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     vm.expectRevert(ISafetyNet.TokenNotAllowed.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenSafetyNetStartTimeIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.safetyNetStart = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.safetyNetStart = 0;
     vm.expectRevert(ISafetyNet.InvalidSafetyNetStartTime.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenOwnerIsZeroAddress() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.owner = address(0);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.owner = address(0);
     vm.expectRevert(ISafetyNet.InvalidOwner.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenInitialDepositIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.initialDeposit = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.initialDeposit = 0;
     vm.expectRevert(ISafetyNet.InvalidInitialDeposit.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenFixedDepositIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.fixedDeposit = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.fixedDeposit = 0;
     vm.expectRevert(ISafetyNet.InvalidFixedDeposit.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenAutoThresholdIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.autoThreshold = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.autoThreshold = 0;
     vm.expectRevert(ISafetyNet.InvalidThreshold.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenMinimumMembersIs0() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.minimumMembers = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.minimumMembers = 0;
     vm.expectRevert(ISafetyNet.InvalidMinimumMembers.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenMinimumMembersIs1() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.minimumMembers = 1;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.minimumMembers = 1;
     vm.expectRevert(ISafetyNet.InvalidMinimumMembers.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenMaximumMembersEqualsMinimumMembers() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.maximumMembers = sn.minimumMembers;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.maximumMembers = _safetyNet.minimumMembers;
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
   function test_CreateWhenMaximumMembersIsLessThanMinimumMembers() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.maximumMembers = 1;
-    sn.minimumMembers = 2;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.maximumMembers = 1;
+    _safetyNet.minimumMembers = 2;
     vm.expectRevert(ISafetyNet.InvalidMaximumMembers.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenEpochDurationIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.epochDuration = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.epochDuration = 0;
     vm.expectRevert(ISafetyNet.InvalidEpochDuration.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenSmallWithdrawsLimitIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.smallWithdrawsLimit = 0;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.smallWithdrawsLimit = 0;
     vm.expectRevert(ISafetyNet.InvalidSmallWithdrawsLimit.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenMembersArrayIsEmpty() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.members = new address[](0);
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.members = new address[](0);
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
     (address[] memory members,) = _sn.getMemberBalances(id);
     assertEq(members.length, 0);
@@ -268,74 +268,74 @@ contract SafetyNetUnit is Test {
 
   function test_CreateWhenAnyMemberAddressIsZeroAddress() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.members[1] = address(0);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.members[1] = address(0);
     vm.expectRevert(ISafetyNet.InvalidMemberAddress.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenMembersArrayContainsDuplicates() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
 
     // Duplicate
-    sn.members[1] = _alice;
+    _safetyNet.members[1] = _alice;
 
     vm.expectRevert(ISafetyNet.DuplicateMember.selector);
-    _sn.create(sn);
+    _sn.create(_safetyNet);
   }
 
   function test_CreateWhenConsensusThresholdIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.consensusThreshold = 0;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.consensusThreshold = 0;
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
   function test_CreateWhenConsensusThresholdIsGreaterThan100() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.consensusThreshold = 150;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.consensusThreshold = 150;
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
   function test_CreateWhenRatioIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.ratio = 0;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.ratio = 0;
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
   function test_CreateWhenRatioIsGreaterThan100() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.ratio = 200;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.ratio = 200;
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
   function test_CreateWhenAllParametersAreValid() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     vm.expectEmit(true, false, false, true);
     emit ISafetyNet.SafetyNetCreated(
       0,
-      sn.minimumMembers,
-      sn.maximumMembers,
-      sn.consensusThreshold,
-      sn.members,
-      sn.token,
-      sn.initialDeposit,
-      sn.fixedDeposit,
-      sn.ratio,
-      sn.autoThreshold,
-      sn.epochDuration,
-      sn.smallWithdrawsLimit
+      _safetyNet.minimumMembers,
+      _safetyNet.maximumMembers,
+      _safetyNet.consensusThreshold,
+      _safetyNet.members,
+      _safetyNet.token,
+      _safetyNet.initialDeposit,
+      _safetyNet.fixedDeposit,
+      _safetyNet.ratio,
+      _safetyNet.autoThreshold,
+      _safetyNet.epochDuration,
+      _safetyNet.smallWithdrawsLimit
     );
-    uint256 id = _sn.create(sn);
+    uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
 
     // nextId increments
@@ -343,7 +343,7 @@ contract SafetyNetUnit is Test {
 
     // Stored struct
     ISafetyNet.SafetyNet memory stored = _sn.getSafetyNet(id);
-    assertEq(stored.owner, sn.owner);
+    assertEq(stored.owner, _safetyNet.owner);
 
     // Members mapping and reverse index
     assertTrue(_sn.isMember(id, _alice));
@@ -359,8 +359,8 @@ contract SafetyNetUnit is Test {
   // ---------- decommission ----------
   function test_DecommissionWhenSafetyNetIsNotDecommissionable() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     vm.expectRevert(ISafetyNet.NotDecommissionable.selector);
     _sn.decommission(id);
   }
@@ -368,20 +368,20 @@ contract SafetyNetUnit is Test {
   // Create balances and decommission after marking a missed deposit
   function test_DecommissionWhenSafetyNetIsDecommissionable() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
     // epoch 0: onboarding
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
     vm.prank(_bob);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     // epoch 1: deliberately miss deposits
-    vm.warp(sn.safetyNetStart + sn.epochDuration);
+    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
 
     // Seed balances
-    vm.warp(sn.safetyNetStart + 2 * sn.epochDuration + 1);
+    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
     vm.prank(_alice);
     _sn.deposit(id, 5 ether);
     vm.prank(_bob);
@@ -417,8 +417,8 @@ contract SafetyNetUnit is Test {
 
   function test_DepositWhenCallerIsNotInIsMemberMapping() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     vm.expectRevert(ISafetyNet.NotMember.selector);
     vm.prank(_carol);
     _sn.deposit(id, 1 ether);
@@ -434,9 +434,9 @@ contract SafetyNetUnit is Test {
 
   function test_DepositWhenCurrentTimeIsBeforeSafetyNetStartTime() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.safetyNetStart = block.timestamp + 1 days;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.safetyNetStart = block.timestamp + 1 days;
+    uint256 id = _sn.create(_safetyNet);
     vm.expectRevert(ISafetyNet.DepositBeforeSafetyNetStart.selector);
     vm.prank(_alice);
     _sn.deposit(id, 1 ether);
@@ -444,14 +444,14 @@ contract SafetyNetUnit is Test {
 
   function test_DepositWhenCurrentTimeEqualsSafetyNetStartTime() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
-    vm.warp(sn.safetyNetStart);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    vm.warp(_safetyNet.safetyNetStart);
 
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
-    assertEq(_sn.safetyNetBalance(id), sn.initialDeposit);
+    assertEq(_sn.safetyNetBalance(id), _safetyNet.initialDeposit);
   }
 
   function test_DepositWhenMemberAlreadyDepositedInCurrentEpoch() external {
@@ -479,31 +479,29 @@ contract SafetyNetUnit is Test {
 
   function test_DepositWhenTokenTransferFromFails() external {
     _allowToken(address(_failToken));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_failToken));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.expectRevert(SafetyNet.TransferFailed.selector);
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
   }
 
   function test_DepositWhenMakingFirstDeposit() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
-    uint256 expectedTotal = sn.initialDeposit;
+    uint256 expectedTotal = _safetyNet.initialDeposit;
     vm.expectEmit(true, true, false, true);
     emit ISafetyNet.FundsDeposited(id, _alice, expectedTotal);
 
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), sn.fixedDeposit);
-    assertTrue(_sn.hasMadeFirstDeposit(id, _alice));
-
+    assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
     assertEq(_sn.safetyNetBalance(id), expectedTotal);
-    assertEq(_sn.memberWithdrawableBalance(id, _alice), sn.initialDeposit * sn.ratio);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.ratio);
 
     // epoch 0 is considered fully paid (>= fixedDeposit)
     uint256 epoch = _sn.getCurrentEpochIndex(id);
@@ -512,8 +510,8 @@ contract SafetyNetUnit is Test {
 
   function test_DepositWhenMakingSubsequentDeposits() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     _payInitial(id, _alice);
     _nextEpoch(id);
 
@@ -523,18 +521,18 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
     _sn.deposit(id, value);
 
-    assertEq(_sn.safetyNetBalance(id), sn.initialDeposit + value);
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), sn.fixedDeposit);
-    assertEq(_sn.memberWithdrawableBalance(id, _alice), (sn.initialDeposit + value) * sn.ratio);
+    assertEq(_sn.safetyNetBalance(id), _safetyNet.initialDeposit + value);
+    assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), (_safetyNet.initialDeposit + value) * _safetyNet.ratio);
   }
 
   function test_DepositWhenRatioIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.ratio = 0;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.ratio = 0;
+    uint256 id = _sn.create(_safetyNet);
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
     assertEq(_sn.memberWithdrawableBalance(id, _alice), 0);
     assertGt(_sn.safetyNetBalance(id), 0);
   }
@@ -556,11 +554,11 @@ contract SafetyNetUnit is Test {
 
   function test_DepositForWhenSenderIsNotAMember() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     vm.prank(_carol);
-    _sn.depositFor(id, sn.initialDeposit, _alice);
-    assertTrue(_sn.hasMadeFirstDeposit(id, _alice));
+    _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
+    assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
   }
 
   function test_DepositForWhenDepositValueIsZero() external {
@@ -573,9 +571,9 @@ contract SafetyNetUnit is Test {
 
   function test_DepositForWhenCurrentTimeIsBeforeSafetyNetStartTime() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.safetyNetStart = block.timestamp + 1 days;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.safetyNetStart = block.timestamp + 1 days;
+    uint256 id = _sn.create(_safetyNet);
     vm.expectRevert(ISafetyNet.DepositBeforeSafetyNetStart.selector);
     vm.prank(_alice);
     _sn.depositFor(id, 1 ether, _alice);
@@ -583,13 +581,13 @@ contract SafetyNetUnit is Test {
 
   function test_DepositForWhenTargetMemberAlreadyDepositedInCurrentEpoch() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.prank(_alice);
-    _sn.depositFor(id, sn.initialDeposit, _alice);
+    _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
 
-    vm.warp(sn.safetyNetStart + sn.epochDuration + 1);
+    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration + 1);
 
     vm.prank(_alice);
     _sn.depositFor(id, 6 ether, _alice);
@@ -603,22 +601,21 @@ contract SafetyNetUnit is Test {
 
   function test_DepositForWhenTokenTransferFromFailsFromSender() external {
     _allowToken(address(_failToken));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_failToken));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.expectRevert(SafetyNet.TransferFailed.selector);
     vm.prank(_alice);
-    _sn.depositFor(id, sn.initialDeposit, _alice);
+    _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
   }
 
   function test_DepositForWhenMakingFirstDepositForTargetMember() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     vm.prank(_bob);
-    _sn.depositFor(id, sn.initialDeposit, _alice);
-    assertEq(_sn.safetyNetMemberContribute(id, _alice), sn.fixedDeposit);
-    assertTrue(_sn.hasMadeFirstDeposit(id, _alice));
+    _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
+    assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
   }
 
   // ---------- withdraw ----------
@@ -639,11 +636,11 @@ contract SafetyNetUnit is Test {
 
   function test_WithdrawWhenDaysRequestedIsZero() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     uint256 beforeBal = _token.balanceOf(_alice);
     vm.prank(_alice);
@@ -656,11 +653,11 @@ contract SafetyNetUnit is Test {
 
   function test_WithdrawWhenRequestedWithdrawalAmountExceedsMemberWithdrawableBalance() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
     vm.expectRevert(ISafetyNet.NotWithdrawable.selector);
     vm.prank(_alice);
 
@@ -670,29 +667,29 @@ contract SafetyNetUnit is Test {
 
   function test_WithdrawWhenWithdrawalAmountIsBelowThreshold() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
 
     // Small path
-    sn.autoThreshold = 100 ether;
-    uint256 id = _sn.create(sn);
+    _safetyNet.autoThreshold = 100 ether;
+    uint256 id = _sn.create(_safetyNet);
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     uint256 before = _token.balanceOf(_alice);
     vm.prank(_alice);
     _sn.withdraw(id, 1);
     assertGt(_token.balanceOf(_alice), before);
-    assertLt(_sn.memberWithdrawableBalance(id, _alice), sn.initialDeposit * sn.ratio);
+    assertLt(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.ratio);
   }
 
   function test_WithdrawWhenWithdrawalAmountIsAboveAutoThresholdCreatesRequest() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     // Any withdraw > 1 wei goes to request path
-    sn.autoThreshold = 1;
-    uint256 id = _sn.create(sn);
+    _safetyNet.autoThreshold = 1;
+    uint256 id = _sn.create(_safetyNet);
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     vm.prank(_alice);
     _sn.withdraw(id, 1);
@@ -705,13 +702,13 @@ contract SafetyNetUnit is Test {
   // ---------- createRequest / contest / execute / vote (happy paths) ----------
   function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
 
     // Ensure withdraw goes through request path
-    sn.autoThreshold = 1;
-    id = _sn.create(sn);
+    _safetyNet.autoThreshold = 1;
+    id = _sn.create(_safetyNet);
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     // Create request via withdraw above threshold
     vm.prank(_alice);
@@ -767,7 +764,7 @@ contract SafetyNetUnit is Test {
     members[0] = _alice;
     members[1] = _bob;
     members[2] = _carol;
-    ISafetyNet.SafetyNet memory sn = ISafetyNet.SafetyNet({
+    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
       id: 0,
       owner: _owner,
       minimumMembers: 2,
@@ -787,11 +784,11 @@ contract SafetyNetUnit is Test {
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
-    uint256 id = _sn.create(sn);
+    uint256 id = _sn.create(_safetyNet);
 
     // Onboard
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
 
     // Creates request 0
     vm.prank(_alice);
@@ -836,10 +833,10 @@ contract SafetyNetUnit is Test {
 
   function test_GetSafetyNetWhenSafetyNetExistsAndIsCommissioned() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
     ISafetyNet.SafetyNet memory g = _sn.getSafetyNet(id);
-    assertEq(g.owner, sn.owner);
+    assertEq(g.owner, _safetyNet.owner);
   }
 
   function test_GetSafetyNetsWhenIdsArrayIsEmpty() external view {
@@ -890,11 +887,11 @@ contract SafetyNetUnit is Test {
 
   function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsTrue() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
 
     vm.prank(_alice);
-    _sn.deposit(id, sn.initialDeposit);
+    _sn.deposit(id, _safetyNet.initialDeposit);
     assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, _sn.getCurrentEpochIndex(id)));
   }
 
@@ -904,25 +901,25 @@ contract SafetyNetUnit is Test {
 
   function test_GetCurrentEpochIndexWhenCurrentTimeEdgeCases() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory sn = _defaultSafetyNet(address(_token));
-    sn.safetyNetStart = block.timestamp + 1 days;
-    uint256 id = _sn.create(sn);
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.safetyNetStart = block.timestamp + 1 days;
+    uint256 id = _sn.create(_safetyNet);
 
     // Before start
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(sn.safetyNetStart);
+    vm.warp(_safetyNet.safetyNetStart);
 
     // At start
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(sn.safetyNetStart + 1);
+    vm.warp(_safetyNet.safetyNetStart + 1);
 
     // Just after start
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(sn.safetyNetStart + sn.epochDuration);
+    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
 
     // Exactly one epoch
     assertEq(_sn.getCurrentEpochIndex(id), 1);
-    vm.warp(sn.safetyNetStart + 5 * sn.epochDuration + 10);
+    vm.warp(_safetyNet.safetyNetStart + 5 * _safetyNet.epochDuration + 10);
     assertEq(_sn.getCurrentEpochIndex(id), 5);
   }
 

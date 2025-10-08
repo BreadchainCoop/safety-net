@@ -142,7 +142,7 @@ abstract contract SafetyNetFuzzBase is Test {
 
     uint256 amt = value > due ? due : value;
     // Onboarding: first deposit must be exactly initialDeposit
-    if (!_safetyNet.hasMadeFirstDeposit(id, who)) {
+    if (_safetyNet.safetyNetMemberContribute(id, who) == 0) {
       amt = safeCfg.initialDeposit;
     }
 
