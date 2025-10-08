@@ -126,8 +126,27 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       memberSafetyNets[_member].push(_id);
     }
 
-    _safetyNet.id = _id;
-    safetyNets[_id] = _safetyNet;
+    SafetyNet storage _storedSafetyNet = safetyNets[_id];
+    _storedSafetyNet.id = _id;
+    _storedSafetyNet.owner = _safetyNet.owner;
+    _storedSafetyNet.minimumMembers = _safetyNet.minimumMembers;
+    _storedSafetyNet.maximumMembers = _safetyNet.maximumMembers;
+    _storedSafetyNet.consensusThreshold = _safetyNet.consensusThreshold;
+    _storedSafetyNet.safetyNetStart = _safetyNet.safetyNetStart;
+    _storedSafetyNet.token = _safetyNet.token;
+    _storedSafetyNet.initialDeposit = _safetyNet.initialDeposit;
+    _storedSafetyNet.fixedDeposit = _safetyNet.fixedDeposit;
+    _storedSafetyNet.ratio = _safetyNet.ratio;
+    _storedSafetyNet.autoThreshold = _safetyNet.autoThreshold;
+    _storedSafetyNet.contestWindow = _safetyNet.contestWindow;
+    _storedSafetyNet.votingWindow = _safetyNet.votingWindow;
+    _storedSafetyNet.epochDuration = _safetyNet.epochDuration;
+    _storedSafetyNet.smallWithdrawsLimit = _safetyNet.smallWithdrawsLimit;
+
+    address[] storage _storedMembers = _storedSafetyNet.members;
+    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+      _storedMembers.push(_safetyNet.members[i]);
+    }
 
     emit SafetyNetCreated(
       _id,

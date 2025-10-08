@@ -81,7 +81,6 @@ contract SafetyNetUnit is Test {
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,
-      currentEpoch: 0,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
@@ -726,7 +725,6 @@ contract SafetyNetUnit is Test {
       autoThreshold: 1,
       contestWindow: 3 days,
       votingWindow: 30 days,
-      currentEpoch: 0,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
