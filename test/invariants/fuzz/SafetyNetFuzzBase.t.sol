@@ -14,9 +14,9 @@ import {MockERC20} from 'test/mocks/MockERC20.sol';
 /// @notice Shared base for all fuzz suites: deploys proxy + token, provides defaults & helpers.
 abstract contract SafetyNetFuzzBase is Test {
   // Implementation / proxy
-  SafetyNet internal implementation;
-  SafetyNet internal safetyNet;
-  ProxyAdmin internal proxyAdmin;
+  SafetyNet internal _implementation;
+  SafetyNet internal _safetyNet;
+  ProxyAdmin internal _proxyAdmin;
   TransparentUpgradeableProxy internal proxy;
 
   // Token
@@ -33,17 +33,17 @@ abstract contract SafetyNetFuzzBase is Test {
   ISafetyNet.SafetyNet internal safeCfg;
 
   // Defaults (chosen to be permissive but safe for fuzzing)
-  uint256 internal constant SAFE_MIN_MEMBERS = 3;
-  uint256 internal constant SAFE_MAX_MEMBERS = 10;
-  uint256 internal constant SAFE_CONSENSUS = 51; // percentage
-  uint256 internal constant SAFE_INITIAL_DEPOSIT = 225e18;
-  uint256 internal constant SAFE_FIXED_DEPOSIT = 50e18;
-  uint256 internal constant SAFE_RATIO = 1; // 1x
-  uint256 internal constant SAFE_AUTO_THRESHOLD = 150e18;
-  uint256 internal constant SAFE_CONTEST_WINDOW = 1 days;
-  uint256 internal constant SAFE_VOTING_WINDOW = 3 days;
-  uint256 internal constant SAFE_EPOCH_DURATION = 30 days;
-  uint256 internal constant SAFE_SMALL_WITHDRAWS_LIMIT = 3;
+  uint256 internal constant _SAFE_MIN_MEMBERS = 3;
+  uint256 internal constant _SAFE_MAX_MEMBERS = 10;
+  uint256 internal constant _SAFE_CONSENSUS = 51; // percentage
+  uint256 internal constant _SAFE_INITIAL_DEPOSIT = 225e18;
+  uint256 internal constant _SAFE_FIXED_DEPOSIT = 50e18;
+  uint256 internal constant _SAFE_RATIO = 1; // 1x
+  uint256 internal constant _SAFE_AUTO_THRESHOLD = 150e18;
+  uint256 internal constant _SAFE_CONTEST_WINDOW = 1 days;
+  uint256 internal constant _SAFE_VOTING_WINDOW = 3 days;
+  uint256 internal constant _SAFE_EPOCH_DURATION = 30 days;
+  uint256 internal constant _SAFE_SMALL_WITHDRAWS_LIMIT = 3;
 
   /**
    * setUp
@@ -64,42 +64,42 @@ abstract contract SafetyNetFuzzBase is Test {
     vm.label(address(token), 'MockERC20');
 
     // implementation + proxy admin
-    implementation = new SafetyNet();
-    vm.label(address(implementation), 'SafetyNet_Impl');
-    proxyAdmin = new ProxyAdmin(owner_);
-    vm.label(address(proxyAdmin), 'ProxyAdmin');
+    _implementation = new SafetyNet();
+    vm.label(address(_implementation), 'SafetyNet_Impl');
+    _proxyAdmin = new ProxyAdmin(owner_);
+    vm.label(address(_proxyAdmin), 'ProxyAdmin');
 
     // proxy (initialize owner)
     bytes memory initData = abi.encodeWithSelector(SafetyNet.initialize.selector, owner_);
-    proxy = new TransparentUpgradeableProxy(address(implementation), address(proxyAdmin), initData);
+    proxy = new TransparentUpgradeableProxy(address(_implementation), address(_proxyAdmin), initData);
     vm.label(address(proxy), 'SafetyNet_Proxy');
 
     // use proxy via impl ABI
-    safetyNet = SafetyNet(address(proxy));
-    vm.label(address(safetyNet), 'SafetyNet');
+    _safetyNet = SafetyNet(address(proxy));
+    vm.label(address(_safetyNet), 'SafetyNet');
 
     // allow token
-    safetyNet.setTokenAllowed(address(token), true);
+    _safetyNet.setTokenAllowed(address(token), true);
 
     // default config template
     ISafetyNet.SafetyNet memory cfg;
     cfg.id = 0;
     cfg.owner = owner_;
-    cfg.minimumMembers = SAFE_MIN_MEMBERS;
-    cfg.maximumMembers = SAFE_MAX_MEMBERS;
-    cfg.consensusThreshold = SAFE_CONSENSUS;
+    cfg.minimumMembers = _SAFE_MIN_MEMBERS;
+    cfg.maximumMembers = _SAFE_MAX_MEMBERS;
+    cfg.consensusThreshold = _SAFE_CONSENSUS;
     cfg.safetyNetStart = block.timestamp + 1 days; // future by default
     cfg.token = address(token);
     cfg.members = defaultMembers;
-    cfg.initialDeposit = SAFE_INITIAL_DEPOSIT;
-    cfg.fixedDeposit = SAFE_FIXED_DEPOSIT;
-    cfg.ratio = SAFE_RATIO;
-    cfg.autoThreshold = SAFE_AUTO_THRESHOLD;
-    cfg.contestWindow = SAFE_CONTEST_WINDOW;
-    cfg.votingWindow = SAFE_VOTING_WINDOW;
+    cfg.initialDeposit = _SAFE_INITIAL_DEPOSIT;
+    cfg.fixedDeposit = _SAFE_FIXED_DEPOSIT;
+    cfg.ratio = _SAFE_RATIO;
+    cfg.autoThreshold = _SAFE_AUTO_THRESHOLD;
+    cfg.contestWindow = _SAFE_CONTEST_WINDOW;
+    cfg.votingWindow = _SAFE_VOTING_WINDOW;
     cfg.currentEpoch = 0;
-    cfg.epochDuration = SAFE_EPOCH_DURATION;
-    cfg.smallWithdrawsLimit = SAFE_SMALL_WITHDRAWS_LIMIT;
+    cfg.epochDuration = _SAFE_EPOCH_DURATION;
+    cfg.smallWithdrawsLimit = _SAFE_SMALL_WITHDRAWS_LIMIT;
     safeCfg = cfg;
 
     // labels (nice for traces)
@@ -137,12 +137,12 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /// @dev Convenience: mint + approve, then deposit `value` for `who` into fund `id`.
   function _depositAs(address who, uint256 id, uint256 value) internal {
-    uint256 due = safetyNet.duesRemainingThisEpoch(id, who);
+    uint256 due = _safetyNet.duesRemainingThisEpoch(id, who);
     if (due == 0) return;
 
     uint256 amt = value > due ? due : value;
     // Onboarding: first deposit must be exactly initialDeposit
-    if (!safetyNet.hasMadeFirstDeposit(id, who)) {
+    if (!_safetyNet.hasMadeFirstDeposit(id, who)) {
       amt = safeCfg.initialDeposit;
     }
 
@@ -150,8 +150,8 @@ abstract contract SafetyNetFuzzBase is Test {
     token.mint(who, needed);
 
     vm.startPrank(who);
-    token.approve(address(safetyNet), type(uint256).max);
-    safetyNet.deposit(id, amt);
+    token.approve(address(_safetyNet), type(uint256).max);
+    _safetyNet.deposit(id, amt);
     vm.stopPrank();
   }
 
@@ -193,7 +193,7 @@ abstract contract SafetyNetFuzzBase is Test {
 
   /// @dev Helper to ensure the per-epoch small-withdraw counter never exceeds the limit.
   function _assertSmallCounterBound(uint256 _id, uint256 epochIdx, address who, uint256 limit) internal view {
-    uint256 cnt = safetyNet.smallWithdrawsCount(_id, epochIdx, who);
+    uint256 cnt = _safetyNet.smallWithdrawsCount(_id, epochIdx, who);
     assertLe(cnt, limit, 'small-withdraw counter bounded by limit');
   }
 }

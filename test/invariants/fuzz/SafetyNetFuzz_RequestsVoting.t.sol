@@ -15,131 +15,131 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   function testFuzz_LargeWithdrawal_RequestAndAutoExecute(uint256 depositValueRaw, uint8 extraDaysRaw) public {
     uint256 depositValue = bound(depositValueRaw, 5e18, 1e22);
 
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = defaultMembers;
-    cfg.ratio = 1;
-    cfg.autoThreshold = 1;
-    cfg.safetyNetStart = block.timestamp;
-    uint256 id = safetyNet.create(cfg);
+    ISafetyNet.SafetyNet memory config = safeCfg;
+    config.members = defaultMembers;
+    config.ratio = 1;
+    config.autoThreshold = 1;
+    config.safetyNetStart = block.timestamp;
+    uint256 safetyNetId = _safetyNet.create(config);
 
-    uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
+    uint256 due = _safetyNet.duesRemainingThisEpoch(safetyNetId, member1);
     if (due == 0) {
-      vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due = safetyNet.duesRemainingThisEpoch(id, member1);
+      vm.warp(block.timestamp + config.epochDuration + 1);
+      due = _safetyNet.duesRemainingThisEpoch(safetyNetId, member1);
     }
     uint256 pay = depositValue > due ? due : depositValue;
-    _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    if (!safetyNet.hasMadeFirstDeposit(id, member1)) {
+    _mintApprove(member1, pay + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, member1)) {
       vm.prank(member1);
-      safetyNet.deposit(id, cfg.initialDeposit);
+      _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
       vm.prank(member1);
-      safetyNet.deposit(id, pay);
+      _safetyNet.deposit(safetyNetId, pay);
     }
 
     // Choose a daysRequested that ensures "large" classification.
-    safetyNet.safetyNetMemberContribute(id, member1);
+    _safetyNet.safetyNetMemberContribute(safetyNetId, member1);
     uint256 daysRequested = 1 + (uint256(extraDaysRaw) % 5);
 
     vm.prank(member1);
-    safetyNet.withdraw(id, daysRequested);
-    uint256 n = safetyNet.nextIdRequest();
-    assertGt(n, 0, 'expected a request');
-    uint256 reqId = n - 1;
+    _safetyNet.withdraw(safetyNetId, daysRequested);
+    uint256 requestCount = _safetyNet.nextIdRequest();
+    assertGt(requestCount, 0, 'expected a request');
+    uint256 requestId = requestCount - 1;
 
-    vm.warp(block.timestamp + cfg.contestWindow + 1);
+    vm.warp(block.timestamp + config.contestWindow + 1);
 
-    uint256 balBefore = token.balanceOf(member1);
+    uint256 balanceBefore = token.balanceOf(member1);
     vm.prank(member2);
-    safetyNet.executeContestedWithdrawal(reqId);
-    uint256 balAfter = token.balanceOf(member1);
+    _safetyNet.executeContestedWithdrawal(requestId);
+    uint256 balanceAfter = token.balanceOf(member1);
 
-    assertGt(balAfter, balBefore);
-    assertTrue(safetyNet.isExecuted(reqId));
+    assertGt(balanceAfter, balanceBefore);
+    assertTrue(_safetyNet.isExecuted(requestId));
   }
 
   /// -------------------------------------------------------------------------
   /// Property-based: Voting threshold boundary.
-  /// For m members and threshold T%, exactly floor(m*T/100) YES must NOT execute;
+  /// For memberCount members and threshold T%, exactly floor(memberCount*T/100) YES must NOT execute;
   /// strictly more than that must execute.
   /// -------------------------------------------------------------------------
   function testFuzz_Voting_ThresholdBoundary(uint8 membersRaw, uint8 consensusPctRaw) public {
-    uint256 m = bound(uint256(membersRaw), 3, 20);
+    uint256 memberCount = bound(uint256(membersRaw), 3, 20);
     uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
 
-    address[] memory members = _makeMembers(m);
+    address[] memory members = _makeMembers(memberCount);
 
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = members;
-    cfg.minimumMembers = 2;
-    cfg.maximumMembers = m;
-    cfg.consensusThreshold = consensus;
-    cfg.autoThreshold = 1;
-    cfg.safetyNetStart = block.timestamp;
-    cfg.votingWindow = 7 days;
-    cfg.contestWindow = 7 days;
+    ISafetyNet.SafetyNet memory config = safeCfg;
+    config.members = members;
+    config.minimumMembers = 2;
+    config.maximumMembers = memberCount;
+    config.consensusThreshold = consensus;
+    config.autoThreshold = 1;
+    config.safetyNetStart = block.timestamp;
+    config.votingWindow = 7 days;
+    config.contestWindow = 7 days;
 
-    uint256 id = safetyNet.create(cfg);
+    uint256 safetyNetId = _safetyNet.create(config);
 
-    // Seed deposits for members[1..m-1]
+    // Seed deposits for members[1..memberCount-1]
     uint256 depEach = 2e18;
-    for (uint256 i = 1; i < m; i++) {
-      uint256 dueI = safetyNet.duesRemainingThisEpoch(id, members[i]);
+    for (uint256 i = 1; i < memberCount; i++) {
+      uint256 dueI = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[i]);
       if (dueI > 0) {
         uint256 payI = depEach > dueI ? dueI : depEach;
-        _mintApprove(members[i], payI + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-        if (!safetyNet.hasMadeFirstDeposit(id, members[i])) {
+        _mintApprove(members[i], payI + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+        if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[i])) {
           vm.prank(members[i]);
-          safetyNet.deposit(id, cfg.initialDeposit);
+          _safetyNet.deposit(safetyNetId, config.initialDeposit);
         } else {
           vm.prank(members[i]);
-          safetyNet.deposit(id, payI);
+          _safetyNet.deposit(safetyNetId, payI);
         }
       }
     }
 
     // Single (larger) deposit for members[0] so we can make a large request
-    uint256 due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
+    uint256 due0 = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[0]);
     if (due0 == 0) {
-      vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
+      vm.warp(block.timestamp + config.epochDuration + 1);
+      due0 = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[0]);
     }
 
     uint256 depositValue0 = 3e18;
     uint256 pay0 = depositValue0 > due0 ? due0 : depositValue0;
-    _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    if (!safetyNet.hasMadeFirstDeposit(id, members[0])) {
+    _mintApprove(members[0], pay0 + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[0])) {
       vm.prank(members[0]);
-      safetyNet.deposit(id, cfg.initialDeposit);
+      _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
       vm.prank(members[0]);
-      safetyNet.deposit(id, pay0);
+      _safetyNet.deposit(safetyNetId, pay0);
     }
 
     uint256 daysRequested = 1;
 
     vm.prank(members[0]);
-    safetyNet.withdraw(id, daysRequested);
-    uint256 n = safetyNet.nextIdRequest();
-    assertGt(n, 0, 'expected a request');
-    uint256 reqId = n - 1;
+    _safetyNet.withdraw(safetyNetId, daysRequested);
+    uint256 requestCount = _safetyNet.nextIdRequest();
+    assertGt(requestCount, 0, 'expected a request');
+    uint256 requestId = requestCount - 1;
 
     // Exactly threshold YES votes (floor).
-    uint256 needed = (m * consensus) / 100; // floor
-    for (uint256 i = 1; i <= needed && i < m; i++) {
+    uint256 needed = (memberCount * consensus) / 100; // floor
+    for (uint256 i = 1; i <= needed && i < memberCount; i++) {
       vm.prank(members[i]);
-      safetyNet.vote(reqId, true);
+      _safetyNet.vote(requestId, true);
     }
-    assertFalse(safetyNet.isExecuted(reqId), '== threshold must not execute');
+    assertFalse(_safetyNet.isExecuted(requestId), '== threshold must not execute');
 
     // One more YES crosses the threshold.
-    if (needed + 1 < m) {
-      uint256 balBefore = token.balanceOf(members[0]);
+    if (needed + 1 < memberCount) {
+      uint256 balanceBefore = token.balanceOf(members[0]);
       vm.prank(members[needed + 1]);
-      safetyNet.vote(reqId, true);
-      assertTrue(safetyNet.isExecuted(reqId), '> threshold executes');
-      uint256 balAfter = token.balanceOf(members[0]);
-      assertGt(balAfter, balBefore);
+      _safetyNet.vote(requestId, true);
+      assertTrue(_safetyNet.isExecuted(requestId), '> threshold executes');
+      uint256 balanceAfter = token.balanceOf(members[0]);
+      assertGt(balanceAfter, balanceBefore);
     }
   }
 
@@ -154,76 +154,76 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint256 votingWin = bound(uint256(votingSecsRaw), 1 hours, 3 days);
     uint256 contestWin = bound(uint256(contestSecsRaw), 1 hours, 3 days);
 
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = defaultMembers;
-    cfg.safetyNetStart = block.timestamp;
-    cfg.votingWindow = votingWin;
-    cfg.contestWindow = contestWin;
-    cfg.ratio = 1;
-    cfg.autoThreshold = 1;
+    ISafetyNet.SafetyNet memory config = safeCfg;
+    config.members = defaultMembers;
+    config.safetyNetStart = block.timestamp;
+    config.votingWindow = votingWin;
+    config.contestWindow = contestWin;
+    config.ratio = 1;
+    config.autoThreshold = 1;
 
-    uint256 id = safetyNet.create(cfg);
+    uint256 safetyNetId = _safetyNet.create(config);
 
     // Fund member1 and create a "large" request.
     uint256 depositValue = 2e18;
-    uint256 due = safetyNet.duesRemainingThisEpoch(id, member1);
+    uint256 due = _safetyNet.duesRemainingThisEpoch(safetyNetId, member1);
     if (due == 0) {
-      vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due = safetyNet.duesRemainingThisEpoch(id, member1);
+      vm.warp(block.timestamp + config.epochDuration + 1);
+      due = _safetyNet.duesRemainingThisEpoch(safetyNetId, member1);
     }
     uint256 pay = depositValue > due ? due : depositValue;
-    _mintApprove(member1, pay + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    if (!safetyNet.hasMadeFirstDeposit(id, member1)) {
+    _mintApprove(member1, pay + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, member1)) {
       vm.prank(member1);
-      safetyNet.deposit(id, cfg.initialDeposit);
+      _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
       vm.prank(member1);
-      safetyNet.deposit(id, pay);
+      _safetyNet.deposit(safetyNetId, pay);
     }
 
     uint256 daysRequested = 1;
 
     vm.prank(member1);
-    safetyNet.withdraw(id, daysRequested);
-    uint256 n = safetyNet.nextIdRequest();
-    assertGt(n, 0, 'expected a request');
-    uint256 reqId = n - 1;
+    _safetyNet.withdraw(safetyNetId, daysRequested);
+    uint256 requestCount = _safetyNet.nextIdRequest();
+    assertGt(requestCount, 0, 'expected a request');
+    uint256 requestId = requestCount - 1;
 
     // Only members may vote.
     address outsider = address(0xDEAD);
     vm.prank(outsider);
     vm.expectRevert(ISafetyNet.NotMember.selector);
-    safetyNet.vote(reqId, true);
+    _safetyNet.vote(requestId, true);
 
     // No double voting.
     vm.prank(member2);
-    safetyNet.vote(reqId, true);
+    _safetyNet.vote(requestId, true);
     vm.prank(member2);
     vm.expectRevert(ISafetyNet.AlreadyVoted.selector);
-    safetyNet.vote(reqId, true);
+    _safetyNet.vote(requestId, true);
 
     // Voting must be within the window.
     vm.warp(block.timestamp + votingWin + 1);
     vm.prank(member3);
     vm.expectRevert(ISafetyNet.VotingWindowClosed.selector);
-    safetyNet.vote(reqId, true);
+    _safetyNet.vote(requestId, true);
 
     // New request that gets contested; verify it does not auto-execute after timeout.
     vm.prank(member1);
-    safetyNet.withdraw(id, daysRequested);
-    uint256 n2 = safetyNet.nextIdRequest();
+    _safetyNet.withdraw(safetyNetId, daysRequested);
+    uint256 n2 = _safetyNet.nextIdRequest();
     assertGt(n2, 0, 'expected a request');
     uint256 req2 = n2 - 1;
 
     vm.prank(member2);
-    safetyNet.contest(req2);
+    _safetyNet.contest(req2);
 
     vm.warp(block.timestamp + contestWin + 1);
 
     // Attempt execution; it should not mark executed for contested request.
     vm.prank(member3);
-    try safetyNet.executeContestedWithdrawal(req2) {} catch {}
-    assertFalse(safetyNet.isExecuted(req2), 'contested request must not auto-execute');
+    try _safetyNet.executeContestedWithdrawal(req2) {} catch {}
+    assertFalse(_safetyNet.isExecuted(req2), 'contested request must not auto-execute');
   }
 
   /// -------------------------------------------------------------------------
@@ -239,68 +239,68 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     uint8 yesBiasRaw,
     uint256 randSeed
   ) public {
-    uint256 m = bound(uint256(memberCountRaw), 3, 20);
+    uint256 memberCount = bound(uint256(memberCountRaw), 3, 20);
     uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
     uint256 yesBias = bound(uint256(yesBiasRaw), 0, 100);
 
-    address[] memory members = _makeMembers(m);
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = members;
-    cfg.minimumMembers = 2;
-    cfg.maximumMembers = m;
-    cfg.consensusThreshold = consensus;
-    cfg.safetyNetStart = block.timestamp;
-    cfg.votingWindow = 1 days;
-    cfg.contestWindow = 1 days;
-    cfg.autoThreshold = 1;
-    uint256 id = safetyNet.create(cfg);
+    address[] memory members = _makeMembers(memberCount);
+    ISafetyNet.SafetyNet memory config = safeCfg;
+    config.members = members;
+    config.minimumMembers = 2;
+    config.maximumMembers = memberCount;
+    config.consensusThreshold = consensus;
+    config.safetyNetStart = block.timestamp;
+    config.votingWindow = 1 days;
+    config.contestWindow = 1 days;
+    config.autoThreshold = 1;
+    uint256 safetyNetId = _safetyNet.create(config);
 
     // Seed balances; ignore per-member deposit failure to keep exploring.
-    for (uint256 i = 0; i < m; i++) {
-      _mintApprove(members[i], 5e21, address(safetyNet));
+    for (uint256 i = 0; i < memberCount; i++) {
+      _mintApprove(members[i], 5e21, address(_safetyNet));
       vm.prank(members[i]);
-      try safetyNet.deposit(id, 5e18) {} catch {}
+      try _safetyNet.deposit(safetyNetId, 5e18) {} catch {}
     }
 
-    uint256 due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
+    uint256 due0 = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[0]);
     if (due0 == 0) {
-      vm.warp(block.timestamp + cfg.epochDuration + 1);
-      due0 = safetyNet.duesRemainingThisEpoch(id, members[0]);
+      vm.warp(block.timestamp + config.epochDuration + 1);
+      due0 = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[0]);
     }
     uint256 depositValue = 5e18;
     uint256 pay0 = depositValue > due0 ? due0 : depositValue;
-    _mintApprove(members[0], pay0 + cfg.initialDeposit + cfg.fixedDeposit, address(safetyNet));
-    if (!safetyNet.hasMadeFirstDeposit(id, members[0])) {
+    _mintApprove(members[0], pay0 + config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+    if (!_safetyNet.hasMadeFirstDeposit(safetyNetId, members[0])) {
       vm.prank(members[0]);
-      safetyNet.deposit(id, cfg.initialDeposit);
+      _safetyNet.deposit(safetyNetId, config.initialDeposit);
     } else {
       vm.prank(members[0]);
-      safetyNet.deposit(id, pay0);
+      _safetyNet.deposit(safetyNetId, pay0);
     }
 
     // With tiny autoThreshold, any positive withdrawal amount will be "large"
     uint256 daysRequested = 1;
 
     vm.prank(members[0]);
-    safetyNet.withdraw(id, daysRequested);
-    uint256 n = safetyNet.nextIdRequest();
-    assertGt(n, 0, 'expected a request');
-    uint256 reqId = n - 1;
+    _safetyNet.withdraw(safetyNetId, daysRequested);
+    uint256 requestCount = _safetyNet.nextIdRequest();
+    assertGt(requestCount, 0, 'expected a request');
+    uint256 requestId = requestCount - 1;
 
     // Randomized voting pass
-    for (uint256 i = 0; i < m && !safetyNet.isExecuted(reqId); i++) {
+    for (uint256 i = 0; i < memberCount && !_safetyNet.isExecuted(requestId); i++) {
       address voter = members[i];
       randSeed = uint256(keccak256(abi.encodePacked(randSeed, i)));
       bool voteYes = (randSeed % 100) < yesBias;
       vm.prank(voter);
-      try safetyNet.vote(reqId, voteYes) {} catch {}
+      try _safetyNet.vote(requestId, voteYes) {} catch {}
     }
 
     // If not executed by consensus, try after contest window.
-    if (!safetyNet.isExecuted(reqId)) {
-      vm.warp(block.timestamp + cfg.contestWindow + 1);
-      vm.prank(members[m - 1]);
-      try safetyNet.executeContestedWithdrawal(reqId) {} catch {}
+    if (!_safetyNet.isExecuted(requestId)) {
+      vm.warp(block.timestamp + config.contestWindow + 1);
+      vm.prank(members[memberCount - 1]);
+      try _safetyNet.executeContestedWithdrawal(requestId) {} catch {}
     }
 
     assertTrue(true); // sanity: no catastrophic revert

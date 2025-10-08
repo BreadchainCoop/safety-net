@@ -324,9 +324,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
-    ISafetyNet.SafetyNet storage sn = safetyNets[_safetyNetId];
-    if (sn.owner == address(0)) return false;
-    return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= sn.fixedDeposit;
+    ISafetyNet.SafetyNet storage _safetyNet = safetyNets[_safetyNetId];
+    if (_safetyNet.owner == address(0)) return false;
+    return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= _safetyNet.fixedDeposit;
   }
 
   /// @inheritdoc ISafetyNet
@@ -360,8 +360,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
       for (uint256 i = 0; i < safetyNet.members.length; i++) {
-        address m = safetyNet.members[i];
-        if (epochMemberDepositedAmount[_safetyNetId][epochIndex][m] < safetyNet.fixedDeposit) {
+        address _member = safetyNet.members[i];
+        if (epochMemberDepositedAmount[_safetyNetId][epochIndex][_member] < safetyNet.fixedDeposit) {
           return true;
         }
       }
@@ -378,11 +378,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
    *      Partial deposits are allowed until the epoch sum == fixedDeposit.
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
-    SafetyNet storage sn = safetyNets[_id];
+    SafetyNet storage _safetyNet = safetyNets[_id];
 
-    if (sn.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (block.timestamp < sn.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
     if (_value == 0) revert InvalidDepositAmount();
 
     uint256 epoch = getCurrentEpochIndex(_id);
@@ -391,26 +391,26 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 epochPaid = epochMemberDepositedAmount[_id][epoch][_member];
 
     if (!initialDone) {
-      uint256 initial = sn.initialDeposit;
+      uint256 initial = _safetyNet.initialDeposit;
       // First month: must be first payment in the epoch AND exactly initialDeposit (no partials/multi-tx)
       if (epochPaid != 0 || _value != initial) revert InvalidDepositAmount();
 
       hasMadeFirstDeposit[_id][_member] = true;
-      safetyNetMemberContribute[_id][_member] = sn.fixedDeposit;
+      safetyNetMemberContribute[_id][_member] = _safetyNet.fixedDeposit;
 
       // Set epoch paid to full initial
       epochPaid = initial;
     } else {
       // Subsequent months: partials allowed up to fixedDeposit
-      if (epochPaid + _value > sn.fixedDeposit) revert ExceedsDepositAmount();
+      if (epochPaid + _value > _safetyNet.fixedDeposit) revert ExceedsDepositAmount();
       epochPaid += _value;
     }
 
     safetyNetBalance[_id] += _value;
-    memberWithdrawableBalance[_id][_member] += _value * sn.ratio;
+    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
     epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
-    if (!IERC20(sn.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
+    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
 
     emit FundsDeposited(_id, _member, _value);
   }
