@@ -43,9 +43,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Indicates whether a specific ERC20 token is allowed for use in Safety Nets
   mapping(address token => bool status) public allowedTokens;
 
-  /// @notice Tracks whether a member has made their first deposit in a specific Safety Net
-  mapping(uint256 id => mapping(address member => bool hasDeposited)) public hasMadeFirstDeposit;
-
   /// @notice Lists all requests indexed by their unique ID
   mapping(uint256 idReq => Request request) public requests;
 
@@ -58,9 +55,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
 
-  /// @notice Tracks which members have deposited in each epoch
-  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => bool))) public
-    epochMemberDeposits;
+  /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public
+    epochMemberDepositedAmount;
 
   /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
   mapping(
@@ -324,7 +321,17 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
-    return epochMemberDeposits[_safetyNetId][_epochIndex][_member];
+    ISafetyNet.SafetyNet storage _safetyNet = safetyNets[_safetyNetId];
+    if (_safetyNet.owner == address(0)) return false;
+    return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= _safetyNet.fixedDeposit;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function duesRemainingThisEpoch(uint256 _id, address _member) external view override returns (uint256) {
+    uint256 epochIndex = getCurrentEpochIndex(_id);
+    uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
+    uint256 target = safetyNets[_id].fixedDeposit;
+    return paid >= target ? 0 : (target - paid);
   }
 
   /// @inheritdoc ISafetyNet
@@ -350,7 +357,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     for (uint256 epochIndex = 0; epochIndex < currentEpochIndex; epochIndex++) {
       for (uint256 i = 0; i < safetyNet.members.length; i++) {
-        if (!epochMemberDeposits[_safetyNetId][epochIndex][safetyNet.members[i]]) {
+        address _member = safetyNet.members[i];
+        if (epochMemberDepositedAmount[_safetyNetId][epochIndex][_member] < safetyNet.fixedDeposit) {
           return true;
         }
       }
@@ -361,39 +369,46 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /**
    * @dev Make a deposit for monthly contribute
-   *      If it's the first deposit, initialDeposit amount is added to the total amount
+   *      If it's the first deposit, initialDeposit is the total amount
    *      The method "transferFrom()" requires "approve()" front-end side
+   *      Each epoch after initial deposit, a member must pay exactly `fixedDeposit`.
+   *      Partial deposits are allowed until the epoch sum == fixedDeposit.
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     SafetyNet storage _safetyNet = safetyNets[_id];
 
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (_value <= 0) revert InvalidDepositAmount();
     if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    if (_value == 0) revert InvalidDepositAmount();
 
-    uint256 currentEpochIndex = getCurrentEpochIndex(_id);
+    uint256 epoch = getCurrentEpochIndex(_id);
+    uint256 epochPaid = epochMemberDepositedAmount[_id][epoch][_member];
+    // Onboarding status is derived: not onboarded if no monthly contribution set yet.
+    bool onboarding = (safetyNetMemberContribute[_id][_member] == 0);
 
-    if (epochMemberDeposits[_id][currentEpochIndex][_member]) {
-      revert AlreadyDeposited();
+    if (onboarding) {
+      uint256 initial = _safetyNet.initialDeposit;
+      // First month: must be first payment in the epoch AND exactly initialDeposit (no partials/multi-tx)
+      if (epochPaid != 0 || _value != initial) revert InvalidDepositAmount();
+
+      safetyNetMemberContribute[_id][_member] = _safetyNet.fixedDeposit;
+
+      // Set epoch paid to full initial
+      epochPaid = initial;
+    } else {
+      // Subsequent months: partials allowed up to fixedDeposit
+      if (epochPaid + _value > _safetyNet.fixedDeposit) revert ExceedsDepositAmount();
+      epochPaid += _value;
     }
 
-    uint256 _totalDeposit = _value + _safetyNet.fixedDeposit;
-
-    if (!hasMadeFirstDeposit[_id][_member]) {
-      safetyNetMemberContribute[_id][_member] = _value;
-      _totalDeposit += _safetyNet.initialDeposit;
-      hasMadeFirstDeposit[_id][_member] = true;
-    }
-
-    safetyNetBalance[_id] += _totalDeposit;
+    safetyNetBalance[_id] += _value;
     memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
+    epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
-    epochMemberDeposits[_id][currentEpochIndex][_member] = true;
+    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
 
-    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _totalDeposit)) revert TransferFailed();
-
-    emit FundsDeposited(_id, _member, _totalDeposit);
+    emit FundsDeposited(_id, _member, _value);
   }
 
   /**
@@ -441,6 +456,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
         revert ExceedsSmallWithdrawalLimit();
       }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
+      safetyNetBalance[_id] -= _withdrawAmount;
       if (!IERC20(_safetyNet.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
