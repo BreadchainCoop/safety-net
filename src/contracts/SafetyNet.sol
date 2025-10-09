@@ -104,6 +104,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.maximumMembers < _safetyNet.minimumMembers) revert InvalidMaximumMembers();
     if (_safetyNet.epochDuration == 0) revert InvalidEpochDuration();
     if (_safetyNet.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
+    if (_safetyNet.ratio <= 0) revert InvalidRatio();
+    if (_safetyNet.ratio > 1) revert InvalidRatio();
 
     uint256 _safetyNetMembersLength = _safetyNet.members.length;
 

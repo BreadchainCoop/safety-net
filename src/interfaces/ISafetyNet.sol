@@ -23,6 +23,7 @@ interface ISafetyNet {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
+  /// @param ratio Ratio of deposit to withdrawal 
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   /// @param currentEpoch Current epoch index
@@ -216,6 +217,9 @@ interface ISafetyNet {
 
   /// @notice Thrown when epoch duration is invalid
   error InvalidEpochDuration();
+
+  /// @notice Thrown when ratio is out of valid range
+  error InvalidRatio();
 
   /// @notice Thrown when small withdraws limit is invalid
   error InvalidSmallWithdrawsLimit();
