@@ -28,18 +28,6 @@
     "check-send-result": "error",
     "avoid-tx-origin": "error",
     "no-inline-assembly": "error",
-    "payable-fallback": "error",
-
-  },
-  "overrides": [
-    {
-      "files": ["test/**", "scripts/**"],
-      "rules": {
-        "no-console": "off",
-        "reason-string": "off",
-        "no-empty-blocks": "off",
-        "use-natspec": "off"
-      }
-    }
-  ]
+    "payable-fallback": "error"
+  }
 }
