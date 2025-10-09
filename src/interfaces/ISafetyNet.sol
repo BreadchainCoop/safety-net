@@ -67,7 +67,7 @@ interface ISafetyNet {
   /// @notice Struct defining an invite to join a Safety Net
   /// @param safetyNetId ID of the Safety Net
   /// @param nonce Unique nonce for the invite
-  /// @param redeemer Address of the invite recipient
+  /// @param redeemer Address of the invite recipient, if 0x0 anyone can redeem
   struct Invite {
     uint256 safetyNetId;
     uint256 nonce;
