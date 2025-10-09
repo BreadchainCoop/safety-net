@@ -1,5 +1,4 @@
 {
-  "extends": "solhint:recommended",
   "rules": {
     "explicit-types": ["warn", "explicit"],
     "reason-string": ["error", { "maxLength": 64 }],
