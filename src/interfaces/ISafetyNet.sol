@@ -67,11 +67,9 @@ interface ISafetyNet {
   /// @notice Struct defining an invite to join a Safety Net
   /// @param safetyNetId ID of the Safety Net
   /// @param nonce Unique nonce for the invite
-  /// @param redeemer Address of the invite recipient, if 0x0 anyone can redeem
   struct Invite {
     uint256 safetyNetId;
     uint256 nonce;
-    address redeemer;
   }
 
   /*///////////////////////////////////////////////////////////////
@@ -249,9 +247,6 @@ interface ISafetyNet {
   /// @notice Thrown when the caller is already a member of the Safety Net
   error AlreadyMember();
 
-  /// @notice Thrown when the invite specifies a different redeemer
-  error NotRedeemer();
-
   /// @notice Thrown when attempting to add members beyond the maximum allowed
   error SafetyNetFull();
 
@@ -289,7 +284,7 @@ interface ISafetyNet {
   function depositFor(uint256 id, uint256 value, address member) external;
 
   /// @notice Redeems an invite signed by the Safety Net owner
-  /// @param invite The invite data containing the Safety Net ID, nonce, and optional redeemer
+  /// @param invite The invite data containing the Safety Net ID and nonce
   /// @param signature The owner's EIP-712 signature
   function redeemInvite(Invite calldata invite, bytes calldata signature) external;
 

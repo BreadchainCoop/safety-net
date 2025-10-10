@@ -24,7 +24,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   string private constant INVITE_SIGNATURE_VERSION = '1';
 
   /// @notice EIP-712 type hash for invite signatures
-  bytes32 private constant INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce,address redeemer)');
+  bytes32 private constant INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
 
   /// @notice EIP-712 domain type hash
   bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
@@ -219,7 +219,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (usedNonces[_invite.safetyNetId][_invite.nonce]) revert InviteAlreadyUsed();
     if (isMember[_invite.safetyNetId][msg.sender]) revert AlreadyMember();
     if (_safetyNet.members.length >= _safetyNet.maximumMembers) revert SafetyNetFull();
-    if (_invite.redeemer != address(0) && _invite.redeemer != msg.sender) revert NotRedeemer();
 
     bytes32 _digest = _hashInvite(_invite);
     address _signer = ECDSA.recover(_digest, _signature);
@@ -556,7 +555,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Builds the EIP-712 digest for an invite
   function _hashInvite(Invite calldata _invite) private view returns (bytes32) {
     bytes32 _structHash =
-      keccak256(abi.encode(INVITE_TYPEHASH, _invite.safetyNetId, _invite.nonce, _invite.redeemer));
+      keccak256(abi.encode(INVITE_TYPEHASH, _invite.safetyNetId, _invite.nonce));
 
     bytes32 _domainSeparator = keccak256(
       abi.encode(
