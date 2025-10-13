@@ -25,7 +25,6 @@ interface ISafetyNet {
   /// @param fixedDeposit Fixed deposit fee amount
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
-  /// @param currentEpoch Current epoch index
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
   struct SafetyNet {
@@ -43,7 +42,6 @@ interface ISafetyNet {
     uint256 autoThreshold;
     uint256 contestWindow;
     uint256 votingWindow;
-    uint256 currentEpoch;
     uint256 epochDuration;
     uint256 smallWithdrawsLimit;
   }
