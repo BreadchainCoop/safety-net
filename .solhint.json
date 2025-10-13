@@ -1,4 +1,5 @@
 {
+  "extends": "solhint:recommended",
   "rules": {
     "explicit-types": ["warn", "explicit"],
     "reason-string": ["error", { "maxLength": 64 }],
@@ -27,6 +28,8 @@
     "check-send-result": "error",
     "avoid-tx-origin": "error",
     "no-inline-assembly": "error",
-    "payable-fallback": "error"
+    "payable-fallback": "error",
+    "max-state-counts": "off",
+    "quotes": "off"
   }
 }
