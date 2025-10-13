@@ -17,7 +17,12 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
   ///  - Payouts reflect prior withdrawables plus fair split of residual.
   ///  - Dust remainder stays inside the contract.
   /// -------------------------------------------------------------------------
-  function testFuzz_CrazyDecommissions_DistributeOnMissedPayments(uint256 dep1Raw, uint256 dep2Raw, uint256 dep3Raw, uint8 skipEpochsRaw) public {
+  function testFuzz_CrazyDecommissions_DistributeOnMissedPayments(
+    uint256 dep1Raw,
+    uint256 dep2Raw,
+    uint256 dep3Raw,
+    uint8 skipEpochsRaw
+  ) public {
     uint256 depositAmountMember1 = bound(dep1Raw, 1e17, 5e19);
     uint256 depositAmountMember2 = bound(dep2Raw, 1e17, 5e19);
     uint256 depositAmountMember3 = bound(dep3Raw, 1e17, 5e19);
@@ -30,9 +35,15 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     uint256 safetyNetId = _safetyNet.create(config);
 
     // Pre-fund with enough allowance for multiple deposits.
-    _mintApprove(_member1, depositAmountMember1 + depositAmountMember1 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet));
-    _mintApprove(_member2, depositAmountMember2 + depositAmountMember2 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet));
-    _mintApprove(_member3, depositAmountMember3 + depositAmountMember3 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet));
+    _mintApprove(
+      _member1, depositAmountMember1 + depositAmountMember1 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
+    );
+    _mintApprove(
+      _member2, depositAmountMember2 + depositAmountMember2 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
+    );
+    _mintApprove(
+      _member3, depositAmountMember3 + depositAmountMember3 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
+    );
 
     // Initial deposits
     _depositAs(_member1, safetyNetId, depositAmountMember1);

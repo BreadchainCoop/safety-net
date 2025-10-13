@@ -108,7 +108,13 @@ contract SafetyNetUnit is Test {
 
   function test_InitializeWhenNotInitialized() external {
     // Deploy fresh proxy and initialize successfully
-    SafetyNet fresh = SafetyNet(address(new TransparentUpgradeableProxy(address(new SafetyNet()), address(new ProxyAdmin(_alice)), abi.encodeWithSelector(SafetyNet.initialize.selector, _alice))));
+    SafetyNet fresh = SafetyNet(
+      address(
+        new TransparentUpgradeableProxy(
+          address(new SafetyNet()), address(new ProxyAdmin(_alice)), abi.encodeWithSelector(SafetyNet.initialize.selector, _alice)
+        )
+      )
+    );
 
     // Owner set
     assertEq(fresh.owner(), _alice);
