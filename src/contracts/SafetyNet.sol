@@ -316,6 +316,45 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
+  function getMembersNeedingDeposit(uint256 _id)
+    external
+    view
+    override
+    returns (address[] memory _membersNeedingDeposit)
+  {
+    SafetyNet memory safetyNet = safetyNets[_id];
+    if (_isDecommissioned(safetyNet)) revert NotCommissioned();
+
+    uint256 epochIndex = getCurrentEpochIndex(_id);
+    uint256 target = safetyNet.fixedDeposit;
+
+    // First pass: count members below target
+    uint256 count;
+    for (uint256 i = 0; i < safetyNet.members.length; i++) {
+      address _member = safetyNet.members[i];
+      uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
+      if (paid < target) {
+        unchecked {
+          count++;
+        }
+      }
+    }
+
+    // Second pass: collect them
+    _membersNeedingDeposit = new address[](count);
+    if (count == 0) return _membersNeedingDeposit;
+
+    uint256 w;
+    for (uint256 i = 0; i < safetyNet.members.length; i++) {
+      address _member = safetyNet.members[i];
+      uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
+      if (paid < target) {
+        _membersNeedingDeposit[w++] = _member;
+      }
+    }
+  }
+
+  /// @inheritdoc ISafetyNet
   function hasMemberDepositedInEpoch(
     uint256 _safetyNetId,
     address _member,
