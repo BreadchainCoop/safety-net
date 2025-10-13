@@ -1,9 +1,8 @@
 {
     "rules": {
-    "no-console": "off",
-    "reason-string": "off",
-    "no-empty-blocks": "off",
-    "use-natspec": "off"
+        "no-console": "off",
+        "reason-string": "off",
+        "no-empty-blocks": "off",
+        "use-natspec": "off"
     }
-
 }
