@@ -24,19 +24,11 @@ contract Common is Script {
     return new ProxyAdmin(_admin);
   }
 
-  function _deployTransparentProxy(
-    address _implementation,
-    address _proxyAdmin,
-    bytes memory _initData
-  ) internal returns (TransparentUpgradeableProxy) {
+  function _deployTransparentProxy(address _implementation, address _proxyAdmin, bytes memory _initData) internal returns (TransparentUpgradeableProxy) {
     return new TransparentUpgradeableProxy(_implementation, _proxyAdmin, _initData);
   }
 
   function _deployContracts(address _admin) internal returns (TransparentUpgradeableProxy) {
-    return _deployTransparentProxy(
-      address(_deploySafetyNet()),
-      address(_deployProxyAdmin(_admin)),
-      abi.encodeWithSelector(SafetyNet.initialize.selector, _admin)
-    );
+    return _deployTransparentProxy(address(_deploySafetyNet()), address(_deployProxyAdmin(_admin)), abi.encodeWithSelector(SafetyNet.initialize.selector, _admin));
   }
 }

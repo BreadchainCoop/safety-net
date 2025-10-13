@@ -334,9 +334,5 @@ interface ISafetyNet {
   /// @param member The member address
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
-  function hasMemberDepositedInEpoch(
-    uint256 safetyNetId,
-    address member,
-    uint256 epochIndex
-  ) external view returns (bool);
+  function hasMemberDepositedInEpoch(uint256 safetyNetId, address member, uint256 epochIndex) external view returns (bool);
 }

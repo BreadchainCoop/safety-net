@@ -37,9 +37,7 @@ contract SafetyNetUnit is Test {
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
-    address proxy = address(
-      new TransparentUpgradeableProxy(impl, admin, abi.encodeWithSelector(SafetyNet.initialize.selector, _owner))
-    );
+    address proxy = address(new TransparentUpgradeableProxy(impl, admin, abi.encodeWithSelector(SafetyNet.initialize.selector, _owner)));
     _sn = SafetyNet(proxy);
     _token = new MockERC20('Mock', 'MOCK');
     _failToken = new FailERC20();
@@ -111,15 +109,7 @@ contract SafetyNetUnit is Test {
 
   function test_InitializeWhenNotInitialized() external {
     // Deploy fresh proxy and initialize successfully
-    SafetyNet fresh = SafetyNet(
-      address(
-        new TransparentUpgradeableProxy(
-          address(new SafetyNet()),
-          address(new ProxyAdmin(_alice)),
-          abi.encodeWithSelector(SafetyNet.initialize.selector, _alice)
-        )
-      )
-    );
+    SafetyNet fresh = SafetyNet(address(new TransparentUpgradeableProxy(address(new SafetyNet()), address(new ProxyAdmin(_alice)), abi.encodeWithSelector(SafetyNet.initialize.selector, _alice))));
 
     // Owner set
     assertEq(fresh.owner(), _alice);
