@@ -89,17 +89,18 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.maximumMembers = SAFE_MAX_MEMBERS;
     cfg.consensusThreshold = SAFE_CONSENSUS;
     cfg.safetyNetStart = block.timestamp + 1 days; // future by default
-    cfg.token = address(token);
-    cfg.members = defaultMembers;
-    cfg.initialDeposit = SAFE_INITIAL_DEPOSIT;
-    cfg.fixedDeposit = SAFE_FIXED_DEPOSIT;
-    cfg.ratio = SAFE_RATIO;
-    cfg.autoThreshold = SAFE_AUTO_THRESHOLD;
-    cfg.contestWindow = SAFE_CONTEST_WINDOW;
-    cfg.votingWindow = SAFE_VOTING_WINDOW;
-    cfg.epochDuration = SAFE_EPOCH_DURATION;
-    cfg.smallWithdrawsLimit = SAFE_SMALL_WITHDRAWS_LIMIT;
-    safeCfg = cfg;
+    cfg.token = address(_token);
+    cfg.members = _defaultMembers;
+    cfg.initialDeposit = _SAFE_INITIAL_DEPOSIT;
+    cfg.fixedDeposit = _SAFE_FIXED_DEPOSIT;
+    cfg.ratio = _SAFE_RATIO;
+    cfg.autoThreshold = _SAFE_AUTO_THRESHOLD;
+    cfg.contestWindow = _SAFE_CONTEST_WINDOW;
+    cfg.votingWindow = _SAFE_VOTING_WINDOW;
+    cfg.currentEpoch = 0;
+    cfg.epochDuration = _SAFE_EPOCH_DURATION;
+    cfg.smallWithdrawsLimit = _SAFE_SMALL_WITHDRAWS_LIMIT;
+    _safeCfg = cfg;
 
     // labels (nice for traces)
     vm.label(owner_, 'Owner');
