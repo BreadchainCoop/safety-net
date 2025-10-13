@@ -120,8 +120,24 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       memberSafetyNets[_member].push(_id);
     }
 
-    _safetyNet.id = _id;
-    safetyNets[_id] = _safetyNet;
+    SafetyNet storage storedSafetyNet = safetyNets[_id];
+    storedSafetyNet.id = _id;
+    storedSafetyNet.owner = _safetyNet.owner;
+    storedSafetyNet.minimumMembers = _safetyNet.minimumMembers;
+    storedSafetyNet.maximumMembers = _safetyNet.maximumMembers;
+    storedSafetyNet.consensusThreshold = _safetyNet.consensusThreshold;
+    storedSafetyNet.members = _safetyNet.members;
+    storedSafetyNet.token = _safetyNet.token;
+    storedSafetyNet.initialDeposit = _safetyNet.initialDeposit;
+    storedSafetyNet.fixedDeposit = _safetyNet.fixedDeposit;
+    storedSafetyNet.ratio = _safetyNet.ratio;
+    storedSafetyNet.autoThreshold = _safetyNet.autoThreshold;
+    storedSafetyNet.epochDuration = _safetyNet.epochDuration;
+    storedSafetyNet.safetyNetStart = _safetyNet.safetyNetStart;
+    storedSafetyNet.votingWindow = _safetyNet.votingWindow;
+    storedSafetyNet.contestWindow = _safetyNet.contestWindow;
+    storedSafetyNet.smallWithdrawsLimit = _safetyNet.smallWithdrawsLimit;
+    safetyNets[_id] = storedSafetyNet;
 
     emit SafetyNetCreated(
       _id,
