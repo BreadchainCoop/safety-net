@@ -18,7 +18,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
-  string private constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvites';
+  string private constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
 
   /// @notice Invite signing version used for EIP-712 signatures
   string private constant INVITE_SIGNATURE_VERSION = '1';
