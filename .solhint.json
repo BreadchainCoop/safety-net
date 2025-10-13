@@ -1,14 +1,32 @@
 {
-  "extends": "solhint:recommended",
   "rules": {
+    "explicit-types": ["warn", "explicit"],
+    "reason-string": ["error", { "maxLength": 64 }],
+    "visibility-modifier-order": "error",
+    "no-empty-blocks": "error",
+    "no-console": "error",
+    "use-natspec": ["warn",
+      {
+        "title": { "enabled": true, "ignore": {} },
+        "author": { "enabled": true, "ignore": {} },
+        "notice": { "enabled": true, "ignore": {} },
+        "param": { "enabled": true, "ignore": {} },
+        "return": { "enabled": true, "ignore": {} }
+      }
+    ],
+    "private-vars-leading-underscore": ["warn",
+      {
+        "strict": false
+      }
+    ],
     "compiler-version": ["warn"],
-    "quotes": "off",
     "func-visibility": ["warn", { "ignoreConstructors": true }],
-    "no-inline-assembly": "off",
-    "no-empty-blocks": "off",
-    "private-vars-leading-underscore": ["warn", { "strict": false }],
-    "ordering": "warn",
-    "avoid-low-level-calls": "off",
-    "named-parameters-mapping": "warn"
+    "reentrancy": "error",
+    "avoid-low-level-calls": "error",
+    "avoid-call-value": "error",
+    "check-send-result": "error",
+    "avoid-tx-origin": "error",
+    "no-inline-assembly": "error",
+    "payable-fallback": "error"
   }
 }
