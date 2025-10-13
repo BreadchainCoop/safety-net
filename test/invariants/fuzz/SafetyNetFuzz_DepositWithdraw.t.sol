@@ -9,84 +9,109 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 epochs = bound(uint256(epochsRaw), 2, 12);
     uint256 ops = bound(uint256(opsRaw), 5, 40);
 
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.safetyNetStart = block.timestamp;
-    cfg.members = defaultMembers;
-    cfg.ratio = 1;
-    uint256 id = safetyNet.create(cfg);
+    ISafetyNet.SafetyNet memory config = _safeCfg;
+    config.safetyNetStart = block.timestamp;
+    config.members = _defaultMembers;
+    config.ratio = 1;
+    uint256 id = _safetyNet.create(config);
 
-    _mintApprove(member1, 1e24, address(safetyNet));
-    _mintApprove(member2, 1e24, address(safetyNet));
-    _mintApprove(member3, 1e24, address(safetyNet));
+    _mintApprove(_member1, 1e24, address(_safetyNet));
+    _mintApprove(_member2, 1e24, address(_safetyNet));
+    _mintApprove(_member3, 1e24, address(_safetyNet));
 
     uint256 seed = uint256(keccak256(abi.encodePacked(block.timestamp, epochs, ops, extraSeed)));
 
     for (uint256 e = 0; e < epochs; e++) {
       for (uint256 k = 0; k < ops; k++) {
         seed = uint256(keccak256(abi.encodePacked(seed, e, k)));
-        address actor = _pick(defaultMembers, seed);
+        address actor = _pick(_defaultMembers, seed);
 
-        this._caseDeposit(id, actor, seed);
-        this._caseSmallWithdraw(id, actor, seed, cfg);
-        this._caseLargeWithdraw(id, actor, seed, cfg);
-        this._caseMaybeExecuteLatest(cfg, actor);
+        this.caseDeposit(id, actor, seed);
+        this.caseSmallWithdraw(id, actor, seed, config);
+        this.caseLargeWithdraw(id, actor, seed, config);
+        this.caseMaybeExecuteLatest(config, actor);
       }
-      vm.warp(block.timestamp + cfg.epochDuration + 1);
+      vm.warp(block.timestamp + config.epochDuration + 1);
     }
   }
 
   // ── Case 1: Deposits — 1 per member per epoch; flag set; balance increases
-  function _caseDeposit(uint256 id, address actor, uint256 seed) external {
-    uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
-    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
-    uint256 v = 1e18 + (seed % 1e18);
-    bool already = safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx);
+  function caseDeposit(uint256 id, address actor, uint256 seed) external {
+    ISafetyNet.SafetyNet memory safetyNetSnapshot = _safetyNet.getSafetyNet(id);
 
-    vm.prank(actor);
-    if (already) {
-      vm.expectRevert(ISafetyNet.AlreadyDeposited.selector);
-      try safetyNet.deposit(id, v) {} catch {}
+    uint256 epochIndex = _safetyNet.getCurrentEpochIndex(id);
+    uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
+    uint256 duesRemainingBefore = _safetyNet.duesRemainingThisEpoch(id, actor);
+
+    if (duesRemainingBefore == 0) {
+      // already fully paid this epoch → any extra should exceed cap
+      vm.prank(actor);
+      vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+      try _safetyNet.deposit(id, 1) {} catch {}
       return;
     }
 
-    safetyNet.deposit(id, v);
-    assertTrue(safetyNet.hasMemberDepositedInEpoch(id, actor, epochIdx), 'epoch flag set');
-    uint256 afterW = safetyNet.memberWithdrawableBalance(id, actor);
-    assertEq(afterW, beforeW + v, 'withdrawable += v');
+    // draw a positive amount within remaining due (used for non-onboarding path)
+    uint256 valueCandidate = 1e18 + (seed % 1e18);
+    uint256 pickedWithinDues = valueCandidate % (duesRemainingBefore + 1);
+    if (pickedWithinDues == 0) pickedWithinDues = duesRemainingBefore;
+
+    uint256 depositedAmount;
+
+    vm.startPrank(actor);
+    if (_safetyNet.safetyNetMemberContribute(id, actor) == 0) {
+      // epoch 0 – must pay exactly initialDeposit
+      _safetyNet.deposit(id, safetyNetSnapshot.initialDeposit);
+      depositedAmount = safetyNetSnapshot.initialDeposit;
+    } else {
+      // subsequent epochs – partials allowed up to fixedDeposit
+      // (duesRemainingBefore > 0 here, so pickedWithinDues ∈ [1, duesRemainingBefore])
+      _safetyNet.deposit(id, pickedWithinDues);
+      depositedAmount = pickedWithinDues;
+    }
+    vm.stopPrank();
+
+    // Re-check dues after the deposit and assert the flag reflects "fully paid"
+    uint256 duesRemainingAfter = _safetyNet.duesRemainingThisEpoch(id, actor);
+    bool paidAfter = _safetyNet.hasMemberDepositedInEpoch(id, actor, epochIndex);
+    assertEq(paidAfter, duesRemainingAfter == 0, 'flag only when epoch fully paid');
+
+    uint256 afterWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
+    assertEq(afterWithdrawable, beforeWithdrawable + depositedAmount, 'withdrawable += deposited amt');
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
-  function _caseSmallWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
-    uint256 epochIdx = safetyNet.getCurrentEpochIndex(id);
-    uint256 contrib = safetyNet.safetyNetMemberContribute(id, actor);
-    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
+  function caseSmallWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory config) external {
+    uint256 epochIndex = _safetyNet.getCurrentEpochIndex(id);
+    uint256 contrib = _safetyNet.safetyNetMemberContribute(id, actor);
+    uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
 
     uint256 daysReq = 1 + (seed % 3);
     uint256 want = (contrib / 30) * daysReq;
 
-    uint256 cntBefore = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
-    uint256 balBefore = token.balanceOf(actor);
-    bool withinLimit = cntBefore < cfg.smallWithdrawsLimit;
-    bool smallByAmt = (want <= cfg.autoThreshold);
-    bool enoughBalance = (want <= beforeW);
+    uint256 cntBefore = _safetyNet.smallWithdrawsCount(id, epochIndex, actor);
+    uint256 balBefore = _token.balanceOf(actor);
+    bool withinLimit = cntBefore < config.smallWithdrawsLimit;
+    bool smallByAmt = (want <= config.autoThreshold);
+    bool enoughBalance = (want <= beforeWithdrawable);
 
     vm.prank(actor);
-    try safetyNet.withdraw(id, daysReq) {
-      uint256 nowW = safetyNet.memberWithdrawableBalance(id, actor);
-      uint256 balNow = token.balanceOf(actor);
-      uint256 cntNow = safetyNet.smallWithdrawsCount(id, epochIdx, actor);
+    try _safetyNet.withdraw(id, daysReq) {
+      uint256 nowW = _safetyNet.memberWithdrawableBalance(id, actor);
+      uint256 balNow = _token.balanceOf(actor);
+      uint256 cntNow = _safetyNet.smallWithdrawsCount(id, epochIndex, actor);
 
       if (want == 0) {
         // Intentional: zero-amount small withdraw still increments counter (balance unchanged)
-        assertEq(nowW, beforeW);
+        assertEq(nowW, beforeWithdrawable);
         assertEq(balNow, balBefore);
         assertEq(cntNow, cntBefore + 1);
-        _assertSmallCounterBound(id, epochIdx, actor, cfg.smallWithdrawsLimit);
+        _assertSmallCounterBound(id, epochIndex, actor, config.smallWithdrawsLimit);
       } else if (smallByAmt && withinLimit && enoughBalance) {
-        assertEq(beforeW - nowW, want);
+        assertEq(beforeWithdrawable - nowW, want);
         assertEq(balNow - balBefore, want);
         assertEq(cntNow, cntBefore + 1);
-        _assertSmallCounterBound(id, epochIdx, actor, cfg.smallWithdrawsLimit);
+        _assertSmallCounterBound(id, epochIndex, actor, config.smallWithdrawsLimit);
       } else {
         assertTrue(false, 'withdraw succeeded though conditions not met');
       }
@@ -94,67 +119,67 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   }
 
   // ── Case 3: Large withdrawals — create a request; execution after contest window
-  function _caseLargeWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory cfg) external {
-    uint256 contrib = safetyNet.safetyNetMemberContribute(id, actor);
-    uint256 beforeW = safetyNet.memberWithdrawableBalance(id, actor);
+  function caseLargeWithdraw(uint256 id, address actor, uint256 seed, ISafetyNet.SafetyNet memory config) external {
+    uint256 contrib = _safetyNet.safetyNetMemberContribute(id, actor);
+    uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
     uint256 daysReq = 40 + (seed % 40);
     uint256 want = (contrib / 30) * daysReq;
 
-    uint256 reqsBefore = safetyNet.nextIdRequest();
+    uint256 reqsBefore = _safetyNet.nextIdRequest();
 
     vm.prank(actor);
-    try safetyNet.withdraw(id, daysReq) {
-      uint256 reqsAfter = safetyNet.nextIdRequest();
-      if (want > cfg.autoThreshold) {
-        if (want <= beforeW && want > 0) {
+    try _safetyNet.withdraw(id, daysReq) {
+      uint256 reqsAfter = _safetyNet.nextIdRequest();
+      if (want > config.autoThreshold) {
+        if (want <= beforeWithdrawable && want > 0) {
           assertEq(reqsAfter, reqsBefore + 1, 'large creates request');
           uint256 reqId = reqsAfter - 1;
-          (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) = safetyNet.requests(reqId);
+          (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) = _safetyNet.requests(reqId);
           assertEq(owner, actor);
           assertEq(amount, want);
           assertEq(yesVotes, 0);
           assertEq(noVotes, 0);
           assertGe(block.timestamp, ts);
-          assertFalse(safetyNet.isExecuted(reqId));
+          assertFalse(_safetyNet.isExecuted(reqId));
 
           if ((seed & 1) == 1) {
-            vm.warp(block.timestamp + cfg.contestWindow + 1);
+            vm.warp(block.timestamp + config.contestWindow + 1);
             vm.prank(actor);
-            try safetyNet.executeContestedWithdrawal(reqId) {
-              assertTrue(safetyNet.isExecuted(reqId));
+            try _safetyNet.executeContestedWithdrawal(reqId) {
+              assertTrue(_safetyNet.isExecuted(reqId));
             } catch {}
           }
         } else {
-          assertEq(safetyNet.nextIdRequest(), reqsBefore, 'no request if insufficient');
+          assertEq(_safetyNet.nextIdRequest(), reqsBefore, 'no request if insufficient');
         }
       }
     } catch {}
   }
 
   // ── Case 4: Request execution attempt — only possible after contest window
-  function _caseMaybeExecuteLatest(ISafetyNet.SafetyNet memory cfg, address actor) external {
-    uint256 nReq = safetyNet.nextIdRequest();
+  function caseMaybeExecuteLatest(ISafetyNet.SafetyNet memory config, address actor) external {
+    uint256 nReq = _safetyNet.nextIdRequest();
     if (nReq == 0) return;
 
     uint256 reqId = nReq - 1;
-    vm.warp(block.timestamp + cfg.contestWindow + 1);
+    vm.warp(block.timestamp + config.contestWindow + 1);
     vm.prank(actor);
-    try safetyNet.executeContestedWithdrawal(reqId) {} catch {}
+    try _safetyNet.executeContestedWithdrawal(reqId) {} catch {}
   }
 
   /// Small-withdraw limit fuzzing
   function testFuzz_SmallWithdrawsRespectLimit(uint8 daysReqRaw, uint8 extraWithdrawsRaw) public {
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.members = defaultMembers;
-    cfg.ratio = 1;
-    cfg.safetyNetStart = block.timestamp;
-    uint256 id = safetyNet.create(cfg);
+    ISafetyNet.SafetyNet memory config = _safeCfg;
+    config.members = _defaultMembers;
+    config.ratio = 1;
+    config.safetyNetStart = block.timestamp;
+    uint256 id = _safetyNet.create(config);
 
     uint256 daysRequested = bound(uint256(daysReqRaw), 1, 3);
     uint256 extraWithdraws = bound(uint256(extraWithdrawsRaw), 0, 2);
 
     // craft deposit size so each withdraw is under autoThreshold
-    uint256 perWithdrawCap = (cfg.autoThreshold - 1) / 4;
+    uint256 perWithdrawCap = (config.autoThreshold - 1) / 4;
     if (perWithdrawCap == 0) perWithdrawCap = 1;
 
     uint256 dep = (perWithdrawCap * 30) / daysRequested;
@@ -172,28 +197,47 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
       }
     }
 
-    uint256 planned = (cfg.smallWithdrawsLimit + extraWithdraws) * perWithdraw;
+    uint256 planned = (config.smallWithdrawsLimit + extraWithdraws) * perWithdraw;
     if (dep < planned) dep = planned;
 
-    uint256 totalNeeded = dep + cfg.initialDeposit + cfg.fixedDeposit;
-    _mintApprove(member1, totalNeeded, address(safetyNet));
-    vm.prank(member1);
-    safetyNet.deposit(id, dep);
+    // Prefund up to `planned` while respecting onboarding + per-epoch caps
+    uint256 remaining = planned;
+    while (remaining > 0) {
+      // First ever deposit must be EXACTLY initialDeposit, independent of epoch dues.
+      if (_safetyNet.safetyNetMemberContribute(id, _member1) == 0) {
+        _mintApprove(_member1, config.initialDeposit + config.fixedDeposit, address(_safetyNet));
+        vm.prank(_member1);
+        _safetyNet.deposit(id, config.initialDeposit);
+        continue;
+      }
 
-    for (uint256 i = 0; i < cfg.smallWithdrawsLimit; i++) {
-      vm.prank(member1);
-      safetyNet.withdraw(id, daysRequested);
+      // After onboarding, pay against this epoch’s remaining dues.
+      uint256 due = _safetyNet.duesRemainingThisEpoch(id, _member1);
+      if (due == 0) {
+        vm.warp(block.timestamp + config.epochDuration + 1);
+        continue;
+      }
+      uint256 pay = remaining > due ? due : remaining;
+      _mintApprove(_member1, pay + config.fixedDeposit, address(_safetyNet));
+      vm.prank(_member1);
+      _safetyNet.deposit(id, pay);
+      remaining -= pay;
+    }
+
+    for (uint256 i = 0; i < config.smallWithdrawsLimit; i++) {
+      vm.prank(_member1);
+      _safetyNet.withdraw(id, daysRequested);
     }
 
     for (uint256 j = 0; j < extraWithdraws; j++) {
-      vm.prank(member1);
+      vm.prank(_member1);
       vm.expectRevert(ISafetyNet.ExceedsSmallWithdrawalLimit.selector);
-      safetyNet.withdraw(id, daysRequested);
+      _safetyNet.withdraw(id, daysRequested);
     }
 
     // After advancing to new epoch, limit resets
-    vm.warp(block.timestamp + cfg.epochDuration + 1);
-    vm.prank(member1);
-    safetyNet.withdraw(id, daysRequested);
+    vm.warp(block.timestamp + config.epochDuration + 1);
+    vm.prank(_member1);
+    _safetyNet.withdraw(id, daysRequested);
   }
 }
