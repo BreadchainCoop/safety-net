@@ -5,7 +5,6 @@
     "reason-string": ["error", { "maxLength": 64 }],
     "visibility-modifier-order": "error",
     "no-empty-blocks": "error",
-    "no-console": "error",
     "use-natspec": ["warn",
       {
         "title": { "enabled": true, "ignore": {} },
