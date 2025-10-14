@@ -9,35 +9,35 @@ import {Script} from 'forge-std/Script.sol';
 /// @notice Utility contract that produces Safety Net invite signatures matching the on-chain verification logic
 contract InviteGenerator is Script {
   /// @notice Invite signing domain name used for EIP-712 signatures
-  string private constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+  string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
 
   /// @notice Invite signing version used for EIP-712 signatures
-  string private constant INVITE_SIGNATURE_VERSION = '1';
+  string private constant _INVITE_SIGNATURE_VERSION = '1';
 
   /// @notice EIP-712 type hash for invite signatures
-  bytes32 private constant INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
+  bytes32 private constant _INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
 
   /// @notice EIP-712 domain type hash
-  bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
+  bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
 
   /// @notice Hashed domain name for invite signatures
-  bytes32 private constant INVITE_DOMAIN_NAME_HASH = keccak256(bytes(INVITE_SIGNING_DOMAIN));
+  bytes32 private constant _INVITE_DOMAIN_NAME_HASH = keccak256(bytes(_INVITE_SIGNING_DOMAIN));
 
   /// @notice Hashed version for invite signatures
-  bytes32 private constant INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(INVITE_SIGNATURE_VERSION));
+  bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
   /// @notice Returns the struct hash of an invite
   function hashInvite(uint256 _safetyNetId, uint256 _nonce) public pure returns (bytes32) {
-    return keccak256(abi.encode(INVITE_TYPEHASH, _safetyNetId, _nonce));
+    return keccak256(abi.encode(_INVITE_TYPEHASH, _safetyNetId, _nonce));
   }
 
   /// @notice Returns the domain separator for a Safety Net contract on a given chain
   function domainSeparator(uint256 _chainId, address _verifyingContract) public pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        EIP712_DOMAIN_TYPEHASH,
-        INVITE_DOMAIN_NAME_HASH,
-        INVITE_DOMAIN_VERSION_HASH,
+        _EIP712_DOMAIN_TYPEHASH,
+        _INVITE_DOMAIN_NAME_HASH,
+        _INVITE_DOMAIN_VERSION_HASH,
         _chainId,
         _verifyingContract
       )

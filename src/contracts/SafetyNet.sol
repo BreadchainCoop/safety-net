@@ -18,22 +18,22 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
-  string private constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+  string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
 
   /// @notice Invite signing version used for EIP-712 signatures
-  string private constant INVITE_SIGNATURE_VERSION = '1';
+  string private constant _INVITE_SIGNATURE_VERSION = '1';
 
   /// @notice EIP-712 type hash for invite signatures
-  bytes32 private constant INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
+  bytes32 private constant _INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
 
   /// @notice EIP-712 domain type hash
-  bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
+  bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
 
   /// @notice Hashed domain name for invite signatures
-  bytes32 private constant INVITE_DOMAIN_NAME_HASH = keccak256(bytes(INVITE_SIGNING_DOMAIN));
+  bytes32 private constant _INVITE_DOMAIN_NAME_HASH = keccak256(bytes(_INVITE_SIGNING_DOMAIN));
 
   /// @notice Hashed version for invite signatures
-  bytes32 private constant INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(INVITE_SIGNATURE_VERSION));
+  bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
@@ -555,13 +555,13 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @dev Builds the EIP-712 digest for an invite
   function _hashInvite(Invite calldata _invite) private view returns (bytes32) {
     bytes32 _structHash =
-      keccak256(abi.encode(INVITE_TYPEHASH, _invite.safetyNetId, _invite.nonce));
+      keccak256(abi.encode(_INVITE_TYPEHASH, _invite.safetyNetId, _invite.nonce));
 
     bytes32 _domainSeparator = keccak256(
       abi.encode(
-        EIP712_DOMAIN_TYPEHASH,
-        INVITE_DOMAIN_NAME_HASH,
-        INVITE_DOMAIN_VERSION_HASH,
+        _EIP712_DOMAIN_TYPEHASH,
+        _INVITE_DOMAIN_NAME_HASH,
+        _INVITE_DOMAIN_VERSION_HASH,
         block.chainid,
         address(this)
       )
