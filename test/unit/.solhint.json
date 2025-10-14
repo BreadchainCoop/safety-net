@@ -4,9 +4,7 @@
         "reason-string": "off",
         "no-empty-blocks": "off",
         "use-natspec": "off",
-        "mixedcase": "off",
-        "contract-name-capwords": "off",
-        "event-name-capwords": "off",
-        "func-name-mixedcase": "off"
+        "style-guide-casing": "off",
+        "one-contract-per-file": "off"
     }
 }
