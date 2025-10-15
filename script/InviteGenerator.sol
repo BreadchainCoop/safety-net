@@ -21,7 +21,7 @@ contract InviteGenerator is Script {
   bytes32 private _inviteDomainVersionHash;
 
   /// @notice EIP-712 type hash for invite signatures
-  bytes32 private constant _INVITE_TYPEHASH = keccak256('Invite(uint256 structId,uint256 nonce)');
+  bytes32 private _INVITE_TYPEHASH;
 
   /// @notice EIP-712 domain type hash
   bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
@@ -32,13 +32,15 @@ contract InviteGenerator is Script {
   /// @notice Error for empty invite signature version
   error InvalidSignatureVersion();
 
-  constructor(string memory inviteSigningDomain, string memory inviteSignatureVersion) {
+  constructor(string memory inviteSigningDomain, string memory inviteSignatureVersion, string memory structName) {
     if (bytes(inviteSigningDomain).length == 0) revert InvalidSigningDomain();
     if (bytes(inviteSignatureVersion).length == 0) revert InvalidSignatureVersion();
     _inviteSigningDomain = inviteSigningDomain;
     _inviteSignatureVersion = inviteSignatureVersion;
     _inviteDomainNameHash = keccak256(bytes(_inviteSigningDomain));
     _inviteDomainVersionHash = keccak256(bytes(_inviteSignatureVersion));
+    string memory inviteTypeString = string(abi.encodePacked('Invite(uint256 ', structName, 'Id,uint256 nonce)'));
+    _INVITE_TYPEHASH = keccak256(bytes(inviteTypeString));
   }
   /// @notice Returns the struct hash of an invite
   function hashInvite(uint256 _structId, uint256 _nonce) public view returns (bytes32) {
@@ -65,7 +67,7 @@ contract InviteGenerator is Script {
     uint256 _chainId,
     address _verifyingContract
   ) public view returns (bytes32) {
-    return keccak256(abi.encodePacked('\x19\x01', domainSeparator(_chainId, _verifyingContract), hashInvite(_structId, _nonce)));
+    return keccak256(abi.encode('\x19\x01', domainSeparator(_chainId, _verifyingContract), hashInvite(_structId, _nonce)));
   }
 
   /// @notice Generates a single invite signature using the configured chain id

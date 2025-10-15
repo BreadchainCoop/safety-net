@@ -6,24 +6,26 @@ import {InviteGenerator} from 'script/InviteGenerator.sol';
 
 contract InviteGeneratorUnit is Test {
   InviteGenerator internal inviteGenerator;
-  string internal constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvites';
+  string internal constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
   string internal constant INVITE_SIGNATURE_VERSION = '1';
   uint256 internal constant STRUCT_ID = 1;
+  string internal constant STRUCT_NAME = 'safetyNet';
   uint256 internal constant NONCE = 1;
   uint256 internal constant CHAIN_ID = 1;
   address internal VERIFYING_CONTRACT;
   uint256 internal OWNER_PRIVATE_KEY;
   address internal OWNER_ADDRESS;
 
+
   function setUp() public {
-    inviteGenerator = new InviteGenerator(INVITE_SIGNING_DOMAIN, INVITE_SIGNATURE_VERSION);
+    inviteGenerator = new InviteGenerator(INVITE_SIGNING_DOMAIN, INVITE_SIGNATURE_VERSION, STRUCT_NAME);
     VERIFYING_CONTRACT = address(inviteGenerator);
     (OWNER_ADDRESS, OWNER_PRIVATE_KEY) = makeAddrAndKey("owner");
   }
 
   function test_shouldReturnsHashInvite() public {
     bytes32 expectedHash = keccak256(
-      abi.encodePacked(keccak256('Invite(uint256 structId,uint256 nonce)'), STRUCT_ID, NONCE)
+      abi.encodePacked(keccak256('Invite(uint256 safetyNetId,uint256 nonce)'), STRUCT_ID, NONCE)
     );
     bytes32 actualHash = inviteGenerator.hashInvite(STRUCT_ID, NONCE);
     assertEq(expectedHash, actualHash);
@@ -46,7 +48,7 @@ contract InviteGeneratorUnit is Test {
   function test_shouldReturnsInviteDigest() public {
     bytes32 structHash = inviteGenerator.hashInvite(STRUCT_ID, NONCE);
     bytes32 domainSeparator = inviteGenerator.domainSeparator(CHAIN_ID, VERIFYING_CONTRACT);
-    bytes32 expectedDigest = keccak256(abi.encodePacked('\x19\x01', domainSeparator, structHash));
+    bytes32 expectedDigest = keccak256(abi.encode('\x19\x01', domainSeparator, structHash));
     bytes32 actualDigest =
       inviteGenerator.inviteDigest(STRUCT_ID, NONCE, CHAIN_ID, VERIFYING_CONTRACT);
     assertEq(expectedDigest, actualDigest);
