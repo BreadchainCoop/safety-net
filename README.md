@@ -216,5 +216,62 @@ Also, remember to update the `package_name` param to your package name:
 
 You can take a look at our [solidity-exporter-action](https://github.com/defi-wonderland/solidity-exporter-action) repository for more information and usage examples.
 
+# Invite Generator Utility
+
+## Overview
+
+The `InviteGenerator` is a Solidity utility contract for generating cryptographic signatures that allow new members to join Safety Nets after their start. It uses EIP-712 signature format to create secure, single-use invites.
+
+## Usage
+
+### Generating a Single Invite
+
+```solidity
+uint256 creatorPrivateKey = 0xYourPrivateKey; // Keep this secret!
+uint256 safetyNetId = 1;
+uint256 nonce = 1;
+address safetyNetContract = address(0xSafetyNetProxy),
+
+bytes memory signature = inviteGenerator.generateInvite(
+    creatorPrivateKey,
+    safetyNetId,
+    nonce,
+    safetyNetContract
+);
+```
+
+### Using the Invite to Join a Safety Net
+
+Once you have a signature, share it with the person you want to invite:
+
+```solidity
+SafetyNet.Invite memory invite = SafetyNet.Invite({
+    safetyNetId: safetyNetId,
+    nonce: nonce,
+});
+
+safetyNet.redeemInvite(invite, signature);
+```
+
+## Important Notes
+
+### Security Considerations
+
+1. **Private Key Protection**: Never expose your private key. This utility is meant for testing and script usage, not production key management.
+
+2. **Nonce Uniqueness**: Each nonce can only be used once. After a member joins using a nonce, that nonce is marked as used and cannot be reused.
+
+3. **Fund Specificity**: Signatures are bound to a specific Safety Net ID and verifying contract. A signature for fund `1` cannot be used for fund `2` or a different contract instance.
+
+4. **Creator Verification**: Only signatures from the Safety Net owner are valid. The contract checks the recovered signer matches the owner stored on-chain.
+
+## Testing
+Tests cover:
+- Single invite generation
+- Batch invite generation
+- Safety Net-specific validation
+- Address derivation
+- Message hash format verification
+
 ## Licensing
 The primary license for the boilerplate is MIT, see [`LICENSE`](https://github.com/defi-wonderland/solidity-foundry-boilerplate/blob/main/LICENSE)
