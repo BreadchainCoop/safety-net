@@ -936,4 +936,20 @@ contract SafetyNetUnit is Test {
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
     assertFalse(_sn.isDecommissionable(id));
   }
+
+  function test_shouldRedeemInvite() external {
+  }
+  function test_rejectInvalidSigner() external {
+  }
+  function test_rejectAlreadyUsedInvite() external {
+  }
+  function test_rejectAlreadyAMember() external {
+  }
+  function test_rejectIfSafetyNetIsFull() external {
+  }
+  function test_rejectIfSafetyNetDoesNotExist() external {
+  }
+  function test_rejectInvalidSigner() external{
+
+  }
 }
