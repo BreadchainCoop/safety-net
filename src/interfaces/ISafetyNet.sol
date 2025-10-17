@@ -26,7 +26,6 @@ interface ISafetyNet {
   /// @param ratio Ratio of deposit to withdrawal 
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
-  /// @param currentEpoch Current epoch index
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
   struct SafetyNet {
@@ -44,7 +43,6 @@ interface ISafetyNet {
     uint256 autoThreshold;
     uint256 contestWindow;
     uint256 votingWindow;
-    uint256 currentEpoch;
     uint256 epochDuration;
     uint256 smallWithdrawsLimit;
   }
@@ -338,9 +336,5 @@ interface ISafetyNet {
   /// @param member The member address
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
-  function hasMemberDepositedInEpoch(
-    uint256 safetyNetId,
-    address member,
-    uint256 epochIndex
-  ) external view returns (bool);
+  function hasMemberDepositedInEpoch(uint256 safetyNetId, address member, uint256 epochIndex) external view returns (bool);
 }

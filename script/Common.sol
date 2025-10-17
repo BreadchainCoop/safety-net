@@ -34,9 +34,7 @@ contract Common is Script {
 
   function _deployContracts(address _admin) internal returns (TransparentUpgradeableProxy) {
     return _deployTransparentProxy(
-      address(_deploySafetyNet()),
-      address(_deployProxyAdmin(_admin)),
-      abi.encodeWithSelector(SafetyNet.initialize.selector, _admin)
+      address(_deploySafetyNet()), address(_deployProxyAdmin(_admin)), abi.encodeWithSelector(SafetyNet.initialize.selector, _admin)
     );
   }
 }
