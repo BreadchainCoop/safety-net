@@ -97,7 +97,6 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.autoThreshold = _SAFE_AUTO_THRESHOLD;
     cfg.contestWindow = _SAFE_CONTEST_WINDOW;
     cfg.votingWindow = _SAFE_VOTING_WINDOW;
-    cfg.currentEpoch = 0;
     cfg.epochDuration = _SAFE_EPOCH_DURATION;
     cfg.smallWithdrawsLimit = _SAFE_SMALL_WITHDRAWS_LIMIT;
     _safeCfg = cfg;
