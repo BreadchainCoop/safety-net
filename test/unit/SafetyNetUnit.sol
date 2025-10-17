@@ -37,9 +37,7 @@ contract SafetyNetUnit is Test {
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
-    address proxy = address(
-      new TransparentUpgradeableProxy(impl, admin, abi.encodeWithSelector(SafetyNet.initialize.selector, _owner))
-    );
+    address proxy = address(new TransparentUpgradeableProxy(impl, admin, abi.encodeWithSelector(SafetyNet.initialize.selector, _owner)));
     _sn = SafetyNet(proxy);
     _token = new MockERC20('Mock', 'MOCK');
     _failToken = new FailERC20();
@@ -81,7 +79,6 @@ contract SafetyNetUnit is Test {
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,
-      currentEpoch: 0,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
@@ -114,9 +111,7 @@ contract SafetyNetUnit is Test {
     SafetyNet fresh = SafetyNet(
       address(
         new TransparentUpgradeableProxy(
-          address(new SafetyNet()),
-          address(new ProxyAdmin(_alice)),
-          abi.encodeWithSelector(SafetyNet.initialize.selector, _alice)
+          address(new SafetyNet()), address(new ProxyAdmin(_alice)), abi.encodeWithSelector(SafetyNet.initialize.selector, _alice)
         )
       )
     );
@@ -780,7 +775,6 @@ contract SafetyNetUnit is Test {
       autoThreshold: 1,
       contestWindow: 3 days,
       votingWindow: 30 days,
-      currentEpoch: 0,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });

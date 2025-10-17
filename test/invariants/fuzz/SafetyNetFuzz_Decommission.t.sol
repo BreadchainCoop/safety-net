@@ -36,19 +36,13 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
 
     // Pre-fund with enough allowance for multiple deposits.
     _mintApprove(
-      _member1,
-      depositAmountMember1 + depositAmountMember1 + 2 * (config.initialDeposit + config.fixedDeposit),
-      address(_safetyNet)
+      _member1, depositAmountMember1 + depositAmountMember1 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
     );
     _mintApprove(
-      _member2,
-      depositAmountMember2 + depositAmountMember2 + 2 * (config.initialDeposit + config.fixedDeposit),
-      address(_safetyNet)
+      _member2, depositAmountMember2 + depositAmountMember2 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
     );
     _mintApprove(
-      _member3,
-      depositAmountMember3 + depositAmountMember3 + 2 * (config.initialDeposit + config.fixedDeposit),
-      address(_safetyNet)
+      _member3, depositAmountMember3 + depositAmountMember3 + 2 * (config.initialDeposit + config.fixedDeposit), address(_safetyNet)
     );
 
     // Initial deposits
