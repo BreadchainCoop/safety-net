@@ -31,7 +31,7 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp;
     config.members = _defaultMembers;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     // Pre-fund with enough allowance for multiple deposits.

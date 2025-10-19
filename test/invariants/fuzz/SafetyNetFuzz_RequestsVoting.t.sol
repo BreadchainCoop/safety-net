@@ -17,7 +17,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = _defaultMembers;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     config.autoThreshold = 1;
     config.safetyNetStart = block.timestamp;
     uint256 safetyNetId = _safetyNet.create(config);
@@ -159,7 +159,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
     config.safetyNetStart = block.timestamp;
     config.votingWindow = votingWin;
     config.contestWindow = contestWin;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     config.autoThreshold = 1;
 
     uint256 safetyNetId = _safetyNet.create(config);

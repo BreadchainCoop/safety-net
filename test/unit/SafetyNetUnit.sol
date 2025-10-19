@@ -88,7 +88,7 @@ contract SafetyNetUnit is Test {
       members: members,
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
-      ratio: 1,
+      redeemRatio: 1,
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,
@@ -112,7 +112,7 @@ contract SafetyNetUnit is Test {
       members: members,
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
-      ratio: 1,
+      redeemRatio: 1,
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,
@@ -333,22 +333,6 @@ contract SafetyNetUnit is Test {
     assertEq(id, 0);
   }
 
-  function test_CreateWhenRatioIsZero() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.ratio = 0;
-    uint256 id = _sn.create(_safetyNet);
-    assertEq(id, 0);
-  }
-
-  function test_CreateWhenRatioIsGreaterThan100() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.ratio = 200;
-    uint256 id = _sn.create(_safetyNet);
-    assertEq(id, 0);
-  }
-
   function test_CreateWhenAllParametersAreValid() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
@@ -362,7 +346,7 @@ contract SafetyNetUnit is Test {
       _safetyNet.token,
       _safetyNet.initialDeposit,
       _safetyNet.fixedDeposit,
-      _safetyNet.ratio,
+      _safetyNet.redeemRatio,
       _safetyNet.autoThreshold,
       _safetyNet.epochDuration,
       _safetyNet.smallWithdrawsLimit
@@ -533,7 +517,7 @@ contract SafetyNetUnit is Test {
 
     assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
     assertEq(_sn.safetyNetBalance(id), expectedTotal);
-    assertEq(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.ratio);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.redeemRatio);
 
     // epoch 0 is considered fully paid (>= fixedDeposit)
     uint256 epoch = _sn.getCurrentEpochIndex(id);
@@ -555,18 +539,7 @@ contract SafetyNetUnit is Test {
 
     assertEq(_sn.safetyNetBalance(id), _safetyNet.initialDeposit + value);
     assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
-    assertEq(_sn.memberWithdrawableBalance(id, _alice), (_safetyNet.initialDeposit + value) * _safetyNet.ratio);
-  }
-
-  function test_DepositWhenRatioIsZero() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.ratio = 0;
-    uint256 id = _sn.create(_safetyNet);
-    vm.prank(_alice);
-    _sn.deposit(id, _safetyNet.initialDeposit);
-    assertEq(_sn.memberWithdrawableBalance(id, _alice), 0);
-    assertGt(_sn.safetyNetBalance(id), 0);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), (_safetyNet.initialDeposit + value) * _safetyNet.redeemRatio);
   }
 
   // ---------- depositFor ----------
@@ -711,7 +684,7 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
     _sn.withdraw(id, 1);
     assertGt(_token.balanceOf(_alice), before);
-    assertLt(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.ratio);
+    assertLt(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit * _safetyNet.redeemRatio);
   }
 
   function test_WithdrawWhenWithdrawalAmountIsAboveAutoThresholdCreatesRequest() external {
@@ -807,7 +780,7 @@ contract SafetyNetUnit is Test {
       members: members,
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
-      ratio: 1,
+      redeemRatio: 1,
       // Force request path
       autoThreshold: 1,
       contestWindow: 3 days,

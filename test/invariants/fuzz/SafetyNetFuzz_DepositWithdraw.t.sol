@@ -12,7 +12,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp;
     config.members = _defaultMembers;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 id = _safetyNet.create(config);
 
     _mintApprove(_member1, 1e24, address(_safetyNet));
@@ -173,7 +173,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   function testFuzz_SmallWithdrawsRespectLimit(uint8 daysReqRaw, uint8 extraWithdrawsRaw) public {
     ISafetyNet.SafetyNet memory config = _safeCfg;
     config.members = _defaultMembers;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     config.safetyNetStart = block.timestamp;
     uint256 id = _safetyNet.create(config);
 
