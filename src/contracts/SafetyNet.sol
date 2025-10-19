@@ -67,7 +67,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
-    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
+    _onlyMemberOf(_safetyNetId);
     _;
   }
 
@@ -304,6 +304,37 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
+  function getMembersNeedingDeposit(uint256 _id) external view override returns (address[] memory) {
+    SafetyNet memory safetyNet = safetyNets[_id];
+    if (_isDecommissioned(safetyNet)) {
+      return new address[](0);
+    }
+
+    uint256 epochIndex = getCurrentEpochIndex(_id);
+    uint256 target = safetyNet.fixedDeposit;
+
+    address[] memory buf = new address[](safetyNet.members.length);
+    uint256 count = 0;
+
+    for (uint256 i = 0; i < safetyNet.members.length; i++) {
+      address _member = safetyNet.members[i];
+      if (epochMemberDepositedAmount[_id][epochIndex][_member] < target) {
+        buf[count++] = _member;
+      }
+    }
+
+    if (count == buf.length) {
+      return buf;
+    }
+
+    address[] memory trimmed = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      trimmed[i] = buf[i];
+    }
+    return trimmed;
+  }
+
+  /// @inheritdoc ISafetyNet
   function hasMemberDepositedInEpoch(uint256 _safetyNetId, address _member, uint256 _epochIndex) external view override returns (bool) {
     ISafetyNet.SafetyNet storage _safetyNet = safetyNets[_safetyNetId];
     if (_safetyNet.owner == address(0)) return false;
@@ -474,6 +505,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @dev
   function _isSmall(uint256 _autoThreshold, uint256 _withdrawAmount) internal pure returns (bool) {
     return _withdrawAmount <= _autoThreshold;
+  }
+
+  /// @dev Reverts with {NotMember} if msg.sender is not a member of `_safetyNetId`.
+  function _onlyMemberOf(uint256 _safetyNetId) internal view {
+    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
   }
 
   /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set

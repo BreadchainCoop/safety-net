@@ -306,6 +306,11 @@ interface ISafetyNet {
   /// @return balances Array of corresponding balances
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
 
+  /// @notice Returns the list of members in a Safety Net who still owe dues in the current epoch.
+  /// @param _id Safety Net ID.
+  /// @return _membersNeedingDeposit Array of member addresses that need to deposit for the current epoch.
+  function getMembersNeedingDeposit(uint256 _id) external view returns (address[] memory _membersNeedingDeposit);
+
   /// @notice Checks if a token is allowed
   /// @param token ERC20 token address
   /// @return allowed True if the token is allowed, false otherwise
