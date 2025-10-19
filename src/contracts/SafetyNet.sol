@@ -16,6 +16,12 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
+  /// @notice Minimum redeem ratio
+  uint256 public constant MINIMUM_REDEEM_RATIO = 1;
+
+  /// @notice Maximum redeem ratio
+  uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
@@ -102,8 +108,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.maximumMembers < _safetyNet.minimumMembers) revert InvalidMaximumMembers();
     if (_safetyNet.epochDuration == 0) revert InvalidEpochDuration();
     if (_safetyNet.smallWithdrawsLimit == 0) revert InvalidSmallWithdrawsLimit();
-    if (_safetyNet.ratio < 1) revert InvalidRatio();
-    if (_safetyNet.ratio > 22) revert InvalidRatio();
+    if (_safetyNet.redeemRatio < MINIMUM_REDEEM_RATIO) revert InvalidRatio();
+    if (_safetyNet.redeemRatio > MAXIMUM_REDEEM_RATIO) revert InvalidRatio();
 
     uint256 _safetyNetMembersLength = _safetyNet.members.length;
 
@@ -135,7 +141,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _safetyNet.token,
       _safetyNet.initialDeposit,
       _safetyNet.fixedDeposit,
-      _safetyNet.ratio,
+      _safetyNet.redeemRatio,
       _safetyNet.autoThreshold,
       _safetyNet.epochDuration,
       _safetyNet.smallWithdrawsLimit
@@ -389,7 +395,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
 
     safetyNetBalance[_id] += _value;
-    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.ratio;
+    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.redeemRatio;
     epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
     if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
@@ -430,7 +436,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
 
-    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.ratio);
+    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.redeemRatio);
 
     uint256 _withdrawAmount = _dailyWithdrawableAmount * _daysRequested;
 
@@ -455,9 +461,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @dev Calculates the daily withdrawal for a member in a Safety Net
-  function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _ratio) internal view returns (uint256) {
+  function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _redeemRatio) internal view returns (uint256) {
     uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
-    uint256 _monthlyWithdrawalAmount = _memberContribute * _ratio;
+    uint256 _monthlyWithdrawalAmount = _memberContribute * _redeemRatio;
     return _monthlyWithdrawalAmount / DAYS_IN_A_MONTH;
   }
 

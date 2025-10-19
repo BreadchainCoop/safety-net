@@ -93,7 +93,7 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.members = _defaultMembers;
     cfg.initialDeposit = _SAFE_INITIAL_DEPOSIT;
     cfg.fixedDeposit = _SAFE_FIXED_DEPOSIT;
-    cfg.ratio = _SAFE_RATIO;
+    cfg.redeemRatio = _SAFE_RATIO;
     cfg.autoThreshold = _SAFE_AUTO_THRESHOLD;
     cfg.contestWindow = _SAFE_CONTEST_WINDOW;
     cfg.votingWindow = _SAFE_VOTING_WINDOW;

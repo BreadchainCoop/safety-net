@@ -19,7 +19,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
     config.safetyNetStart = block.timestamp;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     for (uint256 i = 0; i < memberCount; i++) {
@@ -52,7 +52,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
     config.safetyNetStart = block.timestamp;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     for (uint256 i = 0; i < memberCount; i++) {
@@ -87,7 +87,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
     config.safetyNetStart = block.timestamp;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     for (uint256 i = 0; i < memberCount; i++) {
@@ -122,7 +122,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
     config.safetyNetStart = block.timestamp;
-    config.ratio = 1;
+    config.redeemRatio = 1;
     uint256 safetyNetId = _safetyNet.create(config);
 
     for (uint256 i = 0; i < memberCount; i++) {

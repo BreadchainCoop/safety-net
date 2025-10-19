@@ -23,7 +23,7 @@ interface ISafetyNet {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param ratio Ratio of deposit to withdrawal 
+  /// @param redeemRatio Ratio of deposit to withdrawal
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   /// @param epochDuration Duration of each epoch in seconds
@@ -39,7 +39,7 @@ interface ISafetyNet {
     address[] members;
     uint256 initialDeposit;
     uint256 fixedDeposit;
-    uint256 ratio;
+    uint256 redeemRatio;
     uint256 autoThreshold;
     uint256 contestWindow;
     uint256 votingWindow;
@@ -77,7 +77,7 @@ interface ISafetyNet {
     address token,
     uint256 initialDeposit,
     uint256 fixedDeposit,
-    uint256 ratio,
+    uint256 redeemRatio,
     uint256 autoThreshold,
     uint256 epochDuration,
     uint256 smallWithdrawsLimit
@@ -216,7 +216,7 @@ interface ISafetyNet {
   /// @notice Thrown when epoch duration is invalid
   error InvalidEpochDuration();
 
-  /// @notice Thrown when ratio is out of valid range
+  /// @notice Thrown when redeemeRatio is out of valid range
   error InvalidRatio();
 
   /// @notice Thrown when small withdraws limit is invalid
