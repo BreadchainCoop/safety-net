@@ -112,7 +112,7 @@ contract SafetyNetUnit is Test {
       members: members,
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
-      ratio: 1,
+      redeemRatio: 1,
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,

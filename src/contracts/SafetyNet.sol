@@ -22,7 +22,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Maximum redeem ratio
   uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
-  
+
   /// @notice Invite signing domain name used for EIP-712 signatures
   string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
 
