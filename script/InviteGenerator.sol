@@ -8,20 +8,15 @@ import {Script} from 'forge-std/Script.sol';
 /// @author @RonTuretzky
 /// @notice Utility contract that produces EIP712 invite signatures matching the on-chain verification logic
 contract InviteGenerator is Script {
-  /// @notice Invite signing domain name used for EIP-712 signatures
-  string private _inviteSigningDomain;
 
-  /// @notice Invite signing version used for EIP-712 signatures
-  string private _inviteSignatureVersion;
-
-  /// @notice Hashed domain name for invite signatures
+  /// @notice Hashed domain name used for EIP-712 signatures
   bytes32 private _inviteDomainNameHash;
 
-  /// @notice Hashed version for invite signatures
+  /// @notice Hashed signing version used for EIP-712 signatures
   bytes32 private _inviteDomainVersionHash;
 
   /// @notice EIP-712 type hash for invite signatures
-  bytes32 private _INVITE_TYPEHASH;
+  bytes32 private _inviteTypeHash;
 
   /// @notice EIP-712 domain type hash
   bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
@@ -35,16 +30,14 @@ contract InviteGenerator is Script {
   constructor(string memory inviteSigningDomain, string memory inviteSignatureVersion, string memory structName) {
     if (bytes(inviteSigningDomain).length == 0) revert InvalidSigningDomain();
     if (bytes(inviteSignatureVersion).length == 0) revert InvalidSignatureVersion();
-    _inviteSigningDomain = inviteSigningDomain;
-    _inviteSignatureVersion = inviteSignatureVersion;
-    _inviteDomainNameHash = keccak256(bytes(_inviteSigningDomain));
-    _inviteDomainVersionHash = keccak256(bytes(_inviteSignatureVersion));
+    _inviteDomainNameHash = keccak256(bytes(inviteSigningDomain));
+    _inviteDomainVersionHash = keccak256(bytes(inviteSignatureVersion));
     string memory inviteTypeString = string(abi.encodePacked('Invite(uint256 ', structName, 'Id,uint256 nonce)'));
-    _INVITE_TYPEHASH = keccak256(bytes(inviteTypeString));
+    _inviteTypeHash = keccak256(bytes(inviteTypeString));
   }
   /// @notice Returns the struct hash of an invite
   function hashInvite(uint256 _structId, uint256 _nonce) public view returns (bytes32) {
-    return keccak256(abi.encode(_INVITE_TYPEHASH, _structId, _nonce));
+    return keccak256(abi.encode(_inviteTypeHash, _structId, _nonce));
   }
 
   /// @notice Returns the domain separator for a struct contract on a given chain

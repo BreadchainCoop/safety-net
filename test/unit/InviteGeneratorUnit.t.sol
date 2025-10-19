@@ -98,7 +98,7 @@ contract InviteGeneratorUnit is Test {
   }
 
   function _splitSignature(bytes memory signature) private pure returns (bytes32 r, bytes32 s, uint8 v) {
-    require(signature.length == 65, 'InviteGeneratorUnit: invalid signature length');
+    assert(signature.length == 65); 
     assembly {
       r := mload(add(signature, 0x20))
       s := mload(add(signature, 0x40))

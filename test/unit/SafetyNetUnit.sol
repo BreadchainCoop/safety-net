@@ -29,9 +29,9 @@ contract SafetyNetUnit is Test {
   MockERC20 internal _token;
   FailERC20 internal _failToken;
   InviteGenerator internal _inviteGenerator;
-  string internal constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
-  string internal constant INVITE_SIGNATURE_VERSION = '1';
-  uint256 internal constant CHAIN_ID = 1;
+  string internal constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+  string internal constant _INVITE_SIGNATURE_VERSION = '1';
+  uint256 internal constant _CHAIN_ID = 1;
 
   address internal _owner;
   uint256 internal _ownerKey;
@@ -53,7 +53,7 @@ contract SafetyNetUnit is Test {
     _sn = SafetyNet(proxy);
     _token = new MockERC20('Mock', 'MOCK');
     _failToken = new FailERC20();
-    _inviteGenerator = new InviteGenerator(INVITE_SIGNING_DOMAIN, INVITE_SIGNATURE_VERSION, 'safetyNet');
+    _inviteGenerator = new InviteGenerator(_INVITE_SIGNING_DOMAIN, _INVITE_SIGNATURE_VERSION, 'safetyNet');
 
     // Fund members with ample tokens
     _token.mint(_alice, 1_000_000 ether);
@@ -116,7 +116,6 @@ contract SafetyNetUnit is Test {
       autoThreshold: 50 ether,
       contestWindow: 3 days,
       votingWindow: 7 days,
-      currentEpoch: 0,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
@@ -971,7 +970,7 @@ contract SafetyNetUnit is Test {
 
   // ---------- invite  ----------
   function test_shouldRedeemInvite() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     uint256 nonce = 1;
@@ -987,7 +986,7 @@ contract SafetyNetUnit is Test {
     _sn.redeemInvite(invite, signature);
   }
   function test_rejectInvalidSigner() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     uint256 nonce = 1;
@@ -1001,7 +1000,7 @@ contract SafetyNetUnit is Test {
     _sn.redeemInvite(invite, signature);
   }
   function test_rejectAlreadyUsedInvite() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     uint256 nonce = 1;
@@ -1019,7 +1018,7 @@ contract SafetyNetUnit is Test {
     _sn.redeemInvite(invite, signature);
   }
   function test_rejectAlreadyAMember() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     uint256 nonce = 1;
@@ -1034,7 +1033,7 @@ contract SafetyNetUnit is Test {
     _sn.redeemInvite(invite, signature);
   }
   function test_rejectIfSafetyNetIsFull() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _fullSafetyNet(address(_token));
     uint256 nonce = 1;
@@ -1049,7 +1048,7 @@ contract SafetyNetUnit is Test {
     _sn.redeemInvite(invite, signature);
   }
   function test_rejectIfSafetyNetDoesNotExist() external {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     uint256 nonce = 1;
     uint256 safetyNetId = 999;
