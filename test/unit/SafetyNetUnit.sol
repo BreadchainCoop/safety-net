@@ -5,6 +5,8 @@ import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
 import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
+
+import {InviteGenerator} from 'script/InviteGenerator.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 import {MockERC20} from 'test/mocks/MockERC20.sol';
@@ -27,13 +29,23 @@ contract SafetyNetUnit is Test {
   SafetyNet internal _sn;
   MockERC20 internal _token;
   FailERC20 internal _failToken;
+  InviteGenerator internal _inviteGenerator;
+  string internal constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+  string internal constant _INVITE_SIGNATURE_VERSION = '1';
+  uint256 internal constant _CHAIN_ID = 1;
 
-  address internal _owner = address(0xA11CE);
-  address internal _alice = address(0xB0B);
-  address internal _bob = address(0xB0B2);
-  address internal _carol = address(0xCA);
+  address internal _owner;
+  uint256 internal _ownerKey;
+  address internal _impostor;
+  uint256 internal _impostorKey;
+  address internal _alice = makeAddr('alice');
+  address internal _bob = makeAddr('bob');
+  address internal _carol = makeAddr('carol');
+  address internal _dave = makeAddr('dave');
 
   function setUp() public {
+    (_owner, _ownerKey) = makeAddrAndKey('owner');
+    (_impostor, _impostorKey) = makeAddrAndKey('impostor');
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
@@ -41,6 +53,7 @@ contract SafetyNetUnit is Test {
     _sn = SafetyNet(proxy);
     _token = new MockERC20('Mock', 'MOCK');
     _failToken = new FailERC20();
+    _inviteGenerator = new InviteGenerator(_INVITE_SIGNING_DOMAIN, _INVITE_SIGNATURE_VERSION, 'safetyNet');
 
     // Fund members with ample tokens
     _token.mint(_alice, 1_000_000 ether);
@@ -69,6 +82,30 @@ contract SafetyNetUnit is Test {
       owner: _owner,
       minimumMembers: 2,
       maximumMembers: 5,
+      consensusThreshold: 60,
+      safetyNetStart: block.timestamp,
+      token: _tokenAddr,
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      ratio: 1,
+      autoThreshold: 50 ether,
+      contestWindow: 3 days,
+      votingWindow: 7 days,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+  }
+
+  function _fullSafetyNet(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
+    address[] memory members = new address[](2);
+    members[0] = _alice;
+    members[1] = _bob;
+    _safetyNet = ISafetyNet.SafetyNet({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 2,
       consensusThreshold: 60,
       safetyNetStart: block.timestamp,
       token: _tokenAddr,
@@ -929,5 +966,104 @@ contract SafetyNetUnit is Test {
     _allowToken(address(_token));
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
     assertFalse(_sn.isDecommissionable(id));
+  }
+
+  // ---------- invite  ----------
+  function test_shouldRedeemInvite() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = _sn.create(_safetyNet);
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    vm.prank(_owner);
+    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    vm.expectEmit(true, true, false, true, address(_sn));
+    emit ISafetyNet.InviteRedeemed(invite.safetyNetId, _carol);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectInvalidSigner() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = _sn.create(_safetyNet);
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    bytes memory signature = _inviteGenerator.generateInvite(_impostorKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.InvalidSigner.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectAlreadyUsedInvite() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = _sn.create(_safetyNet);
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    vm.prank(_owner);
+    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    _sn.redeemInvite(invite, signature);
+
+    vm.prank(_dave);
+    vm.expectRevert(ISafetyNet.InviteAlreadyUsed.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectAlreadyAMember() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = _sn.create(_safetyNet);
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    vm.prank(_owner);
+    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_alice);
+    vm.expectRevert(ISafetyNet.AlreadyMember.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectIfSafetyNetIsFull() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _fullSafetyNet(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = _sn.create(_safetyNet);
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    vm.prank(_owner);
+    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.SafetyNetFull.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectIfSafetyNetDoesNotExist() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    uint256 nonce = 1;
+    uint256 safetyNetId = 999;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+
+    vm.prank(_owner);
+    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.NotCommissioned.selector);
+    _sn.redeemInvite(invite, signature);
   }
 }
