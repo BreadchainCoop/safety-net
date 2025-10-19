@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {OwnableUpgradeable} from '@openzeppelin-upgradeable/access/OwnableUpgradeable.sol';
 import {IERC20} from '@openzeppelin/token/ERC20/IERC20.sol';
 import {ReentrancyGuard} from '@openzeppelin/utils/ReentrancyGuard.sol';
+import {ECDSA} from '@openzeppelin/utils/cryptography/ECDSA.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 
@@ -21,6 +22,25 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Maximum redeem ratio
   uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
+  
+  /// @notice Invite signing domain name used for EIP-712 signatures
+  string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+
+  /// @notice Invite signing version used for EIP-712 signatures
+  string private constant _INVITE_SIGNATURE_VERSION = '1';
+
+  /// @notice EIP-712 type hash for invite signatures
+  bytes32 private constant _INVITE_TYPEHASH = keccak256('Invite(uint256 safetyNetId,uint256 nonce)');
+
+  /// @notice EIP-712 domain type hash
+  bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+    keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
+
+  /// @notice Hashed domain name for invite signatures
+  bytes32 private constant _INVITE_DOMAIN_NAME_HASH = keccak256(bytes(_INVITE_SIGNING_DOMAIN));
+
+  /// @notice Hashed version for invite signatures
+  bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
@@ -68,12 +88,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))) public
     smallWithdrawsCount;
 
+  /// @notice Tracks used nonces for invites to prevent replay attacks
+  mapping(uint256 safetyNetId => mapping(uint256 nonce => bool used)) public usedNonces;
+
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
-    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
+    _onlyMemberOf(_safetyNetId);
     _;
   }
 
@@ -196,6 +219,28 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
+  function redeemInvite(Invite calldata _invite, bytes calldata _signature) external override nonReentrant {
+    SafetyNet storage _safetyNet = safetyNets[_invite.safetyNetId];
+
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+    if (usedNonces[_invite.safetyNetId][_invite.nonce]) revert InviteAlreadyUsed();
+    if (isMember[_invite.safetyNetId][msg.sender]) revert AlreadyMember();
+    if (_safetyNet.members.length >= _safetyNet.maximumMembers) revert SafetyNetFull();
+
+    bytes32 _digest = _hashInvite(_invite);
+    address _signer = ECDSA.recover(_digest, _signature);
+
+    if (_signer != _safetyNet.owner) revert InvalidSigner();
+
+    usedNonces[_invite.safetyNetId][_invite.nonce] = true;
+    isMember[_invite.safetyNetId][msg.sender] = true;
+    memberSafetyNets[msg.sender].push(_invite.safetyNetId);
+    _safetyNet.members.push(msg.sender);
+
+    emit InviteRedeemed(_invite.safetyNetId, msg.sender);
+  }
+
+  /// @inheritdoc ISafetyNet
   function withdraw(uint256 _id, uint256 _daysRequested) external override nonReentrant {
     _withdraw(_id, msg.sender, _daysRequested);
   }
@@ -309,6 +354,37 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
 
     return (_safetyNet.members, _balances);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getMembersNeedingDeposit(uint256 _id) external view override returns (address[] memory) {
+    SafetyNet memory safetyNet = safetyNets[_id];
+    if (_isDecommissioned(safetyNet)) {
+      return new address[](0);
+    }
+
+    uint256 epochIndex = getCurrentEpochIndex(_id);
+    uint256 target = safetyNet.fixedDeposit;
+
+    address[] memory buf = new address[](safetyNet.members.length);
+    uint256 count = 0;
+
+    for (uint256 i = 0; i < safetyNet.members.length; i++) {
+      address _member = safetyNet.members[i];
+      if (epochMemberDepositedAmount[_id][epochIndex][_member] < target) {
+        buf[count++] = _member;
+      }
+    }
+
+    if (count == buf.length) {
+      return buf;
+    }
+
+    address[] memory trimmed = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      trimmed[i] = buf[i];
+    }
+    return trimmed;
   }
 
   /// @inheritdoc ISafetyNet
@@ -484,6 +560,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return _withdrawAmount <= _autoThreshold;
   }
 
+  /// @dev Reverts with {NotMember} if msg.sender is not a member of `_safetyNetId`.
+  function _onlyMemberOf(uint256 _safetyNetId) internal view {
+    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
+  }
+
   /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
   function _isDecommissioned(SafetyNet memory _safetyNet) internal pure returns (bool) {
     return _safetyNet.owner == address(0);
@@ -497,5 +578,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
     memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
     safetyNetBalance[_safetyNetId] -= _amount;
+  }
+
+  /// @dev Builds the EIP-712 digest for an invite
+  function _hashInvite(Invite calldata _invite) private view returns (bytes32) {
+    bytes32 _structHash = keccak256(abi.encode(_INVITE_TYPEHASH, _invite.safetyNetId, _invite.nonce));
+
+    bytes32 _domainSeparator =
+      keccak256(abi.encode(_EIP712_DOMAIN_TYPEHASH, _INVITE_DOMAIN_NAME_HASH, _INVITE_DOMAIN_VERSION_HASH, block.chainid, address(this)));
+
+    return keccak256(abi.encodePacked('\x19\x01', _domainSeparator, _structHash));
   }
 }

@@ -87,7 +87,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
 
     uint256 daysReq = 1 + (seed % 3);
-    uint256 want = (contrib / 30) * daysReq;
+    uint256 perDay = contrib / 30;
+    uint256 want = perDay * daysReq;
 
     uint256 cntBefore = _safetyNet.smallWithdrawsCount(id, epochIndex, actor);
     uint256 balBefore = _token.balanceOf(actor);
@@ -123,7 +124,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 contrib = _safetyNet.safetyNetMemberContribute(id, actor);
     uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
     uint256 daysReq = 40 + (seed % 40);
-    uint256 want = (contrib / 30) * daysReq;
+    uint256 perDay = contrib / 30;
+    uint256 want = perDay * daysReq;
 
     uint256 reqsBefore = _safetyNet.nextIdRequest();
 
@@ -185,14 +187,17 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 dep = (perWithdrawCap * 30) / daysRequested;
     if (dep == 0) dep = 1;
 
-    uint256 perWithdraw = (dep / 30) * daysRequested;
+    uint256 perDayW = dep / 30;
+    uint256 perWithdraw = perDayW * daysRequested;
     if (perWithdraw == 0) {
       dep = daysRequested * 30;
-      perWithdraw = (dep / 30) * daysRequested;
+      perDayW = dep / 30;
+      perWithdraw = perDayW * daysRequested;
       if (perWithdraw >= perWithdrawCap) {
         dep = dep / 2;
         if (dep == 0) dep = 1;
-        perWithdraw = (dep / 30) * daysRequested;
+        perDayW = dep / 30;
+        perWithdraw = perDayW * daysRequested;
         if (perWithdraw == 0) perWithdraw = 1;
       }
     }

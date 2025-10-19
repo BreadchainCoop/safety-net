@@ -63,6 +63,14 @@ interface ISafetyNet {
     uint256 amount;
   }
 
+  /// @notice Struct defining an invite to join a Safety Net
+  /// @param safetyNetId ID of the Safety Net
+  /// @param nonce Unique nonce for the invite
+  struct Invite {
+    uint256 safetyNetId;
+    uint256 nonce;
+  }
+
   /*///////////////////////////////////////////////////////////////
                             EVENTS
   //////////////////////////////////////////////////////////////*/
@@ -115,6 +123,9 @@ interface ISafetyNet {
 
   /// @notice Emitted when a request is approved and funds are withdrawn
   event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
+  /// @notice Emitted when an invite is successfully redeemed
+  event InviteRedeemed(uint256 indexed safetyNetId, address indexed redeemer);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -229,6 +240,18 @@ interface ISafetyNet {
   /// @notice Thrown when the request amount exceeds the small withdrawal limit
   error ExceedsSmallWithdrawalLimit();
 
+  /// @notice Thrown when attempting to redeem an invite that was already used
+  error InviteAlreadyUsed();
+
+  /// @notice Thrown when the signer of an invite is invalid
+  error InvalidSigner();
+
+  /// @notice Thrown when the caller is already a member of the Safety Net
+  error AlreadyMember();
+
+  /// @notice Thrown when attempting to add members beyond the maximum allowed
+  error SafetyNetFull();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -261,6 +284,11 @@ interface ISafetyNet {
   /// @param value Amount to deposit
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
+
+  /// @notice Redeems an invite signed by the Safety Net owner
+  /// @param invite The invite data containing the Safety Net ID and nonce
+  /// @param signature The owner's EIP-712 signature
+  function redeemInvite(Invite calldata invite, bytes calldata signature) external;
 
   /// @notice Makes a withdrawal from a Safety Net
   /// @param id The Safety Net ID
@@ -309,6 +337,11 @@ interface ISafetyNet {
   /// @return members Array of member addresses
   /// @return balances Array of corresponding balances
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
+
+  /// @notice Returns the list of members in a Safety Net who still owe dues in the current epoch.
+  /// @param _id Safety Net ID.
+  /// @return _membersNeedingDeposit Array of member addresses that need to deposit for the current epoch.
+  function getMembersNeedingDeposit(uint256 _id) external view returns (address[] memory _membersNeedingDeposit);
 
   /// @notice Checks if a token is allowed
   /// @param token ERC20 token address
