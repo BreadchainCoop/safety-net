@@ -550,6 +550,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       )
     );
 
-    return keccak256(abi.encode('\x19\x01', _domainSeparator, _structHash));
+    return keccak256(abi.encodePacked('\x19\x01', _domainSeparator, _structHash));
   }
 }

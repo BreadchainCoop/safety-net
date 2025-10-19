@@ -67,7 +67,7 @@ contract InviteGenerator is Script {
     uint256 _chainId,
     address _verifyingContract
   ) public view returns (bytes32) {
-    return keccak256(abi.encode('\x19\x01', domainSeparator(_chainId, _verifyingContract), hashInvite(_structId, _nonce)));
+    return keccak256(abi.encodePacked('\x19\x01', domainSeparator(_chainId, _verifyingContract), hashInvite(_structId, _nonce)));
   }
 
   /// @notice Generates a single invite signature using the configured chain id

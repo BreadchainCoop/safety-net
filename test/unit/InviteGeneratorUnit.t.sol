@@ -5,29 +5,29 @@ import {Test} from 'forge-std/Test.sol';
 import {InviteGenerator} from 'script/InviteGenerator.sol';
 
 contract InviteGeneratorUnit is Test {
-  InviteGenerator internal inviteGenerator;
-  string internal constant INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
-  string internal constant INVITE_SIGNATURE_VERSION = '1';
-  uint256 internal constant STRUCT_ID = 1;
-  string internal constant STRUCT_NAME = 'safetyNet';
-  uint256 internal constant NONCE = 1;
-  uint256 internal constant CHAIN_ID = 1;
-  address internal VERIFYING_CONTRACT;
-  uint256 internal OWNER_PRIVATE_KEY;
-  address internal OWNER_ADDRESS;
+  InviteGenerator internal _inviteGenerator;
+  string internal constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
+  string internal constant _INVITE_SIGNATURE_VERSION = '1';
+  uint256 internal constant _STRUCT_ID = 1;
+  string internal constant _STRUCT_NAME = 'safetyNet';
+  uint256 internal constant _NONCE = 1;
+  uint256 internal constant _CHAIN_ID = 1;
+  address internal _VERIFYING_CONTRACT;
+  uint256 internal _OWNER_PRIVATE_KEY;
+  address internal _OWNER_ADDRESS;
 
 
   function setUp() public {
-    inviteGenerator = new InviteGenerator(INVITE_SIGNING_DOMAIN, INVITE_SIGNATURE_VERSION, STRUCT_NAME);
-    VERIFYING_CONTRACT = address(inviteGenerator);
-    (OWNER_ADDRESS, OWNER_PRIVATE_KEY) = makeAddrAndKey("owner");
+    _inviteGenerator = new InviteGenerator(_INVITE_SIGNING_DOMAIN, _INVITE_SIGNATURE_VERSION, _STRUCT_NAME);
+    _VERIFYING_CONTRACT = address(_inviteGenerator);
+    (_OWNER_ADDRESS, _OWNER_PRIVATE_KEY) = makeAddrAndKey("owner");
   }
 
   function test_shouldReturnsHashInvite() public {
     bytes32 expectedHash = keccak256(
-      abi.encodePacked(keccak256('Invite(uint256 safetyNetId,uint256 nonce)'), STRUCT_ID, NONCE)
+      abi.encodePacked(keccak256('Invite(uint256 safetyNetId,uint256 nonce)'), _STRUCT_ID, _NONCE)
     );
-    bytes32 actualHash = inviteGenerator.hashInvite(STRUCT_ID, NONCE);
+    bytes32 actualHash = _inviteGenerator.hashInvite(_STRUCT_ID, _NONCE);
     assertEq(expectedHash, actualHash);
   }
 
@@ -35,56 +35,56 @@ contract InviteGeneratorUnit is Test {
     bytes32 expectedDomainSeparator = keccak256(
       abi.encode(
         keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
-        keccak256(bytes(INVITE_SIGNING_DOMAIN)),
-        keccak256(bytes(INVITE_SIGNATURE_VERSION)),
-        CHAIN_ID,
-        VERIFYING_CONTRACT
+        keccak256(bytes(_INVITE_SIGNING_DOMAIN)),
+        keccak256(bytes(_INVITE_SIGNATURE_VERSION)),
+        _CHAIN_ID,
+        _VERIFYING_CONTRACT
       )
     );
-    bytes32 actualDomainSeparator = inviteGenerator.domainSeparator(CHAIN_ID, VERIFYING_CONTRACT);
+    bytes32 actualDomainSeparator = _inviteGenerator.domainSeparator(_CHAIN_ID, _VERIFYING_CONTRACT);
     assertEq(expectedDomainSeparator, actualDomainSeparator);
   }
 
   function test_shouldReturnsInviteDigest() public {
-    bytes32 structHash = inviteGenerator.hashInvite(STRUCT_ID, NONCE);
-    bytes32 domainSeparator = inviteGenerator.domainSeparator(CHAIN_ID, VERIFYING_CONTRACT);
-    bytes32 expectedDigest = keccak256(abi.encode('\x19\x01', domainSeparator, structHash));
+    bytes32 structHash = _inviteGenerator.hashInvite(_STRUCT_ID, _NONCE);
+    bytes32 domainSeparator = _inviteGenerator.domainSeparator(_CHAIN_ID, _VERIFYING_CONTRACT);
+    bytes32 expectedDigest = keccak256(abi.encodePacked('\x19\x01', domainSeparator, structHash));
     bytes32 actualDigest =
-      inviteGenerator.inviteDigest(STRUCT_ID, NONCE, CHAIN_ID, VERIFYING_CONTRACT);
+      _inviteGenerator.inviteDigest(_STRUCT_ID, _NONCE, _CHAIN_ID, _VERIFYING_CONTRACT);
     assertEq(expectedDigest, actualDigest);
   }
 
   function test_shouldGeneratesOneInvite() public {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
 
-    bytes memory signature = inviteGenerator.generateInvite(OWNER_PRIVATE_KEY, STRUCT_ID, NONCE, VERIFYING_CONTRACT);
+    bytes memory signature = _inviteGenerator.generateInvite(_OWNER_PRIVATE_KEY, _STRUCT_ID, _NONCE, _VERIFYING_CONTRACT);
 
     assertEq(signature.length, 65);
 
-    bytes32 digest = inviteGenerator.inviteDigest(STRUCT_ID, NONCE, CHAIN_ID, VERIFYING_CONTRACT);
+    bytes32 digest = _inviteGenerator.inviteDigest(_STRUCT_ID, _NONCE, _CHAIN_ID, _VERIFYING_CONTRACT);
     address recoveredSigner = _recoverSigner(signature, digest);
 
-    assertEq(recoveredSigner, OWNER_ADDRESS);
+    assertEq(recoveredSigner, _OWNER_ADDRESS);
   }
 
   function test_shouldGeneratesMultipleInvites() public {
-    vm.chainId(CHAIN_ID);
+    vm.chainId(_CHAIN_ID);
     uint256[] memory nonces = new uint256[](3);
     for (uint256 i = 0; i < nonces.length; i++) {
-      nonces[i] = NONCE + i;
+      nonces[i] = _NONCE + i;
     }
 
-    bytes[] memory signatures = inviteGenerator.generateInvites(OWNER_PRIVATE_KEY, STRUCT_ID, nonces, VERIFYING_CONTRACT);
+    bytes[] memory signatures = _inviteGenerator.generateInvites(_OWNER_PRIVATE_KEY, _STRUCT_ID, nonces, _VERIFYING_CONTRACT);
 
     assertEq(signatures.length, nonces.length);
 
     for (uint256 i = 0; i < signatures.length; i++) {
       assertEq(signatures[i].length, 65);
 
-      bytes32 digest = inviteGenerator.inviteDigest(STRUCT_ID, nonces[i], CHAIN_ID, VERIFYING_CONTRACT);
+      bytes32 digest = _inviteGenerator.inviteDigest(_STRUCT_ID, nonces[i], _CHAIN_ID, _VERIFYING_CONTRACT);
       address recoveredSigner = _recoverSigner(signatures[i], digest);
 
-      assertEq(recoveredSigner, OWNER_ADDRESS);
+      assertEq(recoveredSigner, _OWNER_ADDRESS);
 
       if (i > 0) {
         assertFalse(keccak256(signatures[i]) == keccak256(signatures[i - 1]));
