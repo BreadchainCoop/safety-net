@@ -56,13 +56,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   mapping(uint256 id => bool executed) public isExecuted;
 
   /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
-  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public
-    epochMemberDepositedAmount;
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public epochMemberDepositedAmount;
 
   /// @notice Tracks the number of small withdrawals performed in a Safety Net from a member during one epoch
-  mapping(
-    uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))
-  ) public smallWithdrawsCount;
+  mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256 smallWithdrawsCount))) public
+    smallWithdrawsCount;
 
   /// @notice Thrown if a transfer fails
   error TransferFailed();
@@ -195,12 +193,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function createRequest(Request memory _request)
-    external
-    override
-    onlyMemberOf(_request.safetyNetId)
-    returns (uint256)
-  {
+  function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
@@ -297,12 +290,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function getMemberBalances(uint256 _id)
-    external
-    view
-    override
-    returns (address[] memory _members, uint256[] memory _balances)
-  {
+  function getMemberBalances(uint256 _id) external view override returns (address[] memory _members, uint256[] memory _balances) {
     SafetyNet memory _safetyNet = safetyNets[_id];
 
     if (_isDecommissioned(_safetyNet)) revert NotCommissioned();
@@ -352,6 +340,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     address _member,
     uint256 _epochIndex
   ) external view override returns (bool) {
+  function hasMemberDepositedInEpoch(uint256 _safetyNetId, address _member, uint256 _epochIndex) external view override returns (bool) {
     ISafetyNet.SafetyNet storage _safetyNet = safetyNets[_safetyNetId];
     if (_safetyNet.owner == address(0)) return false;
     return epochMemberDepositedAmount[_safetyNetId][_epochIndex][_member] >= _safetyNet.fixedDeposit;
@@ -492,9 +481,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
-      Request memory _request = Request({
-        owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount
-      });
+      Request memory _request =
+        Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount});
       uint256 _idRequest = _createRequest(_request);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
     }

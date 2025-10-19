@@ -233,12 +233,7 @@ contract SafetyNetFuzz_RequestsVoting is SafetyNetFuzzBase {
   ///    consensus thresholds (1..99), and yes-vote biases (0..100%).
   ///  - If consensus not reached by votes, allow post-window execution attempt.
   /// -------------------------------------------------------------------------
-  function testFuzz_Voting_ConsensusOrTimeout(
-    uint8 memberCountRaw,
-    uint8 consensusPctRaw,
-    uint8 yesBiasRaw,
-    uint256 randSeed
-  ) public {
+  function testFuzz_Voting_ConsensusOrTimeout(uint8 memberCountRaw, uint8 consensusPctRaw, uint8 yesBiasRaw, uint256 randSeed) public {
     uint256 memberCount = bound(uint256(memberCountRaw), 3, 20);
     uint256 consensus = bound(uint256(consensusPctRaw), 1, 99);
     uint256 yesBias = bound(uint256(yesBiasRaw), 0, 100);
