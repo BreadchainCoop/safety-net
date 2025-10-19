@@ -5,10 +5,11 @@ import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
 import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
+
+import {InviteGenerator} from 'script/InviteGenerator.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 import {MockERC20} from 'test/mocks/MockERC20.sol';
-import {InviteGenerator} from 'script/InviteGenerator.sol';
 
 contract FailERC20 {
   string public name = 'FailERC20';
@@ -43,9 +44,8 @@ contract SafetyNetUnit is Test {
   address internal _dave = makeAddr('dave');
 
   function setUp() public {
-
-    (_owner, _ownerKey) = makeAddrAndKey("owner");
-    (_impostor, _impostorKey) = makeAddrAndKey("impostor");
+    (_owner, _ownerKey) = makeAddrAndKey('owner');
+    (_impostor, _impostorKey) = makeAddrAndKey('impostor');
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
@@ -985,6 +985,7 @@ contract SafetyNetUnit is Test {
     emit ISafetyNet.InviteRedeemed(invite.safetyNetId, _carol);
     _sn.redeemInvite(invite, signature);
   }
+
   function test_rejectInvalidSigner() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
@@ -999,6 +1000,7 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.InvalidSigner.selector);
     _sn.redeemInvite(invite, signature);
   }
+
   function test_rejectAlreadyUsedInvite() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
@@ -1017,6 +1019,7 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.InviteAlreadyUsed.selector);
     _sn.redeemInvite(invite, signature);
   }
+
   function test_rejectAlreadyAMember() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
@@ -1032,6 +1035,7 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.AlreadyMember.selector);
     _sn.redeemInvite(invite, signature);
   }
+
   function test_rejectIfSafetyNetIsFull() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
@@ -1047,6 +1051,7 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.SafetyNetFull.selector);
     _sn.redeemInvite(invite, signature);
   }
+
   function test_rejectIfSafetyNetDoesNotExist() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));

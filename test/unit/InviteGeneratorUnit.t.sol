@@ -16,17 +16,14 @@ contract InviteGeneratorUnit is Test {
   uint256 internal _OWNER_PRIVATE_KEY;
   address internal _OWNER_ADDRESS;
 
-
   function setUp() public {
     _inviteGenerator = new InviteGenerator(_INVITE_SIGNING_DOMAIN, _INVITE_SIGNATURE_VERSION, _STRUCT_NAME);
     _VERIFYING_CONTRACT = address(_inviteGenerator);
-    (_OWNER_ADDRESS, _OWNER_PRIVATE_KEY) = makeAddrAndKey("owner");
+    (_OWNER_ADDRESS, _OWNER_PRIVATE_KEY) = makeAddrAndKey('owner');
   }
 
   function test_shouldReturnsHashInvite() public {
-    bytes32 expectedHash = keccak256(
-      abi.encodePacked(keccak256('Invite(uint256 safetyNetId,uint256 nonce)'), _STRUCT_ID, _NONCE)
-    );
+    bytes32 expectedHash = keccak256(abi.encodePacked(keccak256('Invite(uint256 safetyNetId,uint256 nonce)'), _STRUCT_ID, _NONCE));
     bytes32 actualHash = _inviteGenerator.hashInvite(_STRUCT_ID, _NONCE);
     assertEq(expectedHash, actualHash);
   }
@@ -49,8 +46,7 @@ contract InviteGeneratorUnit is Test {
     bytes32 structHash = _inviteGenerator.hashInvite(_STRUCT_ID, _NONCE);
     bytes32 domainSeparator = _inviteGenerator.domainSeparator(_CHAIN_ID, _VERIFYING_CONTRACT);
     bytes32 expectedDigest = keccak256(abi.encodePacked('\x19\x01', domainSeparator, structHash));
-    bytes32 actualDigest =
-      _inviteGenerator.inviteDigest(_STRUCT_ID, _NONCE, _CHAIN_ID, _VERIFYING_CONTRACT);
+    bytes32 actualDigest = _inviteGenerator.inviteDigest(_STRUCT_ID, _NONCE, _CHAIN_ID, _VERIFYING_CONTRACT);
     assertEq(expectedDigest, actualDigest);
   }
 
@@ -98,12 +94,20 @@ contract InviteGeneratorUnit is Test {
   }
 
   function _splitSignature(bytes memory signature) private pure returns (bytes32 r, bytes32 s, uint8 v) {
-    assert(signature.length == 65); 
-    assembly {
-      r := mload(add(signature, 0x20))
-      s := mload(add(signature, 0x40))
-      v := byte(0, mload(add(signature, 0x60)))
+    assert(signature.length == 65);
+
+    uint256 rAccumulator;
+    uint256 sAccumulator;
+
+    for (uint256 i = 0; i < 32; i++) {
+      rAccumulator = (rAccumulator << 8) | uint8(signature[i]);
+      sAccumulator = (sAccumulator << 8) | uint8(signature[32 + i]);
     }
+
+    r = bytes32(rAccumulator);
+    s = bytes32(sAccumulator);
+    v = uint8(signature[64]);
+
     if (v < 27) {
       v += 27;
     }

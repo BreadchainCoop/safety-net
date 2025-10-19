@@ -8,7 +8,6 @@ import {Script} from 'forge-std/Script.sol';
 /// @author @RonTuretzky
 /// @notice Utility contract that produces EIP712 invite signatures matching the on-chain verification logic
 contract InviteGenerator is Script {
-
   /// @notice Hashed domain name used for EIP-712 signatures
   bytes32 private _inviteDomainNameHash;
 
@@ -19,7 +18,8 @@ contract InviteGenerator is Script {
   bytes32 private _inviteTypeHash;
 
   /// @notice EIP-712 domain type hash
-  bytes32 private constant _EIP712_DOMAIN_TYPEHASH = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
+  bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+    keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
 
   /// @notice Error for empty invite signing domain
   error InvalidSigningDomain();
@@ -36,30 +36,18 @@ contract InviteGenerator is Script {
     _inviteTypeHash = keccak256(bytes(inviteTypeString));
   }
   /// @notice Returns the struct hash of an invite
+
   function hashInvite(uint256 _structId, uint256 _nonce) public view returns (bytes32) {
     return keccak256(abi.encode(_inviteTypeHash, _structId, _nonce));
   }
 
   /// @notice Returns the domain separator for a struct contract on a given chain
   function domainSeparator(uint256 _chainId, address _verifyingContract) public view returns (bytes32) {
-    return keccak256(
-      abi.encode(
-        _EIP712_DOMAIN_TYPEHASH,
-        _inviteDomainNameHash,
-        _inviteDomainVersionHash,
-        _chainId,
-        _verifyingContract
-      )
-    );
+    return keccak256(abi.encode(_EIP712_DOMAIN_TYPEHASH, _inviteDomainNameHash, _inviteDomainVersionHash, _chainId, _verifyingContract));
   }
 
   /// @notice Computes the full EIP-712 digest for a struct invite
-  function inviteDigest(
-    uint256 _structId,
-    uint256 _nonce,
-    uint256 _chainId,
-    address _verifyingContract
-  ) public view returns (bytes32) {
+  function inviteDigest(uint256 _structId, uint256 _nonce, uint256 _chainId, address _verifyingContract) public view returns (bytes32) {
     return keccak256(abi.encodePacked('\x19\x01', domainSeparator(_chainId, _verifyingContract), hashInvite(_structId, _nonce)));
   }
 
