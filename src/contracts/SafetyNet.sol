@@ -72,14 +72,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Lists all requests indexed by their unique ID
   mapping(uint256 idReq => Request request) public requests;
 
-  /// @notice Records votes for each request, mapping request ID to member address and their vote status
-  mapping(uint256 idReq => mapping(address member => bool status)) public requestVotes;
-
-  /// @notice Tracks if a request has been contested
-  mapping(uint256 id => bool contested) public isContested;
+  /// @notice Tracks if a request has been vetoed
+  mapping(uint256 id => bool vetoed) public isVetoed;
 
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
+
+  /// @notice Records if a member has already contested a specific request
+  mapping(uint256 idReq => mapping(address member => bool status)) public hasContested;
 
   /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public epochMemberDepositedAmount;
@@ -159,7 +159,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _id,
       _safetyNet.minimumMembers,
       _safetyNet.maximumMembers,
-      _safetyNet.consensusThreshold,
+      _safetyNet.contestThreshold,
       _safetyNet.members,
       _safetyNet.token,
       _safetyNet.initialDeposit,
@@ -252,8 +252,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_request.amount == 0) revert InvalidRequest();
 
     _request.timestamp = block.timestamp;
-    _request.yesVotes = 0;
-    _request.noVotes = 0;
+    _request.contestCount = 0;
 
     return _createRequest(_request);
   }
@@ -263,11 +262,21 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     Request storage _request = requests[_requestId];
 
     if (!_isContestable(_requestId)) revert ContestWindowClosed();
-    if (isContested[_requestId]) revert AlreadyContested();
+    if (isVetoed[_requestId]) revert AlreadyVetoed();
 
-    isContested[_requestId] = true;
+    if (hasContested[_requestId][msg.sender]) revert AlreadyContestedByMember();
 
-    emit WithdrawalContested(_requestId, _request.owner, block.timestamp);
+    // Record the member's contestation to avoid Sybil
+    hasContested[_requestId][msg.sender] = true;
+
+    // Check if consensus on contestation has been reached after this contestastion
+    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
+    _request.contestCount++;
+
+    if (_request.contestCount > _safetyNet.members.length * _safetyNet.contestThreshold / 100) {
+      isVetoed[_requestId] = true; // Vetoed by at least 33% of the members
+      emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
+    }
   }
 
   /// @inheritdoc ISafetyNet
@@ -277,8 +286,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
 
-    // Can only auto-execute if contest window has passed and request was not contested
-    if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
+    // Can only auto-execute if contest window has passed and request was not vetoed
+    if (!_isContestable(_idRequest) && !isVetoed[_idRequest]) {
       _deduct(_request.safetyNetId, _request.owner, _request.amount);
 
       isExecuted[_idRequest] = true;
@@ -288,35 +297,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  function vote(uint256 _requestId, bool _vote) external override nonReentrant {
-    if (!isMember[requests[_requestId].safetyNetId][msg.sender]) revert NotMember();
-    if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
-    if (!_isVotingOngoing(_requestId)) revert VotingWindowClosed();
-    if (isExecuted[_requestId]) revert AlreadyExecuted();
-
-    if (_vote) {
-      requests[_requestId].yesVotes++;
-    } else {
-      requests[_requestId].noVotes++;
-    }
-    requestVotes[_requestId][msg.sender] = true;
-    emit Voted(_requestId, msg.sender, _vote);
-
-    // Check if consensus has been reached after this vote
-    Request memory _request = requests[_requestId];
-    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
-
-    if (_request.yesVotes > _safetyNet.members.length * _safetyNet.consensusThreshold / 100) {
-      // Consensus reached - execute withdrawal immediately
-      _deduct(_request.safetyNetId, _request.owner, _request.amount);
-
-      isExecuted[_requestId] = true;
-      emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
-      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
-    }
-  }
   /// @inheritdoc ISafetyNet
-
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
@@ -508,7 +489,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     SafetyNet memory _safetyNet = safetyNets[_id];
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
-
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
 
@@ -530,7 +510,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       Request memory _request =
-        Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount});
+        Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, contestCount: 0, amount: _withdrawAmount});
       uint256 _idRequest = _createRequest(_request);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
     }
@@ -547,12 +527,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _isContestable(uint256 _idRequest) internal view returns (bool) {
     Request memory _request = requests[_idRequest];
     return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].contestWindow);
-  }
-
-  /// @dev Check if a request's voting window is open by comparing the current timestamp with the request's timestamp and the voting window
-  function _isVotingOngoing(uint256 _idRequest) internal view returns (bool) {
-    Request memory _request = requests[_idRequest];
-    return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].votingWindow);
   }
 
   /// @dev
