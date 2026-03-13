@@ -136,11 +136,13 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
         if (want <= beforeWithdrawable && want > 0) {
           assertEq(reqsAfter, reqsBefore + 1, 'large creates request');
           uint256 reqId = reqsAfter - 1;
-          (address owner,, uint256 ts, uint256 yesVotes, uint256 noVotes, uint256 amount) = _safetyNet.requests(reqId);
+
+          // MODIFIED: Updated destructuring to match new Request struct (contestCount instead of yesVotes/noVotes)
+          (address owner,, uint256 ts, uint256 contestCount, uint256 amount) = _safetyNet.requests(reqId);
+
           assertEq(owner, actor);
           assertEq(amount, want);
-          assertEq(yesVotes, 0);
-          assertEq(noVotes, 0);
+          assertEq(contestCount, 0); // Replaced yesVotes/noVotes checks with contestCount
           assertGe(block.timestamp, ts);
           assertFalse(_safetyNet.isExecuted(reqId));
 
