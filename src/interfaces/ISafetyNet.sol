@@ -17,7 +17,7 @@ interface ISafetyNet {
   /// @param owner The creator of the Safety Net
   /// @param minimumMembers Minimum number of members required to create a Safety Net
   /// @param maximumMembers Maximum number of members allowed in the Safety Net
-  /// @param contestThreshold Percentage of members required to approve a request
+  /// @param contestThreshold Percentage of members required to contest a withdrawal request for it to be vetoed/cancelled
   /// @param safetyNetStart Timestamp when the Safety Net becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
