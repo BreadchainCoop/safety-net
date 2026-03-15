@@ -266,15 +266,16 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (hasContested[_requestId][msg.sender]) revert AlreadyContestedByMember();
 
-    // Record the member's contestation to avoid Sybil
+    // Record the member's contest to avoid Sybil-style duplicate voting
     hasContested[_requestId][msg.sender] = true;
 
-    // Check if consensus on contestation has been reached after this contestastion
+    // Check if the veto threshold (contestThreshold%) has been reached after this contestation
     SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
     _request.contestCount++;
 
     if (_request.contestCount > _safetyNet.members.length * _safetyNet.contestThreshold / 100) {
-      isVetoed[_requestId] = true; // Vetoed by at least 33% of the members
+      isVetoed[_requestId] = true;
+      // Vetoed because contestThreshold% of the members (or more) have contested
       emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
     }
   }
