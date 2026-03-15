@@ -326,7 +326,7 @@ contract SafetyNetUnit is Test {
   function test_CreateWhenContestThresholdIsGreaterThan100() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.contestThreshold = 100;
+    _safetyNet.contestThreshold = 150;
     uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
