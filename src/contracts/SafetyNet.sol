@@ -269,11 +269,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     // Record the member's contest to avoid Sybil-style duplicate voting
     hasContested[_requestId][msg.sender] = true;
 
-    // Check if the veto threshold (contestThreshold%) has been reached after this contestation
-    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
+    // Check if consensus on contestation has been reached after this contestation
+    SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];
     _request.contestCount++;
 
-    if (_request.contestCount > _safetyNet.members.length * _safetyNet.contestThreshold / 100) {
+    uint256 memberCount = safetyNet.members.length;
+    uint256 threshold = safetyNet.contestThreshold;
+
+    if (_request.contestCount > memberCount * threshold / 100) {
       isVetoed[_requestId] = true;
       // Vetoed because contestThreshold% of the members (or more) have contested
       emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
@@ -285,7 +288,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     Request memory _request = requests[_idRequest];
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
-    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
+    SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];
 
     // Can only auto-execute if contest window has passed and request was not vetoed
     if (!_isContestable(_idRequest) && !isVetoed[_idRequest]) {
@@ -294,7 +297,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
 
-      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
+      if (!IERC20(safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
     }
   }
 
