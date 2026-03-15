@@ -49,7 +49,7 @@ interface ISafetyNet {
   /// @param owner The request initiator
   /// @param safetyNetId ID of the related Safety Net
   /// @param timestamp Creation time of the request
-  /// @param contestCount Number of contestation received
+  /// @param contestCount Number of members who contested
   /// @param amount Amount requested for withdrawal
   struct Request {
     address owner;
