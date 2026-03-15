@@ -193,9 +193,6 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     vm.expectRevert(ISafetyNet.ContestWindowClosed.selector);
     _safetyNet.contest(requestId);
 
-    // Force veto status directly for testing timeout behavior
-    vm.prank(address(_safetyNet)); // Workaround: since window is closed, we simulate vetoed status
-
     // New request that gets vetoed; verify it does not execute after timeout.
     vm.warp(block.timestamp - contestWin - 1); // Go back in time
     vm.prank(_member1);
