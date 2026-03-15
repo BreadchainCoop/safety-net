@@ -102,9 +102,6 @@ interface ISafetyNet {
   /// @notice Emitted when a new request is created
   event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
-  /// @notice Emitted when vetoing on a request is completed
-  event RequestEnded(uint256 indexed id, uint256 contestCount);
-
   /// @notice Emitted when a withdraw request is pending
   event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
 
