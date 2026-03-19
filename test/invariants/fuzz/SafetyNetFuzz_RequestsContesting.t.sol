@@ -150,7 +150,7 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     config.contestWindow = contestWin;
     config.redeemRatio = 1;
     config.autoThreshold = 1;
-    config.contestThreshold = 33;
+    config.contestThreshold = 34;
 
     uint256 safetyNetId = _safetyNet.create(config);
 
