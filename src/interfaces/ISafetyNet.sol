@@ -105,6 +105,9 @@ interface ISafetyNet {
   /// @notice Emitted when a withdraw request is pending
   event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
 
+  /// @notice Emitted when a request is contested
+  event WithdrawalContested(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+
   /// @notice Emitted when a request is auto-executed after contest period
   event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
 

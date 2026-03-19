@@ -42,6 +42,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Hashed version for invite signatures
   bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
+  /// @notice Base denominator used for percentage calculations
+  uint256 public constant PERCENTAGE_BASE = 100;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
@@ -274,8 +277,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 memberCount = safetyNet.members.length;
     uint256 threshold = safetyNet.contestThreshold;
 
+    emit WithdrawalContested(_requestId, _request.owner, block.timestamp);
+
     // Check if consensus on contestation has been reached after this contestation
-    if (_request.contestCount > memberCount * threshold / 100) {
+    if (_request.contestCount > memberCount * threshold / PERCENTAGE_BASE) {
       isVetoed[_requestId] = true;
       // Vetoed because contestThreshold% of the members (or more) have contested
       emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
