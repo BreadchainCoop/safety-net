@@ -136,7 +136,7 @@ interface ISafetyNet {
   /// @notice Thrown when trying to create a duplicate Safety Net
   error AlreadyExists();
 
-  /// @notice Thrown when a user is trying to contest a request that he has already contested
+  /// @notice Thrown when a member is trying to contest a request that they have already contested
   error AlreadyContestedByMember();
 
   /// @notice Thrown when the Safety Net ID is not found

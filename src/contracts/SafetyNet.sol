@@ -279,8 +279,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     emit WithdrawalContested(_requestId, _request.owner, block.timestamp);
 
-    // Check if consensus on contestation has been reached after this contestation
-    if (_request.contestCount > memberCount * threshold / PERCENTAGE_BASE) {
+    // Multiply contestCount by PERCENTAGE_BASE instead of dividing the
+    // right-hand side, so integer truncation cannot lower the threshold.
+    if (_request.contestCount * PERCENTAGE_BASE > memberCount * threshold) {
       isVetoed[_requestId] = true;
       // Vetoed because more than contestThreshold% of the members have contested
       emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
@@ -554,7 +555,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance.
   ///      Reverts with `NotWithdrawable` if balance is insufficient.
-  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
+  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) internal {
     if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
       revert NotWithdrawable();
     }
