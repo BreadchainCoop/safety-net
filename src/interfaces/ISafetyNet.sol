@@ -214,7 +214,7 @@ interface ISafetyNet {
   /// @notice Thrown when epoch duration is invalid
   error InvalidEpochDuration();
 
-  /// @notice Thrown when redeemeRatio is out of valid range
+  /// @notice Thrown when redeemRatio is out of valid range
   error InvalidRatio();
 
   /// @notice Thrown when small withdraws limit is invalid
