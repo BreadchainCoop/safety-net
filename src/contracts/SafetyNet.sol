@@ -282,7 +282,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     // Check if consensus on contestation has been reached after this contestation
     if (_request.contestCount > memberCount * threshold / PERCENTAGE_BASE) {
       isVetoed[_requestId] = true;
-      // Vetoed because contestThreshold% of the members (or more) have contested
+      // Vetoed because more than contestThreshold% of the members have contested
       emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
     }
   }
