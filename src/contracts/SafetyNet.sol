@@ -264,6 +264,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function contest(uint256 _requestId) external override nonReentrant onlyMemberOf(requests[_requestId].safetyNetId) {
     Request storage _request = requests[_requestId];
 
+    // Ensure the request exists before allowing it to be contested
+    if (_request.owner == address(0)) revert InvalidRequest();
+
     if (!_isContestable(_requestId)) revert ContestWindowClosed();
     if (isVetoed[_requestId]) revert AlreadyVetoed();
 
@@ -291,6 +294,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc ISafetyNet
   function executeContestedWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
+    if (_request.owner == address(0) || _request.amount == 0) revert InvalidRequest();
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
     SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];

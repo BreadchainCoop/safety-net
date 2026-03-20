@@ -841,7 +841,7 @@ contract SafetyNetUnit is Test {
     // Carol also contests (Count = 2). 2 > 1 is True!
     // This MUST trigger the veto and emit the event.
     vm.prank(_carol);
-    vm.expectEmit(true, true, false, true, address(_sn)); // Passiamo esplicitamente l'indirizzo del contratto!
+    vm.expectEmit(true, true, false, true, address(_sn)); // Explicitly pass the SafetyNet contract address.
     emit ISafetyNet.WithdrawalVetoed(reqId, _alice, block.timestamp);
     _sn.contest(reqId);
 
