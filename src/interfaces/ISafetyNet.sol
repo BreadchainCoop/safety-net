@@ -111,9 +111,6 @@ interface ISafetyNet {
   /// @notice Emitted when a request is auto-executed after contest period
   event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
 
-  /// @notice Emitted when a request is approved and funds are withdrawn
-  event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
-
   /// @notice Emitted when a request reaches the veto threshold and is cancelled
   event WithdrawalVetoed(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
