@@ -193,14 +193,13 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     vm.expectRevert(ISafetyNet.ContestWindowClosed.selector);
     _safetyNet.contest(requestId);
 
-    // New request that gets vetoed; verify it does not execute after timeout.
-    vm.warp(block.timestamp - contestWin - 1); // Go back in time
+    // New request that gets vetoed; verify it does not execute after its own timeout.
     vm.prank(_member1);
     _safetyNet.withdraw(safetyNetId, daysRequested);
     uint256 n2 = _safetyNet.nextIdRequest();
     uint256 req2 = n2 - 1;
 
-    // Trigger Veto (2 out of 3 members contest)
+    // Trigger Veto (2 out of 3 members contest) within the contest window.
     vm.prank(_member2);
     _safetyNet.contest(req2);
     vm.prank(_member3);
