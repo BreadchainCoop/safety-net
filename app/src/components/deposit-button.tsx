@@ -55,14 +55,22 @@ export function DepositButton({
     query: { enabled: !!address },
   });
 
-  const depositAmount = isFirstDeposit
-    ? initialDeposit
-    : showCustom && customAmount
-      ? parseUnits(customAmount, 18)
-      : duesRemaining;
-
   const handleDeposit = async () => {
     if (!address) return;
+
+    let depositAmount: bigint;
+    if (isFirstDeposit) {
+      depositAmount = initialDeposit;
+    } else if (showCustom && customAmount) {
+      try {
+        depositAmount = parseUnits(customAmount, 18);
+      } catch {
+        setModal({ type: "DEPOSIT_RESULT", result: "error", msg: "Invalid amount" });
+        return;
+      }
+    } else {
+      depositAmount = duesRemaining;
+    }
     try {
       setModal({
         type: "DEPOSIT_INIT",

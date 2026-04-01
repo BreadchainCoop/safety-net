@@ -26,7 +26,7 @@ export default function BrowseFundsPage() {
         const logs = await publicClient.getLogs({
           address: SAFETY_NET_ADDRESS,
           event: parseAbiItem(
-            "event SafetyNetCreated(uint256 indexed id, address owner)"
+            "event SafetyNetCreated(uint256 indexed id, uint256 minimumMembers, uint256 maximumMembers, uint256 consensusThreshold, address[] members, address token, uint256 initialDeposit, uint256 fixedDeposit, uint256 redeemRatio, uint256 autoThreshold, uint256 epochDuration, uint256 smallWithdrawsLimit)"
           ),
           fromBlock: 0n,
           toBlock: "latest",

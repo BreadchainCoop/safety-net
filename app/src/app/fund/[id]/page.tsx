@@ -113,7 +113,7 @@ export default function FundDetailPage({
 
   const { displayName: ownerName } = useDisplayName(fund?.owner);
 
-  // Fetch request IDs from events
+  // Fetch request IDs from events and filter by this fund's safetyNetId
   const [requestIds, setRequestIds] = useState<bigint[]>([]);
   useEffect(() => {
     if (!publicClient || !fund) return;
@@ -127,16 +127,33 @@ export default function FundDetailPage({
           fromBlock: 0n,
           toBlock: "latest",
         });
-        // Filter by fund ID - we need to check each request's safetyNetId
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ids = logs.map((log: any) => log.args.id as bigint);
-        setRequestIds(ids);
+        const allIds = logs.map((log: any) => log.args.id as bigint);
+        // Filter: read each request's safetyNetId and keep only those matching this fund
+        const filtered: bigint[] = [];
+        for (const reqId of allIds) {
+          try {
+            const req = await publicClient.readContract({
+              address: SAFETY_NET_ADDRESS,
+              abi: safetyNetAbi,
+              functionName: "requests",
+              args: [reqId],
+            });
+            // requests() returns a tuple; safetyNetId is the second field
+            if ((req as readonly unknown[])[1] === fundId) {
+              filtered.push(reqId);
+            }
+          } catch {
+            // skip unreadable requests
+          }
+        }
+        setRequestIds(filtered);
       } catch {
         // Events may not be available on all providers
       }
     };
     fetchRequests();
-  }, [publicClient, fund]);
+  }, [publicClient, fund, fundId]);
 
   if (isLoading) {
     return (
