@@ -14,6 +14,9 @@ jobs:
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: yarn --frozen-lockfile --network-concurrency 1
+        working-directory: .
 
       - name: Precompile using 0.8.14 and via-ir=false
         run: yarn build
@@ -41,6 +45,9 @@ jobs:
   integration-tests:
     name: Run Integration Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +64,7 @@ jobs:
 
       - name: Install dependencies
         run: yarn --frozen-lockfile --network-concurrency 1
+        working-directory: .
 
       - name: Precompile using 0.8.14 and via-ir=false
         run: yarn build
@@ -67,6 +75,9 @@ jobs:
   halmos-tests:
     name: Run symbolic execution tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +94,7 @@ jobs:
 
       - name: Install dependencies
         run: yarn --frozen-lockfile --network-concurrency 1
+        working-directory: .
 
       - name: Precompile with via-ir=false
         run: yarn build
@@ -116,3 +128,4 @@ jobs:
         run: yarn --frozen-lockfile --network-concurrency 1
 
       - run: yarn lint:check
+        working-directory: contracts
