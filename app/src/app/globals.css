@@ -1,0 +1,86 @@
+@import "tailwindcss";
+@source "./../../node_modules/@breadcoop";
+@import "@breadcoop/ui/theme";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@layer base {
+  .page-layout {
+    @apply px-4 mx-auto max-w-4xl md:px-6 lg:px-8;
+  }
+
+  .body-container {
+    @apply overflow-x-hidden min-h-screen;
+  }
+
+  .body-container div[data-rk]:first-child {
+    @apply min-h-screen flex flex-col *:w-full;
+  }
+}
+
+@layer components {
+  .lifted-button-container {
+    @apply [&>*]:w-full w-full;
+  }
+
+  .lifted-button-container button {
+    @apply w-full;
+  }
+
+  .card-shadow {
+    @apply shadow-[0px_4px_12px_0px_#1B201A26];
+  }
+
+  .card-shadow-bg {
+    @apply bg-paper-0 shadow-[0px_4px_12px_0px_#1B201A26];
+  }
+
+  .card-shadow-border {
+    @apply border border-paper-1 shadow-[0px_4px_12px_0px_#1B201A26];
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-paper-1 rounded-lg bg-paper-0 text-text-standard focus:outline-none focus:ring-2 focus:ring-primary-orange/50;
+  }
+}
+
+@utility scrollbar-hidden {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+body {
+  @apply bg-paper-main;
+}
+
+.DialogOverlay[data-state="open"],
+.DialogContent[data-state="open"] {
+  animation: fadeIn 300ms ease-out;
+}
+
+.DialogOverlay[data-state="closed"],
+.DialogContent[data-state="closed"] {
+  animation: fadeOut 300ms ease-in;
+}

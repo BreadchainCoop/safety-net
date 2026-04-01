@@ -5,8 +5,10 @@ node_modules
 .vscode
 
 # Foundry files
-cache
-out-via-ir
+contracts/cache
+contracts/out
+contracts/out-via-ir
+contracts/crytic-export
 
 # Config files
 .env
@@ -15,14 +17,16 @@ out-via-ir
 !/**/.gitkeep
 
 # Keep the latest deployment only
-broadcast/*/*/*
-
-# Out dir
-out
-crytic-export
+contracts/broadcast/*/*/*
 
 # Echidna corpus
-test/invariants/fuzz/echidna_coverage
+contracts/test/invariants/fuzz/echidna_coverage
 
 # Coverage
 lcov.info
+
+# Next.js
+.next/
+
+# Context
+.context/
