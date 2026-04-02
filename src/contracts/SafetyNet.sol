@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {OwnableUpgradeable} from '@openzeppelin-upgradeable/access/OwnableUpgradeable.sol';
-import {IERC20} from '@openzeppelin/token/ERC20/IERC20.sol';
-import {ReentrancyGuard} from '@openzeppelin/utils/ReentrancyGuard.sol';
-import {ECDSA} from '@openzeppelin/utils/cryptography/ECDSA.sol';
+import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 
