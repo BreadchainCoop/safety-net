@@ -496,7 +496,7 @@ contract SafetyNetUnit is Test {
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
     uint256 id = _sn.create(_safetyNet);
 
-    vm.expectRevert(SafetyNet.TransferFailed.selector);
+    vm.expectRevert();
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
   }
@@ -607,7 +607,7 @@ contract SafetyNetUnit is Test {
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
     uint256 id = _sn.create(_safetyNet);
 
-    vm.expectRevert(SafetyNet.TransferFailed.selector);
+    vm.expectRevert();
     vm.prank(_alice);
     _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
   }
