@@ -13,6 +13,7 @@ import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
+/// @author @Fiuum1
 contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
@@ -252,7 +253,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
-    if (_request.amount == 0) revert InvalidRequest();
+    if (_request.amount == 0) revert InvalidAmountZero();
 
     _request.timestamp = block.timestamp;
     _request.contestCount = 0;
@@ -265,7 +266,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     Request storage _request = requests[_requestId];
 
     // Ensure the request exists before allowing it to be contested
-    if (_request.owner == address(0)) revert InvalidRequest();
+    if (_request.owner == address(0)) revert InvalidAddressZero();
 
     if (!_isContestable(_requestId)) revert ContestWindowClosed();
     if (isVetoed[_requestId]) revert AlreadyVetoed();
@@ -294,7 +295,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc ISafetyNet
   function executeContestedWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
-    if (_request.owner == address(0) || _request.amount == 0) revert InvalidRequest();
+    if (_request.amount == 0) revert InvalidAmountZero();
+    if (_request.owner == address(0)) revert InvalidAddressZero();
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
     SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];
@@ -481,7 +483,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _createRequest(Request memory _request) internal returns (uint256) {
     uint256 _idRequest = nextIdRequest++;
 
-    if (_request.owner == address(0)) revert InvalidRequest();
+    if (_request.owner == address(0)) revert InvalidAddressZero();
     if (requests[_idRequest].owner != address(0)) revert AlreadyExists();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
 

@@ -7,6 +7,7 @@ pragma solidity ^0.8.28;
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
+/// @author @Fiuum1
 interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
@@ -196,8 +197,11 @@ interface ISafetyNet {
   /// @notice Thrown when `autoThreshold` is invalid
   error InvalidThreshold();
 
-  /// @notice Thrown for invalid request
-  error InvalidRequest();
+  /// @notice Thrown for invalid amount zero
+  error InvalidAmountZero();
+
+  /// @notice Thrown for invalid address zero
+  error InvalidAddressZero();
 
   /// @notice Thrown if the request is already vetoed
   error AlreadyVetoed();
