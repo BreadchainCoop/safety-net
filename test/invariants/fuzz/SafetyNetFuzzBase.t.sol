@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 // ───────────────────────────── Imports ─────────────────────────────
 
-import {ProxyAdmin} from '@openzeppelin/proxy/transparent/ProxyAdmin.sol';
-import {TransparentUpgradeableProxy} from '@openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol';
+import {ProxyAdmin} from '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol';
+import {TransparentUpgradeableProxy} from '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {Test} from 'forge-std/Test.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
