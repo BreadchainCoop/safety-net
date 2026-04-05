@@ -285,6 +285,15 @@ interface ISafetyNet {
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
 
+  /// @notice Makes a deposit using EIP-2612 permit for single-transaction approval + deposit
+  /// @param id The Safety Net ID
+  /// @param value Amount to deposit
+  /// @param deadline Permit signature deadline
+  /// @param v Signature v component
+  /// @param r Signature r component
+  /// @param s Signature s component
+  function depositWithPermit(uint256 id, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+
   /// @notice Redeems an invite signed by the Safety Net owner
   /// @param invite The invite data containing the Safety Net ID and nonce
   /// @param signature The owner's EIP-712 signature

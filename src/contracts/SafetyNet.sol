@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/Own
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import {IERC20Permit} from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 
@@ -216,6 +217,30 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc ISafetyNet
   function depositFor(uint256 _id, uint256 _value, address _member) external override nonReentrant {
     _deposit(_id, _value, _member);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function depositWithPermit(
+    uint256 _id,
+    uint256 _value,
+    uint256 _deadline,
+    uint8 _v,
+    bytes32 _r,
+    bytes32 _s
+  ) external override nonReentrant {
+    SafetyNet storage _safetyNet = safetyNets[_id];
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+
+    uint256 _permitAmount;
+    bool _onboarding = (safetyNetMemberContribute[_id][msg.sender] == 0);
+    if (_onboarding) {
+      _permitAmount = _safetyNet.initialDeposit;
+    } else {
+      _permitAmount = _value;
+    }
+
+    IERC20Permit(_safetyNet.token).permit(msg.sender, address(this), _permitAmount, _deadline, _v, _r, _s);
+    _deposit(_id, _value, msg.sender);
   }
 
   /// @inheritdoc ISafetyNet
