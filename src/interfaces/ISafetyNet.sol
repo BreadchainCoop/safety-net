@@ -252,6 +252,9 @@ interface ISafetyNet {
   /// @notice Thrown when attempting to add members beyond the maximum allowed
   error SafetyNetFull();
 
+  /// @notice Thrown when the pool balance is insufficient to cover a withdrawal
+  error InsufficientPoolLiquidity();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
