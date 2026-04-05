@@ -370,4 +370,11 @@ interface ISafetyNet {
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
   function hasMemberDepositedInEpoch(uint256 safetyNetId, address member, uint256 epochIndex) external view returns (bool);
+  /// @notice Returns the deposit credit balance for a member in a Safety Net
+  /// @dev Credit accumulates when a member deposits more than the fixedDeposit in a given epoch
+  ///      and is automatically applied in future epochs to reduce required deposits
+  /// @param id Safety Net ID
+  /// @param member Member address
+  /// @return credit The amount of deposit credit available for the member
+  function getMemberDepositCredit(uint256 id, address member) external view returns (uint256 credit);
 }

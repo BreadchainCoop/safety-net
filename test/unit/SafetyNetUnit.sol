@@ -484,10 +484,10 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
     _sn.deposit(id, 9 ether);
 
-    // Now any extra exceeds the epoch cap
-    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    // Now any extra goes to credit (no revert with credit rollover)
     vm.prank(_alice);
     _sn.deposit(id, 1 ether);
+    assertEq(_sn.getMemberDepositCredit(id, _alice), 1 ether);
 
     // Fully paid flag (derived) is now true
     assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, _sn.getCurrentEpochIndex(id)));
@@ -599,9 +599,10 @@ contract SafetyNetUnit is Test {
     vm.prank(_bob);
     _sn.depositFor(id, 4 ether, _alice);
 
-    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    // Excess goes to credit (no revert with credit rollover)
     vm.prank(_bob);
     _sn.depositFor(id, 1 ether, _alice);
+    assertEq(_sn.getMemberDepositCredit(id, _alice), 1 ether);
   }
 
   function test_DepositForWhenTokenTransferFromFailsFromSender() external {
