@@ -1039,4 +1039,87 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.NotCommissioned.selector);
     _sn.redeemInvite(invite, signature);
   }
+
+  // ---------- VoteResolved event ----------
+
+  function test_VoteResolvedEmittedOnAutoExecute() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+
+    // Alice pays initial deposit
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+
+    // Advance past contest window so alice can withdraw accumulated balance
+    vm.warp(block.timestamp + 151 days);
+
+    // Request a large withdrawal (above autoThreshold=50 ether) to create a contested request
+    vm.prank(_alice);
+    _sn.withdraw(id, 151);
+    uint256 reqId = 0;
+
+    // Advance past contest window without contesting
+    vm.warp(block.timestamp + 4 days);
+
+    // Expect VoteResolved emitted with (reqId, true, 0, 0, 2 members)
+    vm.expectEmit(true, false, false, true, address(_sn));
+    emit ISafetyNet.VoteResolved(reqId, true, 0, 0, 2);
+    _sn.executeContestedWithdrawal(reqId);
+
+    assertTrue(_sn.isExecuted(reqId));
+  }
+
+  function test_VoteResolvedEmittedOnConsensus() external {
+    _allowToken(address(_token));
+
+    // 3 members so we can test yes/no counts
+    address[] memory members = new address[](3);
+    members[0] = _alice;
+    members[1] = _bob;
+    members[2] = _carol;
+    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 5,
+      consensusThreshold: 60,
+      safetyNetStart: block.timestamp,
+      token: address(_token),
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      redeemRatio: 1,
+      autoThreshold: 1,
+      contestWindow: 3 days,
+      votingWindow: 30 days,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+    uint256 id = _sn.create(_safetyNet);
+
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.initialDeposit);
+
+    // Withdraw to create request (autoThreshold=1 so any withdrawal creates a request)
+    vm.prank(_alice);
+    _sn.withdraw(id, 2);
+    uint256 reqId = 0;
+
+    // Contest the request so it enters voting
+    vm.prank(_bob);
+    _sn.contest(reqId);
+
+    // Alice votes yes (1/3), Bob votes yes (2/3 = 66% > 60% = consensus)
+    vm.prank(_alice);
+    _sn.vote(reqId, true);
+
+    // Expect VoteResolved emitted when consensus is reached on Bob's vote
+    vm.expectEmit(true, false, false, true, address(_sn));
+    emit ISafetyNet.VoteResolved(reqId, true, 2, 0, 3);
+    vm.prank(_bob);
+    _sn.vote(reqId, true);
+
+    assertTrue(_sn.isExecuted(reqId));
+  }
 }
