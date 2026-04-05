@@ -17,10 +17,15 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
-  /// @notice Minimum redeem ratio
+  /// @notice Minimum redeem ratio (inclusive lower bound for SafetyNet.redeemRatio).
+  ///         A ratio of 1 means each deposited token grants exactly 1 token of withdrawal capacity —
+  ///         members can withdraw up to the total amount they have deposited (no amplification).
   uint256 public constant MINIMUM_REDEEM_RATIO = 1;
 
-  /// @notice Maximum redeem ratio
+  /// @notice Maximum redeem ratio (inclusive upper bound for SafetyNet.redeemRatio).
+  ///         A ratio of 22 means each deposited token grants 22 tokens of withdrawal capacity,
+  ///         allowing members to withdraw up to 22x the value of their fixed deposits.
+  ///         This cap prevents extreme liquidity mismatches within the collective pool.
   uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
@@ -498,12 +503,29 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /**
-   * @dev Make a withdrawal
-   * @param _id The ID of the Safety Net
-   * @param _member The address of the member making the withdrawal
-   * @param _daysRequested The number of days for which the member is requesting a withdrawal
-   * @notice If the requested amount is small, it is transferred directly to the member
-   *         If the requested amount is large, a request is created for approval
+   * @dev Execute a withdrawal for a Safety Net member.
+   *
+   * Withdrawal amount is computed in two steps using the redeemRatio multiplier:
+   *
+   *   Step 1 — Daily entitlement:
+   *       dailyWithdrawableAmount = (memberContribute * redeemRatio) / DAYS_IN_A_MONTH
+   *     where `memberContribute` is the member's fixed deposit (`safetyNetMemberContribute[_id][_member]`),
+   *     `redeemRatio` is the Safety Net's configured multiplier, and `DAYS_IN_A_MONTH` is 30.
+   *
+   *   Step 2 — Requested amount:
+   *       withdrawAmount = dailyWithdrawableAmount * daysRequested
+   *
+   *   Step 3 — Routing:
+   *     - If withdrawAmount <= autoThreshold  =>  small withdrawal: tokens are transferred directly to the member.
+   *     - If withdrawAmount >  autoThreshold  =>  large withdrawal: a Request is created and must be approved by peers.
+   *
+   * Worked example (redeemRatio = 5, fixedDeposit = 10e18, DAYS_IN_A_MONTH = 30):
+   *   dailyWithdrawableAmount = (10e18 * 5) / 30 = 1_666_666_666_666_666_666  (~1.667 tokens/day)
+   *   For 3 days requested: withdrawAmount = 1_666_666_666_666_666_666 * 3 = 4_999_999_999_999_999_998  (~5 tokens)
+   *
+   * @param _id              The ID of the Safety Net
+   * @param _member          The address of the member making the withdrawal
+   * @param _daysRequested   The number of days for which the member is requesting a withdrawal
    */
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     SafetyNet memory _safetyNet = safetyNets[_id];
@@ -536,7 +558,24 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  /// @dev Calculates the daily withdrawal for a member in a Safety Net
+  /// @dev Calculates the daily withdrawal entitlement for a member in a Safety Net.
+  ///
+  /// Formula (step by step):
+  ///   1. Retrieve `memberContribute` = safetyNetMemberContribute[_id][_member]
+  ///      This is the member's fixed deposit amount set after their onboarding deposit.
+  ///   2. Compute monthly entitlement:
+  ///          monthlyWithdrawalAmount = memberContribute * redeemRatio
+  ///   3. Divide by DAYS_IN_A_MONTH (30) to obtain the per-day amount:
+  ///          dailyWithdrawableAmount = monthlyWithdrawalAmount / DAYS_IN_A_MONTH
+  ///
+  /// Example (memberContribute = 10e18, redeemRatio = 5):
+  ///   monthlyWithdrawalAmount = 10e18 * 5 = 50e18
+  ///   dailyWithdrawableAmount = 50e18 / 30  = 1_666_666_666_666_666_666  (~1.667 tokens/day)
+  ///
+  /// @param _id           The Safety Net ID
+  /// @param _member       The member address
+  /// @param _redeemRatio  The ratio multiplier from the SafetyNet config
+  /// @return              The amount the member may withdraw per day (in token wei)
   function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _redeemRatio) internal view returns (uint256) {
     uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
     uint256 _monthlyWithdrawalAmount = _memberContribute * _redeemRatio;

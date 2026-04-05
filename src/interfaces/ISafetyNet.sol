@@ -23,7 +23,13 @@ interface ISafetyNet {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param redeemRatio Ratio of deposit to withdrawal
+  /// @param redeemRatio Multiplier applied to each deposit to determine a member's withdrawal entitlement.
+  ///        Valid range: MINIMUM_REDEEM_RATIO (1) to MAXIMUM_REDEEM_RATIO (22).
+  ///        When a member deposits `V` tokens, their `memberWithdrawableBalance` increases by `V * redeemRatio`.
+  ///        The daily withdrawal entitlement is computed as:
+  ///            dailyWithdrawableAmount = (fixedDeposit * redeemRatio) / DAYS_IN_A_MONTH
+  ///        A ratio of 1 means members can withdraw exactly what they deposit (no multiplier).
+  ///        A ratio of 5 means each token deposited entitles the member to 5 tokens of withdrawal capacity.
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   /// @param epochDuration Duration of each epoch in seconds
