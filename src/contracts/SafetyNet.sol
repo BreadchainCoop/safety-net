@@ -91,6 +91,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks used nonces for invites to prevent replay attacks
   mapping(uint256 safetyNetId => mapping(uint256 nonce => bool used)) public usedNonces;
 
+  /// @notice Tracks excess deposit credit that rolls over to future epochs for each member
+  mapping(uint256 id => mapping(address member => uint256)) public memberDepositCredit;
+
   /// @notice Thrown if a transfer fails
   error TransferFailed();
 
@@ -186,6 +189,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
       address _member = _safetyNet.members[i];
       uint256 _amount = memberWithdrawableBalance[_id][_member];
+
+      // Return any stored deposit credit (tokens already in contract but not yet counted)
+      uint256 _creditAmount = memberDepositCredit[_id][_member];
+      if (_creditAmount > 0) {
+        memberDepositCredit[_id][_member] = 0;
+        _amount += _creditAmount;
+      }
+
       if (_amount > 0) {
         memberWithdrawableBalance[_id][_member] = 0;
         _balance -= _amount;
@@ -388,6 +399,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
+  function getMemberDepositCredit(uint256 _id, address _member) external view override returns (uint256) {
+    return memberDepositCredit[_id][_member];
+  }
+
+  /// @inheritdoc ISafetyNet
   function hasMemberDepositedInEpoch(uint256 _safetyNetId, address _member, uint256 _epochIndex) external view override returns (bool) {
     ISafetyNet.SafetyNet storage _safetyNet = safetyNets[_safetyNetId];
     if (_safetyNet.owner == address(0)) return false;
@@ -454,6 +470,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 epochPaid = epochMemberDepositedAmount[_id][epoch][_member];
     // Onboarding status is derived: not onboarded if no monthly contribution set yet.
     bool onboarding = (safetyNetMemberContribute[_id][_member] == 0);
+    uint256 _withdrawableContribution;
 
     if (onboarding) {
       uint256 initial = _safetyNet.initialDeposit;
@@ -464,14 +481,36 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
       // Set epoch paid to full initial
       epochPaid = initial;
+      _withdrawableContribution = _value;
     } else {
-      // Subsequent months: partials allowed up to fixedDeposit
-      if (epochPaid + _value > _safetyNet.fixedDeposit) revert ExceedsDepositAmount();
-      epochPaid += _value;
+      // Subsequent months: partials allowed, with credit rollover support
+      uint256 _remaining = epochPaid >= _safetyNet.fixedDeposit ? 0 : _safetyNet.fixedDeposit - epochPaid;
+
+      // Auto-apply any existing credit toward this epoch's dues
+      uint256 _credit = memberDepositCredit[_id][_member];
+      uint256 _creditUsed = 0;
+      if (_credit > 0 && _remaining > 0) {
+        _creditUsed = _credit >= _remaining ? _remaining : _credit;
+        memberDepositCredit[_id][_member] -= _creditUsed;
+        _remaining -= _creditUsed;
+      }
+
+      // Handle the actual token deposit amount
+      uint256 _effectiveDeposit;
+      if (_value > _remaining) {
+        // Store excess as credit for future epochs (withdrawable granted when credit is consumed)
+        uint256 _excess = _value - _remaining;
+        memberDepositCredit[_id][_member] += _excess;
+        _effectiveDeposit = _remaining;
+      } else {
+        _effectiveDeposit = _value;
+      }
+      epochPaid += _creditUsed + _effectiveDeposit;
+      _withdrawableContribution = _creditUsed + _effectiveDeposit;
     }
 
     safetyNetBalance[_id] += _value;
-    memberWithdrawableBalance[_id][_member] += _value * _safetyNet.redeemRatio;
+    memberWithdrawableBalance[_id][_member] += _withdrawableContribution * _safetyNet.redeemRatio;
     epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
     if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _value)) revert TransferFailed();

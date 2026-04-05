@@ -42,12 +42,14 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 epochIndex = _safetyNet.getCurrentEpochIndex(id);
     uint256 beforeWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
     uint256 duesRemainingBefore = _safetyNet.duesRemainingThisEpoch(id, actor);
+    uint256 creditBefore = _safetyNet.memberDepositCredit(id, actor);
 
     if (duesRemainingBefore == 0) {
-      // already fully paid this epoch → any extra should exceed cap
+      // already fully paid this epoch → excess goes to credit (no revert)
+      uint256 creditBefore2 = _safetyNet.memberDepositCredit(id, actor);
       vm.prank(actor);
-      vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
-      try _safetyNet.deposit(id, 1) {} catch {}
+      _safetyNet.deposit(id, 1);
+      assertEq(_safetyNet.memberDepositCredit(id, actor), creditBefore2 + 1, 'excess stored as credit');
       return;
     }
 
@@ -77,7 +79,13 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     assertEq(paidAfter, duesRemainingAfter == 0, 'flag only when epoch fully paid');
 
     uint256 afterWithdrawable = _safetyNet.memberWithdrawableBalance(id, actor);
-    assertEq(afterWithdrawable, beforeWithdrawable + depositedAmount, 'withdrawable += deposited amt');
+    uint256 afterCredit2 = _safetyNet.memberDepositCredit(id, actor);
+    int256 creditDelta2 = int256(afterCredit2) - int256(creditBefore);
+    assertEq(
+      int256(afterWithdrawable) - int256(beforeWithdrawable),
+      int256(depositedAmount) - creditDelta2,
+      'withdrawable += deposited - creditDelta'
+    );
   }
 
   // ── Case 2: Small withdrawals — within limit, ≤ autoThreshold, and ≤ balance
