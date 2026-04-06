@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
@@ -14,6 +15,8 @@ import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 /// @author @valeriooconte
 /// @author @RonTuretzky
 contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
+  using SafeERC20 for IERC20;
+
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
@@ -90,9 +93,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Tracks used nonces for invites to prevent replay attacks
   mapping(uint256 safetyNetId => mapping(uint256 nonce => bool used)) public usedNonces;
-
-  /// @notice Thrown if a transfer fails
-  error TransferFailed();
 
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
@@ -190,7 +190,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
         memberWithdrawableBalance[_id][_member] = 0;
         _balance -= _amount;
 
-        if (!IERC20(_safetyNet.token).transfer(_member, _amount)) revert TransferFailed();
+        IERC20(_safetyNet.token).safeTransfer(_member, _amount);
       }
     }
 
@@ -199,7 +199,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
       for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
         address _member = _safetyNet.members[i];
-        if (!IERC20(_safetyNet.token).transfer(_member, _amount)) revert TransferFailed();
+        IERC20(_safetyNet.token).safeTransfer(_member, _amount);
       }
     }
 
@@ -284,7 +284,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
 
-      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
+      IERC20(_safetyNet.token).safeTransfer(_request.owner, _request.amount);
     }
   }
 
@@ -312,7 +312,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
       isExecuted[_requestId] = true;
       emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
-      if (!IERC20(_safetyNet.token).transfer(_request.owner, _request.amount)) revert TransferFailed();
+      IERC20(_safetyNet.token).safeTransfer(_request.owner, _request.amount);
     }
   }
   /// @inheritdoc ISafetyNet
@@ -474,7 +474,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     memberWithdrawableBalance[_id][_member] += _value * _safetyNet.redeemRatio;
     epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
-    if (!IERC20(_safetyNet.token).transferFrom(_member, address(this), _value)) revert TransferFailed();
+    IERC20(_safetyNet.token).safeTransferFrom(_member, address(this), _value);
 
     emit FundsDeposited(_id, _member, _value);
   }
@@ -525,7 +525,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
       safetyNetBalance[_id] -= _withdrawAmount;
-      if (!IERC20(_safetyNet.token).transfer(_member, _withdrawAmount)) revert TransferFailed();
+      IERC20(_safetyNet.token).safeTransfer(_member, _withdrawAmount);
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
