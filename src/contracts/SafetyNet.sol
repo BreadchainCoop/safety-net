@@ -210,7 +210,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @inheritdoc ISafetyNet
   function deposit(uint256 _id, uint256 _value) external override nonReentrant {
-    _deposit(_id, _value, msg.sender);
+    _deposit(_id, _value, _msgSender());
   }
 
   /// @inheritdoc ISafetyNet
@@ -224,7 +224,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (usedNonces[_invite.safetyNetId][_invite.nonce]) revert InviteAlreadyUsed();
-    if (isMember[_invite.safetyNetId][msg.sender]) revert AlreadyMember();
+    if (isMember[_invite.safetyNetId][_msgSender()]) revert AlreadyMember();
     if (_safetyNet.members.length >= _safetyNet.maximumMembers) revert SafetyNetFull();
 
     bytes32 _digest = _hashInvite(_invite);
@@ -233,21 +233,21 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_signer != _safetyNet.owner) revert InvalidSigner();
 
     usedNonces[_invite.safetyNetId][_invite.nonce] = true;
-    isMember[_invite.safetyNetId][msg.sender] = true;
-    memberSafetyNets[msg.sender].push(_invite.safetyNetId);
-    _safetyNet.members.push(msg.sender);
+    isMember[_invite.safetyNetId][_msgSender()] = true;
+    memberSafetyNets[_msgSender()].push(_invite.safetyNetId);
+    _safetyNet.members.push(_msgSender());
 
-    emit InviteRedeemed(_invite.safetyNetId, msg.sender);
+    emit InviteRedeemed(_invite.safetyNetId, _msgSender());
   }
 
   /// @inheritdoc ISafetyNet
   function withdraw(uint256 _id, uint256 _daysRequested) external override nonReentrant {
-    _withdraw(_id, msg.sender, _daysRequested);
+    _withdraw(_id, _msgSender(), _daysRequested);
   }
 
   /// @inheritdoc ISafetyNet
   function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
-    if (_request.owner != msg.sender) revert InvalidOwner();
+    if (_request.owner != _msgSender()) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (_request.amount == 0) revert InvalidRequest();
 
@@ -289,8 +289,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   function vote(uint256 _requestId, bool _vote) external override nonReentrant {
-    if (!isMember[requests[_requestId].safetyNetId][msg.sender]) revert NotMember();
-    if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
+    if (!isMember[requests[_requestId].safetyNetId][_msgSender()]) revert NotMember();
+    if (requestVotes[_requestId][_msgSender()]) revert AlreadyVoted();
     if (!_isVotingOngoing(_requestId)) revert VotingWindowClosed();
     if (isExecuted[_requestId]) revert AlreadyExecuted();
 
@@ -299,8 +299,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     } else {
       requests[_requestId].noVotes++;
     }
-    requestVotes[_requestId][msg.sender] = true;
-    emit Voted(_requestId, msg.sender, _vote);
+    requestVotes[_requestId][_msgSender()] = true;
+    emit Voted(_requestId, _msgSender(), _vote);
 
     // Check if consensus has been reached after this vote
     Request memory _request = requests[_requestId];
@@ -562,7 +562,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @dev Reverts with {NotMember} if msg.sender is not a member of `_safetyNetId`.
   function _onlyMemberOf(uint256 _safetyNetId) internal view {
-    if (!isMember[_safetyNetId][msg.sender]) revert NotMember();
+    if (!isMember[_safetyNetId][_msgSender()]) revert NotMember();
   }
 
   /// @dev Return if a specified Safety Net is decommissioned by checking if an owner is set
