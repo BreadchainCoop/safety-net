@@ -127,6 +127,9 @@ interface ISafetyNet {
   /// @notice Emitted when an invite is successfully redeemed
   event InviteRedeemed(uint256 indexed safetyNetId, address indexed redeemer);
 
+  /// @notice Emitted when a contested withdrawal vote is resolved (either auto-executed or by consensus)
+  event VoteResolved(uint256 indexed requestId, bool approved, uint256 yesVotes, uint256 noVotes, uint256 totalMembers);
+
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
@@ -251,6 +254,9 @@ interface ISafetyNet {
 
   /// @notice Thrown when attempting to add members beyond the maximum allowed
   error SafetyNetFull();
+
+  /// @notice Thrown when the pool balance is insufficient to cover a withdrawal
+  error InsufficientPoolLiquidity();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
