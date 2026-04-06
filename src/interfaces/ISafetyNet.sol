@@ -23,7 +23,13 @@ interface ISafetyNet {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param redeemRatio Ratio of deposit to withdrawal
+  /// @param redeemRatio Multiplier applied to each deposit to determine a member's withdrawal entitlement.
+  ///        Valid range: MINIMUM_REDEEM_RATIO (1) to MAXIMUM_REDEEM_RATIO (22).
+  ///        When a member deposits `V` tokens, their `memberWithdrawableBalance` increases by `V * redeemRatio`.
+  ///        The daily withdrawal entitlement is computed as:
+  ///            dailyWithdrawableAmount = (fixedDeposit * redeemRatio) / DAYS_IN_A_MONTH
+  ///        A ratio of 1 means members can withdraw exactly what they deposit (no multiplier).
+  ///        A ratio of 5 means each token deposited entitles the member to 5 tokens of withdrawal capacity.
   /// @param contestWindow Duration of the contest period for requests
   /// @param votingWindow Duration of the voting period for requests
   /// @param epochDuration Duration of each epoch in seconds
@@ -126,6 +132,9 @@ interface ISafetyNet {
 
   /// @notice Emitted when an invite is successfully redeemed
   event InviteRedeemed(uint256 indexed safetyNetId, address indexed redeemer);
+
+  /// @notice Emitted when a governance parameter is updated by the Safety Net owner
+  event ParameterUpdated(uint256 indexed id, bytes32 indexed parameter, uint256 newValue);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -252,6 +261,18 @@ interface ISafetyNet {
   /// @notice Thrown when attempting to add members beyond the maximum allowed
   error SafetyNetFull();
 
+  /// @notice Thrown when consensus threshold is out of valid range (must be 1-100)
+  error InvalidConsensusThreshold();
+
+  /// @notice Thrown when contest window is invalid (must be > 0 and <= votingWindow)
+  error InvalidContestWindow();
+
+  /// @notice Thrown when voting window is invalid (must be > 0 and >= contestWindow)
+  error InvalidVotingWindow();
+
+  /// @notice Thrown when caller is not the Safety Net owner
+  error Unauthorized();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -312,6 +333,31 @@ interface ISafetyNet {
   /// @param requestId The ID of the request
   /// @param voteValue True for yes, false for no
   function vote(uint256 requestId, bool voteValue) external;
+
+  /// @notice Updates the consensus threshold for a Safety Net
+  /// @param id The Safety Net ID
+  /// @param newThreshold New threshold percentage (1-100)
+  function setConsensusThreshold(uint256 id, uint256 newThreshold) external;
+
+  /// @notice Updates the auto-execution threshold for a Safety Net
+  /// @param id The Safety Net ID
+  /// @param newAutoThreshold New auto threshold amount (must be > 0)
+  function setAutoThreshold(uint256 id, uint256 newAutoThreshold) external;
+
+  /// @notice Updates the small withdrawals limit for a Safety Net
+  /// @param id The Safety Net ID
+  /// @param newLimit New small withdrawals limit per epoch (must be > 0)
+  function setSmallWithdrawsLimit(uint256 id, uint256 newLimit) external;
+
+  /// @notice Updates the contest window for a Safety Net
+  /// @param id The Safety Net ID
+  /// @param newWindow New contest window duration in seconds (must be > 0 and <= votingWindow)
+  function setContestWindow(uint256 id, uint256 newWindow) external;
+
+  /// @notice Updates the voting window for a Safety Net
+  /// @param id The Safety Net ID
+  /// @param newWindow New voting window duration in seconds (must be > 0 and >= contestWindow)
+  function setVotingWindow(uint256 id, uint256 newWindow) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW
