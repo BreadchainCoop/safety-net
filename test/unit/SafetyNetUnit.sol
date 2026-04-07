@@ -6,6 +6,7 @@ import {TransparentUpgradeableProxy} from '@openzeppelin/contracts/proxy/transpa
 import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
 
+import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {InviteGenerator} from 'script/InviteGenerator.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
@@ -496,7 +497,7 @@ contract SafetyNetUnit is Test {
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
     uint256 id = _sn.create(_safetyNet);
 
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(_failToken)));
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
   }
@@ -607,7 +608,7 @@ contract SafetyNetUnit is Test {
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
     uint256 id = _sn.create(_safetyNet);
 
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(_failToken)));
     vm.prank(_alice);
     _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
   }
