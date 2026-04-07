@@ -2,11 +2,12 @@
 pragma solidity ^0.8.28;
 
 /// @title Safety Net Collective Savings Contract Interface
-/// @notice This interface defines the structure and interaction logic for Safety Net, a group savings and voting system.
+/// @notice This interface defines the structure and interaction logic for Safety Net, a group savings and contesting system.
 /// @dev All function inputs/outputs are documented via NatSpec for external visibility.
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
+/// @author @Fiuum1
 interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             STRUCTS
@@ -17,7 +18,7 @@ interface ISafetyNet {
   /// @param owner The creator of the Safety Net
   /// @param minimumMembers Minimum number of members required to create a Safety Net
   /// @param maximumMembers Maximum number of members allowed in the Safety Net
-  /// @param consensusThreshold Percentage of members required to approve a request
+  /// @param contestThreshold Percentage threshold of members; a withdrawal request is vetoed/cancelled only if the share of contesting members exceeds this percentage
   /// @param safetyNetStart Timestamp when the Safety Net becomes active
   /// @param token The ERC20 token used for deposits and withdrawals
   /// @param members List of member addresses
@@ -25,7 +26,6 @@ interface ISafetyNet {
   /// @param fixedDeposit Fixed deposit fee amount
   /// @param redeemRatio Ratio of deposit to withdrawal
   /// @param contestWindow Duration of the contest period for requests
-  /// @param votingWindow Duration of the voting period for requests
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
   struct SafetyNet {
@@ -33,7 +33,7 @@ interface ISafetyNet {
     address owner;
     uint256 minimumMembers;
     uint256 maximumMembers;
-    uint256 consensusThreshold;
+    uint256 contestThreshold;
     uint256 safetyNetStart;
     address token;
     address[] members;
@@ -42,7 +42,6 @@ interface ISafetyNet {
     uint256 redeemRatio;
     uint256 autoThreshold;
     uint256 contestWindow;
-    uint256 votingWindow;
     uint256 epochDuration;
     uint256 smallWithdrawsLimit;
   }
@@ -51,15 +50,13 @@ interface ISafetyNet {
   /// @param owner The request initiator
   /// @param safetyNetId ID of the related Safety Net
   /// @param timestamp Creation time of the request
-  /// @param yesVotes Number of yes votes received
-  /// @param noVotes Number of no votes received
+  /// @param contestCount Number of members who contested
   /// @param amount Amount requested for withdrawal
   struct Request {
     address owner;
     uint256 safetyNetId;
     uint256 timestamp;
-    uint256 yesVotes;
-    uint256 noVotes;
+    uint256 contestCount;
     uint256 amount;
   }
 
@@ -80,7 +77,7 @@ interface ISafetyNet {
     uint256 indexed id,
     uint256 minimumMembers,
     uint256 maximumMembers,
-    uint256 consensusThreshold,
+    uint256 contestThreshold,
     address[] members,
     address token,
     uint256 initialDeposit,
@@ -106,12 +103,6 @@ interface ISafetyNet {
   /// @notice Emitted when a new request is created
   event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
-  /// @notice Emitted when voting on a request is completed
-  event RequestEnded(uint256 indexed id, uint256 yesVotes, uint256 noVotes);
-
-  /// @notice Emitted when a vote is cast on a request
-  event Voted(uint256 indexed requestId, address indexed voter, bool vote);
-
   /// @notice Emitted when a withdraw request is pending
   event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
 
@@ -121,8 +112,8 @@ interface ISafetyNet {
   /// @notice Emitted when a request is auto-executed after contest period
   event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
 
-  /// @notice Emitted when a request is approved and funds are withdrawn
-  event WithdrawalApproved(uint256 indexed requestId, address indexed owner, uint256 timestamp);
+  /// @notice Emitted when a request reaches the veto threshold and is cancelled
+  event WithdrawalVetoed(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
   /// @notice Emitted when an invite is successfully redeemed
   event InviteRedeemed(uint256 indexed safetyNetId, address indexed redeemer);
@@ -142,6 +133,9 @@ interface ISafetyNet {
 
   /// @notice Thrown when trying to create a duplicate Safety Net
   error AlreadyExists();
+
+  /// @notice Thrown when a member is trying to contest a request that they have already contested
+  error AlreadyContestedByMember();
 
   /// @notice Thrown when the Safety Net ID is not found
   error InvalidSafetyNet();
@@ -203,31 +197,25 @@ interface ISafetyNet {
   /// @notice Thrown when `autoThreshold` is invalid
   error InvalidThreshold();
 
-  /// @notice Thrown for invalid request
-  error InvalidRequest();
+  /// @notice Thrown for invalid amount zero
+  error InvalidAmountZero();
 
-  /// @notice Thrown if a voter has already voted
-  error AlreadyVoted();
+  /// @notice Thrown for invalid address zero
+  error InvalidAddressZero();
 
-  /// @notice Thrown if the request is already contested
-  error AlreadyContested();
+  /// @notice Thrown if the request is already vetoed
+  error AlreadyVetoed();
 
   /// @notice Thrown if the request has already been executed
   error AlreadyExecuted();
 
-  /// @notice Thrown if not all required votes have been cast
-  error NotAllVoted();
-
   /// @notice Thrown if the request is not contestable
   error ContestWindowClosed();
-
-  /// @notice Thrown if the request is not votable
-  error VotingWindowClosed();
 
   /// @notice Thrown when epoch duration is invalid
   error InvalidEpochDuration();
 
-  /// @notice Thrown when redeemeRatio is out of valid range
+  /// @notice Thrown when redeemRatio is out of valid range
   error InvalidRatio();
 
   /// @notice Thrown when small withdraws limit is invalid
@@ -307,11 +295,6 @@ interface ISafetyNet {
   /// @notice Checks if a request can be contested
   /// @param requestId The ID of the request to check
   function executeContestedWithdrawal(uint256 requestId) external;
-
-  /// @notice Casts a vote on a request
-  /// @param requestId The ID of the request
-  /// @param voteValue True for yes, false for no
-  function vote(uint256 requestId, bool voteValue) external;
 
   /*///////////////////////////////////////////////////////////////
                             VIEW

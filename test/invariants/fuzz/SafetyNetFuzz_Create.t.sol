@@ -6,17 +6,17 @@ import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
 import {MockERC20} from 'test/mocks/MockERC20.sol';
 
 contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
-  function testFuzz_LotsOfSafetyNetCreations(uint8 safetyNetCountRaw, uint8 consensusBase) public {
+  function testFuzz_LotsOfSafetyNetCreations(uint8 safetyNetCountRaw, uint8 contestBase) public {
     uint256 safetyNetCount = bound(uint256(safetyNetCountRaw), 5, 50);
-    uint256 consensusBasePercentage = 30 + (uint256(consensusBase) % 40);
+    uint256 contestBasePercentage = 30 + (uint256(contestBase) % 40);
 
     uint256 successfulCreations;
 
     for (uint256 i = 0; i < safetyNetCount; i++) {
       ISafetyNet.SafetyNet memory config = _safeCfg;
       config.safetyNetStart = block.timestamp + 1;
-      config.consensusThreshold = uint256((consensusBasePercentage + i) % 100);
-      if (config.consensusThreshold < 1) config.consensusThreshold = 1;
+      config.contestThreshold = uint256((contestBasePercentage + i) % 100);
+      if (config.contestThreshold < 1) config.contestThreshold = 1;
       config.autoThreshold = _SAFE_AUTO_THRESHOLD + i * 1e15;
       config.members = _threeMembers();
 

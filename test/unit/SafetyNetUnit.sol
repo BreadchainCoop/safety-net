@@ -7,6 +7,7 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
 
+import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {InviteGenerator} from 'script/InviteGenerator.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
@@ -83,7 +84,7 @@ contract SafetyNetUnit is Test {
       owner: _owner,
       minimumMembers: 2,
       maximumMembers: 5,
-      consensusThreshold: 60,
+      contestThreshold: 33,
       safetyNetStart: block.timestamp,
       token: _tokenAddr,
       members: members,
@@ -92,7 +93,6 @@ contract SafetyNetUnit is Test {
       redeemRatio: 1,
       autoThreshold: 50 ether,
       contestWindow: 3 days,
-      votingWindow: 7 days,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
@@ -107,7 +107,7 @@ contract SafetyNetUnit is Test {
       owner: _owner,
       minimumMembers: 2,
       maximumMembers: 2,
-      consensusThreshold: 60,
+      contestThreshold: 33,
       safetyNetStart: block.timestamp,
       token: _tokenAddr,
       members: members,
@@ -116,7 +116,6 @@ contract SafetyNetUnit is Test {
       redeemRatio: 1,
       autoThreshold: 50 ether,
       contestWindow: 3 days,
-      votingWindow: 7 days,
       epochDuration: 30 days,
       smallWithdrawsLimit: 3
     });
@@ -318,18 +317,18 @@ contract SafetyNetUnit is Test {
     _sn.create(_safetyNet);
   }
 
-  function test_CreateWhenConsensusThresholdIsZero() external {
+  function test_CreateWhenContestThresholdIsZero() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.consensusThreshold = 0;
+    _safetyNet.contestThreshold = 0;
     uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
 
-  function test_CreateWhenConsensusThresholdIsGreaterThan100() external {
+  function test_CreateWhenContestThresholdIsGreaterThan100() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.consensusThreshold = 150;
+    _safetyNet.contestThreshold = 150;
     uint256 id = _sn.create(_safetyNet);
     assertEq(id, 0);
   }
@@ -342,7 +341,7 @@ contract SafetyNetUnit is Test {
       0,
       _safetyNet.minimumMembers,
       _safetyNet.maximumMembers,
-      _safetyNet.consensusThreshold,
+      _safetyNet.contestThreshold,
       _safetyNet.members,
       _safetyNet.token,
       _safetyNet.initialDeposit,
@@ -700,12 +699,12 @@ contract SafetyNetUnit is Test {
     vm.prank(_alice);
     _sn.withdraw(id, 1);
     assertEq(_sn.nextIdRequest(), 1);
-    (address reqOwner, uint256 reqSafetyNetId,,,,) = _sn.requests(0);
+    (address reqOwner, uint256 reqSafetyNetId,,, uint256 rqAmount) = _sn.requests(0);
     assertEq(reqOwner, _alice);
     assertEq(reqSafetyNetId, id);
   }
 
-  // ---------- createRequest / contest / execute / vote (happy paths) ----------
+  // ---------- createRequest / contest / execute ----------
   function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
@@ -724,13 +723,132 @@ contract SafetyNetUnit is Test {
     reqId = 0;
   }
 
+  // ---------- CONTEST MECHANISM TESTS ----------
+
   function test_ContestValid() external {
     (, uint256 reqId) = _createFundAndRequest();
 
     // Bob is member, within contest window
     vm.prank(_bob);
     _sn.contest(reqId);
-    assertTrue(_sn.isContested(reqId));
+
+    (,,, uint256 contestCount,) = _sn.requests(reqId);
+    assertEq(contestCount, 1);
+  }
+
+  function test_ContestIncrementsCounter() external {
+    (, uint256 reqId) = _createFundAndRequest();
+
+    // Bob contests
+    vm.prank(_bob);
+    _sn.contest(reqId);
+
+    // Check if counter incremented to 1
+    (,,, uint256 contestCount,) = _sn.requests(reqId);
+    assertEq(contestCount, 1);
+
+    // Check that hasContested mapping is updated correctly
+    assertTrue(_sn.hasContested(reqId, _bob));
+  }
+
+  function test_ContestRevertsIfUserAlreadyContested() external {
+    _allowToken(address(_token));
+
+    // Create a SafetyNet with 5 members to prevent immediate veto on first contest
+    address[] memory members = new address[](5);
+    members[0] = _alice;
+    members[1] = _bob;
+    members[2] = _carol;
+    members[3] = _dave;
+    members[4] = makeAddr('eve');
+
+    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 10,
+      contestThreshold: 33,
+      safetyNetStart: block.timestamp,
+      token: address(_token),
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      redeemRatio: 1,
+      autoThreshold: 1,
+      contestWindow: 3 days,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+    uint256 id = _sn.create(_safetyNet);
+
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.initialDeposit);
+
+    vm.prank(_alice);
+    _sn.withdraw(id, 2); // Withdraw > autoThreshold creates request
+    uint256 reqId = 0;
+
+    // Bob contests for the first time (1/5 = 20%, doesn't trigger veto)
+    vm.prank(_bob);
+    _sn.contest(reqId);
+
+    // Bob tries to contest again maliciously (Sybil attack)
+    vm.expectRevert(ISafetyNet.AlreadyContestedByMember.selector);
+    vm.prank(_bob);
+    _sn.contest(reqId);
+  }
+
+  function test_ContestTriggersVetoWhenThresholdExceeded() external {
+    _allowToken(address(_token));
+
+    // Create a SafetyNet with 4 members to test the math properly!
+    // Threshold: (4 * 33) / 100 = 1. So it takes 2 contests to > 1.
+    address[] memory members = new address[](4);
+    members[0] = _alice;
+    members[1] = _bob;
+    members[2] = _carol;
+    members[3] = _dave;
+
+    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 5,
+      contestThreshold: 33, // 33% threshold
+      safetyNetStart: block.timestamp,
+      token: address(_token),
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      redeemRatio: 1,
+      autoThreshold: 1,
+      contestWindow: 3 days,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 3
+    });
+    uint256 id = _sn.create(_safetyNet);
+
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.initialDeposit);
+
+    vm.prank(_alice);
+    _sn.withdraw(id, 1);
+    uint256 reqId = 0;
+
+    // Bob contests (Count = 1). 1 > 1 is False. Veto NOT triggered yet.
+    vm.prank(_bob);
+    _sn.contest(reqId);
+    assertFalse(_sn.isVetoed(reqId));
+
+    // Carol also contests (Count = 2). 2 > 1 is True!
+    // This MUST trigger the veto and emit the event.
+    vm.prank(_carol);
+    vm.expectEmit(true, true, false, true, address(_sn)); // Explicitly pass the SafetyNet contract address.
+    emit ISafetyNet.WithdrawalVetoed(reqId, _alice, block.timestamp);
+    _sn.contest(reqId);
+
+    // Assert the state is correctly updated
+    assertTrue(_sn.isVetoed(reqId));
   }
 
   function test_ExecuteContestedWithdrawalWhenContestWindowIsStillOpen() external {
@@ -755,56 +873,10 @@ contract SafetyNetUnit is Test {
 
     // Beyond window
     vm.warp(block.timestamp + 10 days);
-    (address rqOwner,,,,, uint256 rqAmount) = _sn.requests(reqId);
+    (address rqOwner,,,, uint256 rqAmount) = _sn.requests(reqId);
     vm.expectEmit(true, true, false, true);
     emit ISafetyNet.WithdrawalAutoExecuted(reqId, rqOwner, rqAmount);
     _sn.executeContestedWithdrawal(reqId);
-    assertTrue(_sn.isExecuted(reqId));
-  }
-
-  function test_VoteHappyPathYesAndExecuteOnConsensusExceeded() external {
-    _allowToken(address(_token));
-
-    // 3 members
-    address[] memory members = new address[](3);
-    members[0] = _alice;
-    members[1] = _bob;
-    members[2] = _carol;
-    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
-      id: 0,
-      owner: _owner,
-      minimumMembers: 2,
-      maximumMembers: 5,
-      consensusThreshold: 60,
-      safetyNetStart: block.timestamp,
-      token: address(_token),
-      members: members,
-      initialDeposit: 100 ether,
-      fixedDeposit: 10 ether,
-      redeemRatio: 1,
-      // Force request path
-      autoThreshold: 1,
-      contestWindow: 3 days,
-      votingWindow: 30 days,
-      epochDuration: 30 days,
-      smallWithdrawsLimit: 3
-    });
-    uint256 id = _sn.create(_safetyNet);
-
-    // Onboard
-    vm.prank(_alice);
-    _sn.deposit(id, _safetyNet.initialDeposit);
-
-    // Creates request 0
-    vm.prank(_alice);
-    _sn.withdraw(id, 1);
-    uint256 reqId = 0;
-
-    // Vote yes by alice then bob (2/3 = 66% > 60%)
-    vm.prank(_alice);
-    _sn.vote(reqId, true);
-    vm.prank(_bob);
-    _sn.vote(reqId, true);
     assertTrue(_sn.isExecuted(reqId));
   }
 

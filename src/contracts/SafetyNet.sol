@@ -14,6 +14,7 @@ import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 /// @author @exo404
 /// @author @valeriooconte
 /// @author @RonTuretzky
+/// @author @Fiuum1
 contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   using SafeERC20 for IERC20;
 
@@ -45,6 +46,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Hashed version for invite signatures
   bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
+  /// @notice Base denominator used for percentage calculations
+  uint256 public constant PERCENTAGE_BASE = 100;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
@@ -75,14 +79,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Lists all requests indexed by their unique ID
   mapping(uint256 idReq => Request request) public requests;
 
-  /// @notice Records votes for each request, mapping request ID to member address and their vote status
-  mapping(uint256 idReq => mapping(address member => bool status)) public requestVotes;
-
-  /// @notice Tracks if a request has been contested
-  mapping(uint256 id => bool contested) public isContested;
+  /// @notice Tracks if a request has been vetoed
+  mapping(uint256 id => bool vetoed) public isVetoed;
 
   /// @notice Tracks if a request has been executed
   mapping(uint256 id => bool executed) public isExecuted;
+
+  /// @notice Records if a member has already contested a specific request
+  mapping(uint256 idReq => mapping(address member => bool status)) public hasContested;
 
   /// @notice Per-epoch cumulative amount deposited by a member (their own savings) toward the exact dues
   mapping(uint256 safetyNetId => mapping(uint256 epochIndex => mapping(address member => uint256))) public epochMemberDepositedAmount;
@@ -159,7 +163,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _id,
       _safetyNet.minimumMembers,
       _safetyNet.maximumMembers,
-      _safetyNet.consensusThreshold,
+      _safetyNet.contestThreshold,
       _safetyNet.members,
       _safetyNet.token,
       _safetyNet.initialDeposit,
@@ -249,11 +253,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
-    if (_request.amount == 0) revert InvalidRequest();
+    if (_request.amount == 0) revert InvalidAmountZero();
 
     _request.timestamp = block.timestamp;
-    _request.yesVotes = 0;
-    _request.noVotes = 0;
+    _request.contestCount = 0;
 
     return _createRequest(_request);
   }
@@ -262,61 +265,54 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function contest(uint256 _requestId) external override nonReentrant onlyMemberOf(requests[_requestId].safetyNetId) {
     Request storage _request = requests[_requestId];
 
-    if (!_isContestable(_requestId)) revert ContestWindowClosed();
-    if (isContested[_requestId]) revert AlreadyContested();
+    // Ensure the request exists before allowing it to be contested
+    if (_request.owner == address(0)) revert InvalidAddressZero();
 
-    isContested[_requestId] = true;
+    if (!_isContestable(_requestId)) revert ContestWindowClosed();
+    if (isVetoed[_requestId]) revert AlreadyVetoed();
+
+    if (hasContested[_requestId][msg.sender]) revert AlreadyContestedByMember();
+
+    hasContested[_requestId][msg.sender] = true; // Ensure each member can only contest the request once
+
+    SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];
+    _request.contestCount++;
+
+    uint256 memberCount = safetyNet.members.length;
+    uint256 threshold = safetyNet.contestThreshold;
 
     emit WithdrawalContested(_requestId, _request.owner, block.timestamp);
+
+    // Multiply contestCount by PERCENTAGE_BASE instead of dividing the
+    // right-hand side, so integer truncation cannot lower the threshold.
+    if (_request.contestCount * PERCENTAGE_BASE > memberCount * threshold) {
+      isVetoed[_requestId] = true;
+      // Vetoed because more than contestThreshold% of the members have contested
+      emit WithdrawalVetoed(_requestId, _request.owner, block.timestamp);
+    }
   }
 
   /// @inheritdoc ISafetyNet
   function executeContestedWithdrawal(uint256 _idRequest) external override nonReentrant {
     Request memory _request = requests[_idRequest];
+    if (_request.amount == 0) revert InvalidAmountZero();
+    if (_request.owner == address(0)) revert InvalidAddressZero();
     if (isExecuted[_idRequest]) revert AlreadyExecuted();
 
-    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
+    SafetyNet storage safetyNet = safetyNets[_request.safetyNetId];
 
-    // Can only auto-execute if contest window has passed and request was not contested
-    if (!_isContestable(_idRequest) && !isContested[_idRequest]) {
+    // Can only auto-execute if contest window has passed and request was not vetoed
+    if (!_isContestable(_idRequest) && !isVetoed[_idRequest]) {
       _deduct(_request.safetyNetId, _request.owner, _request.amount);
 
       isExecuted[_idRequest] = true;
       emit WithdrawalAutoExecuted(_idRequest, _request.owner, _request.amount);
 
-      IERC20(_safetyNet.token).safeTransfer(_request.owner, _request.amount);
+      IERC20(safetyNet.token).safeTransfer(_request.owner, _request.amount);
     }
   }
 
-  function vote(uint256 _requestId, bool _vote) external override nonReentrant {
-    if (!isMember[requests[_requestId].safetyNetId][msg.sender]) revert NotMember();
-    if (requestVotes[_requestId][msg.sender]) revert AlreadyVoted();
-    if (!_isVotingOngoing(_requestId)) revert VotingWindowClosed();
-    if (isExecuted[_requestId]) revert AlreadyExecuted();
-
-    if (_vote) {
-      requests[_requestId].yesVotes++;
-    } else {
-      requests[_requestId].noVotes++;
-    }
-    requestVotes[_requestId][msg.sender] = true;
-    emit Voted(_requestId, msg.sender, _vote);
-
-    // Check if consensus has been reached after this vote
-    Request memory _request = requests[_requestId];
-    SafetyNet memory _safetyNet = safetyNets[_request.safetyNetId];
-
-    if (_request.yesVotes > _safetyNet.members.length * _safetyNet.consensusThreshold / 100) {
-      // Consensus reached - execute withdrawal immediately
-      _deduct(_request.safetyNetId, _request.owner, _request.amount);
-
-      isExecuted[_requestId] = true;
-      emit WithdrawalApproved(_requestId, _request.owner, _request.amount);
-      IERC20(_safetyNet.token).safeTransfer(_request.owner, _request.amount);
-    }
-  }
   /// @inheritdoc ISafetyNet
-
   function isTokenAllowed(address _token) external view override returns (bool) {
     return allowedTokens[_token];
   }
@@ -438,7 +434,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit is the total amount
-   *      The method "transferFrom()" requires "approve()" front-end side
    *      Each epoch after initial deposit, a member must pay exactly `fixedDeposit`.
    *      Partial deposits are allowed until the epoch sum == fixedDeposit.
    */
@@ -487,7 +482,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _createRequest(Request memory _request) internal returns (uint256) {
     uint256 _idRequest = nextIdRequest++;
 
-    if (_request.owner == address(0)) revert InvalidRequest();
+    if (_request.owner == address(0)) revert InvalidAddressZero();
     if (requests[_idRequest].owner != address(0)) revert AlreadyExists();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
 
@@ -508,7 +503,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
     SafetyNet memory _safetyNet = safetyNets[_id];
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
-
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
 
@@ -530,7 +524,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
     } else {
       Request memory _request =
-        Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, yesVotes: 0, noVotes: 0, amount: _withdrawAmount});
+        Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, contestCount: 0, amount: _withdrawAmount});
       uint256 _idRequest = _createRequest(_request);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
     }
@@ -547,12 +541,6 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function _isContestable(uint256 _idRequest) internal view returns (bool) {
     Request memory _request = requests[_idRequest];
     return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].contestWindow);
-  }
-
-  /// @dev Check if a request's voting window is open by comparing the current timestamp with the request's timestamp and the voting window
-  function _isVotingOngoing(uint256 _idRequest) internal view returns (bool) {
-    Request memory _request = requests[_idRequest];
-    return block.timestamp <= (_request.timestamp + safetyNets[_request.safetyNetId].votingWindow);
   }
 
   /// @dev
@@ -572,7 +560,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance.
   ///      Reverts with `NotWithdrawable` if balance is insufficient.
-  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) private {
+  function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) internal {
     if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
       revert NotWithdrawable();
     }

@@ -35,13 +35,12 @@ abstract contract SafetyNetFuzzBase is Test {
   // Defaults (chosen to be permissive but safe for fuzzing)
   uint256 internal constant _SAFE_MIN_MEMBERS = 3;
   uint256 internal constant _SAFE_MAX_MEMBERS = 10;
-  uint256 internal constant _SAFE_CONSENSUS = 51; // percentage
+  uint256 internal constant _SAFE_CONTEST = 33; // percentage
   uint256 internal constant _SAFE_INITIAL_DEPOSIT = 225e18;
   uint256 internal constant _SAFE_FIXED_DEPOSIT = 50e18;
   uint256 internal constant _SAFE_RATIO = 1; // 1x
   uint256 internal constant _SAFE_AUTO_THRESHOLD = 150e18;
   uint256 internal constant _SAFE_CONTEST_WINDOW = 1 days;
-  uint256 internal constant _SAFE_VOTING_WINDOW = 3 days;
   uint256 internal constant _SAFE_EPOCH_DURATION = 30 days;
   uint256 internal constant _SAFE_SMALL_WITHDRAWS_LIMIT = 3;
 
@@ -87,7 +86,7 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.owner = _owner;
     cfg.minimumMembers = _SAFE_MIN_MEMBERS;
     cfg.maximumMembers = _SAFE_MAX_MEMBERS;
-    cfg.consensusThreshold = _SAFE_CONSENSUS;
+    cfg.contestThreshold = _SAFE_CONTEST;
     cfg.safetyNetStart = block.timestamp + 1 days; // future by default
     cfg.token = address(_token);
     cfg.members = _defaultMembers;
@@ -96,7 +95,6 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.redeemRatio = _SAFE_RATIO;
     cfg.autoThreshold = _SAFE_AUTO_THRESHOLD;
     cfg.contestWindow = _SAFE_CONTEST_WINDOW;
-    cfg.votingWindow = _SAFE_VOTING_WINDOW;
     cfg.epochDuration = _SAFE_EPOCH_DURATION;
     cfg.smallWithdrawsLimit = _SAFE_SMALL_WITHDRAWS_LIMIT;
     _safeCfg = cfg;
