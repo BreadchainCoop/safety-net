@@ -3,8 +3,9 @@
         "no-console": "off",
         "reason-string": "off",
         "no-empty-blocks": "off",
-        "use-natspec": "off",
-        "style-guide-casing": "off",
+        "func-name-mixedcase": "off",
+        "contract-name-capwords": "off",
+        "var-name-mixedcase": "off",
         "one-contract-per-file": "off"
     }
 }
