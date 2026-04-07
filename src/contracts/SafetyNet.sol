@@ -518,6 +518,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
         revert ExceedsSmallWithdrawalLimit();
       }
       memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
+      if (_withdrawAmount > safetyNetBalance[_id]) revert InsufficientPoolLiquidity();
       safetyNetBalance[_id] -= _withdrawAmount;
       IERC20(_safetyNet.token).safeTransfer(_member, _withdrawAmount);
 
@@ -565,6 +566,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       revert NotWithdrawable();
     }
     memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
+    if (_amount > safetyNetBalance[_safetyNetId]) revert InsufficientPoolLiquidity();
     safetyNetBalance[_safetyNetId] -= _amount;
   }
 
