@@ -1112,4 +1112,78 @@ contract SafetyNetUnit is Test {
     vm.expectRevert(ISafetyNet.NotCommissioned.selector);
     _sn.redeemInvite(invite, signature);
   }
+
+  // ---------- redeemRatio formula verification ----------
+
+  /// @notice Verifies the redeemRatio multiplier is applied correctly at every stage:
+  ///   1. initialDeposit:  memberWithdrawableBalance = initialDeposit * redeemRatio
+  ///   2. fixedDeposit:    memberWithdrawableBalance increases by fixedDeposit * redeemRatio
+  ///   3. withdraw(1 day): deducted amount = (fixedDeposit * redeemRatio) / DAYS_IN_A_MONTH
+  ///      with fixedDeposit=10e18, redeemRatio=5, DAYS_IN_A_MONTH=30 => 1_666_666_666_666_666_666
+  function test_RedeemRatioFormulaVerification() external {
+    _allowToken(address(_token));
+
+    // Build a custom safety net with redeemRatio = 5 and a large autoThreshold so
+    // the 1-day withdrawal goes through the small (direct transfer) path.
+    address[] memory members = new address[](2);
+    members[0] = _alice;
+    members[1] = _bob;
+    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
+      id: 0,
+      owner: _owner,
+      minimumMembers: 2,
+      maximumMembers: 5,
+      consensusThreshold: 60,
+      safetyNetStart: block.timestamp,
+      token: address(_token),
+      members: members,
+      initialDeposit: 100 ether,
+      fixedDeposit: 10 ether,
+      redeemRatio: 5,
+      autoThreshold: 500 ether,
+      contestWindow: 3 days,
+      votingWindow: 7 days,
+      epochDuration: 30 days,
+      smallWithdrawsLimit: 10
+    });
+
+    uint256 id = _sn.create(_safetyNet);
+
+    // --- epoch 0: alice deposits initialDeposit (100 ether) ---
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.initialDeposit);
+
+    // memberWithdrawableBalance should equal initialDeposit * redeemRatio = 100e18 * 5 = 500e18
+    uint256 balanceAfterInitial = _sn.memberWithdrawableBalance(id, _alice);
+    assertEq(balanceAfterInitial, 500 ether, "initial: balance should be initialDeposit * redeemRatio");
+
+    // --- epoch 1: alice deposits fixedDeposit (10 ether) ---
+    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration + 1);
+
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.fixedDeposit);
+
+    uint256 balanceAfterFixed = _sn.memberWithdrawableBalance(id, _alice);
+    // increase should be fixedDeposit * redeemRatio = 10e18 * 5 = 50e18
+    assertEq(balanceAfterFixed - balanceAfterInitial, 50 ether, "epoch1 deposit: increase should be fixedDeposit * redeemRatio");
+
+    // --- withdraw 1 day ---
+    // dailyWithdrawableAmount = (fixedDeposit * redeemRatio) / 30
+    //                         = (10e18 * 5) / 30
+    //                         = 1_666_666_666_666_666_666
+    // Compute daily entitlement as a runtime expression to avoid Solidity constant-folding
+    // refusing to convert rational constants to uint256.
+    uint256 expectedDaily = (_safetyNet.fixedDeposit * _safetyNet.redeemRatio) / 30;
+    assertEq(expectedDaily, 1_666_666_666_666_666_666, "expectedDaily computation sanity check");
+
+    uint256 tokenBefore = _token.balanceOf(_alice);
+    vm.prank(_alice);
+    _sn.withdraw(id, 1);
+
+    uint256 withdrawn = _token.balanceOf(_alice) - tokenBefore;
+    assertEq(withdrawn, expectedDaily, "withdrawn amount should equal (fixedDeposit * redeemRatio) / DAYS_IN_A_MONTH");
+
+    uint256 balanceAfterWithdraw = _sn.memberWithdrawableBalance(id, _alice);
+    assertEq(balanceAfterWithdraw, balanceAfterFixed - expectedDaily, "withdrawable balance should decrease by daily amount");
+  }
 }
