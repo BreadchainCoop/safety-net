@@ -7,7 +7,6 @@ import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
 
-import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {InviteGenerator} from 'script/InviteGenerator.sol';
 import {SafetyNet} from 'src/contracts/SafetyNet.sol';
 import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
@@ -27,7 +26,7 @@ contract FailERC20 {
   }
 }
 
-contract SafetyNetUnit is Test {
+abstract contract SafetyNetUnitBase is Test {
   SafetyNet internal _sn;
   MockERC20 internal _token;
   FailERC20 internal _failToken;
@@ -35,11 +34,19 @@ contract SafetyNetUnit is Test {
   string internal constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
   string internal constant _INVITE_SIGNATURE_VERSION = '1';
   uint256 internal constant _CHAIN_ID = 1;
+  string internal constant _REQUEST_SIGNING_DOMAIN = 'SafetyNetRequest';
+  string internal constant _REQUEST_SIGNATURE_VERSION = '1';
+  bytes32 internal constant _REQUEST_AUTHORIZATION_TYPEHASH =
+    keccak256('RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)');
+  bytes32 internal constant _EIP712_DOMAIN_TYPEHASH =
+    keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
 
   address internal _owner;
   uint256 internal _ownerKey;
   address internal _impostor;
   uint256 internal _impostorKey;
+  address internal _requester;
+  uint256 internal _requesterKey;
   address internal _alice = makeAddr('alice');
   address internal _bob = makeAddr('bob');
   address internal _carol = makeAddr('carol');
@@ -48,6 +55,7 @@ contract SafetyNetUnit is Test {
   function setUp() public {
     (_owner, _ownerKey) = makeAddrAndKey('owner');
     (_impostor, _impostorKey) = makeAddrAndKey('impostor');
+    (_requester, _requesterKey) = makeAddrAndKey('requester');
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
@@ -137,6 +145,61 @@ contract SafetyNetUnit is Test {
     vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
   }
 
+  function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // Ensure withdraw goes through request path
+    _safetyNet.autoThreshold = 1;
+    id = _sn.create(_safetyNet);
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.initialDeposit);
+
+    // Create request via withdraw above threshold
+    vm.prank(_alice);
+
+    // Large enough for request
+    _sn.withdraw(id, 2);
+    reqId = 0;
+  }
+
+  function _signRequestAuthorization(
+    uint256 _privateKey,
+    uint256 _safetyNetId,
+    uint256 _amount,
+    uint256 _nonce,
+    uint256 _deadline
+  ) internal view returns (bytes memory) {
+    bytes32 structHash = keccak256(abi.encode(_REQUEST_AUTHORIZATION_TYPEHASH, _safetyNetId, _amount, _nonce, _deadline));
+    bytes32 domainSeparator = keccak256(
+      abi.encode(
+        _EIP712_DOMAIN_TYPEHASH,
+        keccak256(bytes(_REQUEST_SIGNING_DOMAIN)),
+        keccak256(bytes(_REQUEST_SIGNATURE_VERSION)),
+        block.chainid,
+        address(_sn)
+      )
+    );
+    bytes32 digest = keccak256(abi.encodePacked('\x19\x01', domainSeparator, structHash));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, digest);
+    return abi.encodePacked(r, s, v);
+  }
+
+  function _safetyNetWithRequester(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
+    _safetyNet = _defaultSafetyNet(_tokenAddr);
+    address[] memory members = new address[](3);
+    members[0] = _alice;
+    members[1] = _bob;
+    members[2] = _requester;
+    _safetyNet.members = members;
+  }
+
+  function _requestFor(uint256 _safetyNetId, address _reqOwner, uint256 _amount) internal pure returns (ISafetyNet.Request memory) {
+    return ISafetyNet.Request({owner: _reqOwner, safetyNetId: _safetyNetId, timestamp: 0, contestCount: 0, amount: _amount});
+  }
+}
+
+contract SafetyNetUnit is SafetyNetUnitBase {
   // ---------- initialize ----------
   function test_InitializeWhenAlreadyInitialized() external {
     vm.expectRevert(abi.encodeWithSignature('InvalidInitialization()'));
@@ -704,25 +767,6 @@ contract SafetyNetUnit is Test {
     assertEq(reqSafetyNetId, id);
   }
 
-  // ---------- createRequest / contest / execute ----------
-  function _createFundAndRequest() internal returns (uint256 id, uint256 reqId) {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-
-    // Ensure withdraw goes through request path
-    _safetyNet.autoThreshold = 1;
-    id = _sn.create(_safetyNet);
-    vm.prank(_alice);
-    _sn.deposit(id, _safetyNet.initialDeposit);
-
-    // Create request via withdraw above threshold
-    vm.prank(_alice);
-
-    // Large enough for request
-    _sn.withdraw(id, 2);
-    reqId = 0;
-  }
-
   // ---------- CONTEST MECHANISM TESTS ----------
 
   function test_ContestValid() external {
@@ -1111,5 +1155,497 @@ contract SafetyNetUnit is Test {
     vm.prank(_carol);
     vm.expectRevert(ISafetyNet.NotCommissioned.selector);
     _sn.redeemInvite(invite, signature);
+  }
+}
+
+contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
+  // ---------- createRequestWithSignature ----------
+  function test_CreateRequestWithSignatureWhenSignatureIsValid() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+
+    // Garbage values must be overridden by the contract
+    request.timestamp = 123_456;
+    request.contestCount = 42;
+
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    // Anyone may submit (relayer pattern)
+    vm.expectEmit(true, false, false, true, address(_sn));
+    emit ISafetyNet.RequestCreated(0, _requester, block.timestamp, amount);
+    vm.prank(_carol);
+    uint256 reqId = _sn.createRequestWithSignature(request, nonce, deadline, signature);
+
+    assertEq(reqId, 0);
+    assertEq(_sn.nextIdRequest(), 1);
+    assertTrue(_sn.usedRequestNonces(id, _requester, nonce));
+
+    (address reqOwner, uint256 reqSafetyNetId, uint256 reqTimestamp, uint256 reqContestCount, uint256 reqAmount) = _sn.requests(reqId);
+    assertEq(reqOwner, _requester);
+    assertEq(reqSafetyNetId, id);
+    assertEq(reqTimestamp, block.timestamp);
+    assertEq(reqContestCount, 0);
+    assertEq(reqAmount, amount);
+
+    // Request is indexed under the Safety Net
+    uint256[] memory requestIds = _sn.getSafetyNetRequestIds(id);
+    assertEq(requestIds.length, 1);
+    assertEq(requestIds[0], reqId);
+  }
+
+  function test_CreateRequestWithSignatureWhenSignerIsNotRequestOwner() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_impostorKey, id, amount, nonce, deadline);
+
+    vm.expectRevert(ISafetyNet.InvalidSigner.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenSignatureCoversDifferentParameters() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 nonce = 1;
+
+    // Signature authorizes 60 ether but the submitted request asks for more
+    ISafetyNet.Request memory request = _requestFor(id, _requester, 61 ether);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, 60 ether, nonce, deadline);
+
+    vm.expectRevert(ISafetyNet.InvalidSigner.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenNonceIsReplayed() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+
+    vm.expectRevert(ISafetyNet.RequestNonceAlreadyUsed.selector);
+    vm.prank(_dave);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenSameNonceIsUsedOnDifferentSafetyNets() external {
+    _allowToken(address(_token));
+    uint256 idA = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 idB = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    uint256 deadline = block.timestamp + 1 days;
+
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(
+      _requestFor(idA, _requester, amount), nonce, deadline, _signRequestAuthorization(_requesterKey, idA, amount, nonce, deadline)
+    );
+
+    // Nonces are tracked per (safetyNetId, owner), so the same nonce is valid on another Safety Net
+    vm.prank(_carol);
+    uint256 reqId = _sn.createRequestWithSignature(
+      _requestFor(idB, _requester, amount), nonce, deadline, _signRequestAuthorization(_requesterKey, idB, amount, nonce, deadline)
+    );
+    assertEq(reqId, 1);
+  }
+
+  function test_CreateRequestWithSignatureWhenRequestOwnerIsNotAMember() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    // _requester signs their own request but is not a member of this Safety Net
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    vm.expectRevert(ISafetyNet.NotMember.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenAmountIsZero() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, 0);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, 0, nonce, deadline);
+
+    vm.expectRevert(ISafetyNet.InvalidAmountZero.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenSafetyNetDoesNotExist() external {
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(999, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, 999, amount, nonce, deadline);
+
+    vm.expectRevert(ISafetyNet.NotCommissioned.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenDeadlineHasPassed() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    // One second past the deadline the authorization is no longer submittable
+    vm.warp(deadline + 1);
+    vm.expectRevert(ISafetyNet.AuthorizationExpired.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CreateRequestWithSignatureWhenSubmittedExactlyAtDeadline() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    // Submitting exactly at the deadline is still valid
+    vm.warp(deadline);
+    vm.prank(_carol);
+    uint256 reqId = _sn.createRequestWithSignature(request, nonce, deadline, signature);
+    assertEq(reqId, 0);
+  }
+
+  function test_CreateRequestWithSignatureWhenDeadlineDiffersFromSignedDeadline() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, block.timestamp + 1 days);
+
+    // Submitter cannot extend the deadline beyond what was signed
+    vm.expectRevert(ISafetyNet.InvalidSigner.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, block.timestamp + 30 days, signature);
+  }
+
+  // ---------- cancelRequestNonce ----------
+  function test_CancelRequestNonceWhenNonceIsUnused() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    // The owner cancels their outstanding authorization
+    vm.expectEmit(true, true, false, true, address(_sn));
+    emit ISafetyNet.RequestNonceCancelled(id, _requester, nonce);
+    vm.prank(_requester);
+    _sn.cancelRequestNonce(id, nonce);
+
+    assertTrue(_sn.usedRequestNonces(id, _requester, nonce));
+
+    // The previously signed authorization can no longer be submitted
+    vm.expectRevert(ISafetyNet.RequestNonceAlreadyUsed.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
+  function test_CancelRequestNonceWhenNonceIsAlreadyUsed() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 nonce = 1;
+
+    vm.prank(_requester);
+    _sn.cancelRequestNonce(id, nonce);
+
+    vm.expectRevert(ISafetyNet.RequestNonceAlreadyUsed.selector);
+    vm.prank(_requester);
+    _sn.cancelRequestNonce(id, nonce);
+  }
+
+  function test_CancelRequestNonceWhenCallerOnlyAffectsOwnNonceSpace() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    // Carol cancelling `nonce` in her own space does not burn the requester's nonce
+    vm.prank(_carol);
+    _sn.cancelRequestNonce(id, nonce);
+
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+    vm.prank(_carol);
+    uint256 reqId = _sn.createRequestWithSignature(_requestFor(id, _requester, amount), nonce, deadline, signature);
+    assertEq(reqId, 0);
+  }
+
+  // ---------- aggregated views ----------
+  function test_GetMembersWhenSafetyNetExists() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    address[] memory members = _sn.getMembers(id);
+    assertEq(members.length, 2);
+    assertEq(members[0], _alice);
+    assertEq(members[1], _bob);
+  }
+
+  function test_GetMembersWhenSafetyNetDoesNotExist() external view {
+    address[] memory members = _sn.getMembers(999);
+    assertEq(members.length, 0);
+  }
+
+  function test_GetSafetyNetRequestIdsWhenNoRequestsExist() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    assertEq(_sn.getSafetyNetRequestIds(id).length, 0);
+    assertEq(_sn.getSafetyNetRequests(id).length, 0);
+  }
+
+  function test_GetSafetyNetRequestIdsWhenRequestsAreCreatedThroughAllPaths() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _safetyNetWithRequester(address(_token));
+
+    // Force the withdraw path to create requests
+    _safetyNet.autoThreshold = 1;
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+
+    // Request 0 via withdraw
+    vm.prank(_alice);
+    _sn.withdraw(id, 2);
+
+    // Request 1 via createRequest
+    vm.prank(_alice);
+    _sn.createRequest(_requestFor(id, _alice, 5 ether));
+
+    // Request 2 via createRequestWithSignature
+    uint256 deadline = block.timestamp + 1 days;
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(
+      _requestFor(id, _requester, 3 ether), 1, deadline, _signRequestAuthorization(_requesterKey, id, 3 ether, 1, deadline)
+    );
+
+    uint256[] memory requestIds = _sn.getSafetyNetRequestIds(id);
+    assertEq(requestIds.length, 3);
+    assertEq(requestIds[0], 0);
+    assertEq(requestIds[1], 1);
+    assertEq(requestIds[2], 2);
+  }
+
+  function test_GetSafetyNetRequestsWhenDerivingRequestStatus() external {
+    (uint256 id, uint256 reqId) = _createFundAndRequest();
+
+    // Within the contest window: contestable, not executable
+    ISafetyNet.RequestView[] memory views = _sn.getSafetyNetRequests(id);
+    assertEq(views.length, 1);
+    assertEq(views[0].id, reqId);
+    assertEq(views[0].request.owner, _alice);
+    assertEq(views[0].request.safetyNetId, id);
+    assertFalse(views[0].isVetoed);
+    assertFalse(views[0].isExecuted);
+    assertTrue(views[0].isContestable);
+    assertFalse(views[0].isExecutable);
+
+    // After the contest window: executable
+    vm.warp(block.timestamp + 10 days);
+    views = _sn.getSafetyNetRequests(id);
+    assertFalse(views[0].isContestable);
+    assertTrue(views[0].isExecutable);
+
+    // After execution: executed, no longer executable
+    _sn.executeContestedWithdrawal(reqId);
+    views = _sn.getSafetyNetRequests(id);
+    assertTrue(views[0].isExecuted);
+    assertFalse(views[0].isExecutable);
+  }
+
+  function test_GetSafetyNetRequestsWhenRequestIsVetoed() external {
+    (uint256 id, uint256 reqId) = _createFundAndRequest();
+
+    // 2 members, threshold 33%: a single contest exceeds the threshold and vetoes
+    vm.prank(_bob);
+    _sn.contest(reqId);
+    assertTrue(_sn.isVetoed(reqId));
+
+    // Still inside the time window: a vetoed request is no longer contestable (contest() would revert)
+    ISafetyNet.RequestView[] memory views = _sn.getSafetyNetRequests(id);
+    assertTrue(views[0].isVetoed);
+    assertFalse(views[0].isContestable);
+    assertFalse(views[0].isExecutable);
+
+    vm.warp(block.timestamp + 10 days);
+    views = _sn.getSafetyNetRequests(id);
+    assertTrue(views[0].isVetoed);
+    assertFalse(views[0].isExecuted);
+    assertFalse(views[0].isContestable);
+    assertFalse(views[0].isExecutable);
+  }
+
+  function test_GetSafetyNetRequestsWhenOwnerBalanceIsInsufficient() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+
+    // Request more than Alice's withdrawable balance (100 ether at redeemRatio 1)
+    vm.prank(_alice);
+    _sn.createRequest(_requestFor(id, _alice, 200 ether));
+
+    // Past the contest window, execution would revert on balance, so it must not be flagged executable
+    vm.warp(block.timestamp + 10 days);
+    ISafetyNet.RequestView[] memory views = _sn.getSafetyNetRequests(id);
+    assertFalse(views[0].isVetoed);
+    assertFalse(views[0].isExecuted);
+    assertFalse(views[0].isContestable);
+    assertFalse(views[0].isExecutable);
+  }
+
+  function test_GetSafetyNetRequestsWhenSafetyNetIsDecommissioned() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // Force the withdraw path to create a request
+    _safetyNet.autoThreshold = 1;
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+    vm.prank(_alice);
+    _sn.withdraw(id, 2);
+
+    // Skip an epoch so the Safety Net becomes decommissionable, then decommission it
+    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    _sn.decommission(id);
+
+    // The request survives in storage but must not be flagged executable on a decommissioned net
+    ISafetyNet.RequestView[] memory views = _sn.getSafetyNetRequests(id);
+    assertEq(views.length, 1);
+    assertFalse(views[0].isContestable);
+    assertFalse(views[0].isExecutable);
+  }
+
+  function test_GetSafetyNetDetailsWhenMemberIsQueried() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // Force the withdraw path to create a request
+    _safetyNet.autoThreshold = 1;
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    vm.prank(_alice);
+    _sn.withdraw(id, 2);
+
+    ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _alice);
+    assertEq(details.safetyNet.id, id);
+    assertEq(details.safetyNet.owner, _owner);
+    assertEq(details.totalBalance, _safetyNet.initialDeposit);
+    assertEq(details.memberCount, 2);
+    assertTrue(details.isMember);
+    assertEq(details.withdrawableBalance, _sn.memberWithdrawableBalance(id, _alice));
+    assertEq(details.monthlyContribute, _safetyNet.fixedDeposit);
+
+    // Alice paid the initial deposit which covers epoch 0 dues
+    assertEq(details.duesRemaining, 0);
+    assertEq(details.currentEpochIndex, 0);
+    assertFalse(details.isDecommissionable);
+    assertEq(details.requests.length, 1);
+    assertEq(details.requests[0].request.owner, _alice);
+
+    // Bob has not deposited yet, so he owes the full fixed deposit
+    ISafetyNet.SafetyNetDetails memory bobDetails = _sn.getSafetyNetDetails(id, _bob);
+    assertEq(bobDetails.duesRemaining, _safetyNet.fixedDeposit);
+    assertEq(bobDetails.withdrawableBalance, 0);
+    assertEq(bobDetails.monthlyContribute, 0);
+  }
+
+  function test_GetSafetyNetDetailsWhenQueriedAddressIsNotAMember() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _carol);
+    assertFalse(details.isMember);
+    assertEq(details.withdrawableBalance, 0);
+    assertEq(details.monthlyContribute, 0);
+  }
+
+  function test_GetSafetyNetDetailsWhenSafetyNetIsDecommissioned() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+
+    // Skip an epoch to make the Safety Net decommissionable, then decommission
+    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    _sn.decommission(id);
+
+    // Must not revert nor panic for decommissioned Safety Nets
+    ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _alice);
+    assertEq(details.safetyNet.owner, address(0));
+    assertEq(details.totalBalance, 0);
+    assertEq(details.memberCount, 0);
+    assertEq(details.duesRemaining, 0);
+    assertEq(details.currentEpochIndex, 0);
+    assertTrue(details.isDecommissionable);
+  }
+
+  function test_GetMemberDashboardWhenMemberHasNoSafetyNets() external view {
+    ISafetyNet.SafetyNetDetails[] memory dashboard = _sn.getMemberDashboard(_carol);
+    assertEq(dashboard.length, 0);
+  }
+
+  function test_GetMemberDashboardWhenMemberHasMultipleSafetyNets() external {
+    _allowToken(address(_token));
+    uint256 idA = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 idB = _sn.create(_defaultSafetyNet(address(_token)));
+
+    _payInitial(idA, _alice);
+
+    ISafetyNet.SafetyNetDetails[] memory dashboard = _sn.getMemberDashboard(_alice);
+    assertEq(dashboard.length, 2);
+    assertEq(dashboard[0].safetyNet.id, idA);
+    assertEq(dashboard[1].safetyNet.id, idB);
+    assertTrue(dashboard[0].isMember);
+    assertTrue(dashboard[1].isMember);
+    assertEq(dashboard[0].totalBalance, 100 ether);
+    assertEq(dashboard[1].totalBalance, 0);
+    assertEq(dashboard[0].duesRemaining, 0);
+    assertEq(dashboard[1].duesRemaining, 10 ether);
   }
 }

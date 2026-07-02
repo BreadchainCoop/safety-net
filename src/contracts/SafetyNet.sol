@@ -46,6 +46,22 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Hashed version for invite signatures
   bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
 
+  /// @notice Request signing domain name used for EIP-712 signatures
+  string private constant _REQUEST_SIGNING_DOMAIN = 'SafetyNetRequest';
+
+  /// @notice Request signing version used for EIP-712 signatures
+  string private constant _REQUEST_SIGNATURE_VERSION = '1';
+
+  /// @notice EIP-712 type hash for request authorization signatures
+  bytes32 private constant _REQUEST_AUTHORIZATION_TYPEHASH =
+    keccak256('RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)');
+
+  /// @notice Hashed domain name for request authorization signatures
+  bytes32 private constant _REQUEST_DOMAIN_NAME_HASH = keccak256(bytes(_REQUEST_SIGNING_DOMAIN));
+
+  /// @notice Hashed version for request authorization signatures
+  bytes32 private constant _REQUEST_DOMAIN_VERSION_HASH = keccak256(bytes(_REQUEST_SIGNATURE_VERSION));
+
   /// @notice Base denominator used for percentage calculations
   uint256 public constant PERCENTAGE_BASE = 100;
 
@@ -97,6 +113,12 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Tracks used nonces for invites to prevent replay attacks
   mapping(uint256 safetyNetId => mapping(uint256 nonce => bool used)) public usedNonces;
+
+  /// @notice Lists all request IDs created for a given Safety Net
+  mapping(uint256 safetyNetId => uint256[] requestIds) internal _safetyNetRequestIds;
+
+  /// @notice Tracks used request authorization nonces per Safety Net and owner to prevent replay attacks
+  mapping(uint256 safetyNetId => mapping(address owner => mapping(uint256 nonce => bool used))) public usedRequestNonces;
 
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
@@ -259,6 +281,41 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _request.contestCount = 0;
 
     return _createRequest(_request);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function createRequestWithSignature(
+    Request memory _request,
+    uint256 _nonce,
+    uint256 _deadline,
+    bytes calldata _signature
+  ) external override returns (uint256) {
+    if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
+    if (!isMember[_request.safetyNetId][_request.owner]) revert NotMember();
+    if (_request.amount == 0) revert InvalidAmountZero();
+    if (block.timestamp > _deadline) revert AuthorizationExpired();
+    if (usedRequestNonces[_request.safetyNetId][_request.owner][_nonce]) revert RequestNonceAlreadyUsed();
+
+    bytes32 _digest = _hashRequestAuthorization(_request.safetyNetId, _request.amount, _nonce, _deadline);
+    address _signer = ECDSA.recover(_digest, _signature);
+
+    if (_signer != _request.owner) revert InvalidSigner();
+
+    usedRequestNonces[_request.safetyNetId][_request.owner][_nonce] = true;
+
+    _request.timestamp = block.timestamp;
+    _request.contestCount = 0;
+
+    return _createRequest(_request);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function cancelRequestNonce(uint256 _safetyNetId, uint256 _nonce) external override {
+    if (usedRequestNonces[_safetyNetId][msg.sender][_nonce]) revert RequestNonceAlreadyUsed();
+
+    usedRequestNonces[_safetyNetId][msg.sender][_nonce] = true;
+
+    emit RequestNonceCancelled(_safetyNetId, msg.sender, _nonce);
   }
 
   /// @inheritdoc ISafetyNet
@@ -431,6 +488,59 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return false;
   }
 
+  /// @inheritdoc ISafetyNet
+  function getMembers(uint256 _id) external view override returns (address[] memory _members) {
+    return safetyNets[_id].members;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetRequestIds(uint256 _id) external view override returns (uint256[] memory _requestIds) {
+    return _safetyNetRequestIds[_id];
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetRequests(uint256 _id) public view override returns (RequestView[] memory _requestViews) {
+    uint256[] memory _requestIds = _safetyNetRequestIds[_id];
+    _requestViews = new RequestView[](_requestIds.length);
+
+    for (uint256 i = 0; i < _requestIds.length; i++) {
+      _requestViews[i] = _buildRequestView(_requestIds[i]);
+    }
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetDetails(uint256 _id, address _member) public view override returns (SafetyNetDetails memory _details) {
+    SafetyNet memory _safetyNet = safetyNets[_id];
+    bool _commissioned = !_isDecommissioned(_safetyNet);
+
+    uint256 _currentEpochIndex = _commissioned ? getCurrentEpochIndex(_id) : 0;
+    uint256 _paid = epochMemberDepositedAmount[_id][_currentEpochIndex][_member];
+    uint256 _target = _safetyNet.fixedDeposit;
+
+    _details = SafetyNetDetails({
+      safetyNet: _safetyNet,
+      totalBalance: safetyNetBalance[_id],
+      memberCount: _safetyNet.members.length,
+      isMember: isMember[_id][_member],
+      withdrawableBalance: memberWithdrawableBalance[_id][_member],
+      monthlyContribute: safetyNetMemberContribute[_id][_member],
+      duesRemaining: (_commissioned && _paid < _target) ? _target - _paid : 0,
+      currentEpochIndex: _currentEpochIndex,
+      isDecommissionable: isDecommissionable(_id),
+      requests: getSafetyNetRequests(_id)
+    });
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getMemberDashboard(address _member) external view override returns (SafetyNetDetails[] memory _dashboard) {
+    uint256[] memory _ids = memberSafetyNets[_member];
+    _dashboard = new SafetyNetDetails[](_ids.length);
+
+    for (uint256 i = 0; i < _ids.length; i++) {
+      _dashboard[i] = getSafetyNetDetails(_ids[i], _member);
+    }
+  }
+
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit is the total amount
@@ -475,7 +585,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /**
-   * @dev Create a request for withdrawal
+   * @notice Create a request for withdrawal
    * @param _request The request to be created
    * @return _idRequest The ID of the created request
    */
@@ -487,6 +597,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
 
     requests[_idRequest] = _request;
+    _safetyNetRequestIds[_request.safetyNetId].push(_idRequest);
 
     emit RequestCreated(_idRequest, _request.owner, _request.timestamp, _request.amount);
     return _idRequest;
@@ -566,6 +677,41 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
     memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
     safetyNetBalance[_safetyNetId] -= _amount;
+  }
+
+  /// @dev Builds a {RequestView} with derived status for a given request ID
+  function _buildRequestView(uint256 _requestId) internal view returns (RequestView memory _requestView) {
+    Request memory _request = requests[_requestId];
+    bool _exists = _request.owner != address(0);
+    bool _windowOpen = _isContestable(_requestId);
+    bool _vetoed = isVetoed[_requestId];
+    bool _executed = isExecuted[_requestId];
+    bool _commissioned = safetyNets[_request.safetyNetId].owner != address(0);
+    bool _fundsAvailable = memberWithdrawableBalance[_request.safetyNetId][_request.owner] >= _request.amount;
+
+    _requestView = RequestView({
+      id: _requestId,
+      request: _request,
+      isVetoed: _vetoed,
+      isExecuted: _executed,
+      isContestable: _exists && _windowOpen && !_vetoed,
+      isExecutable: _exists && !_windowOpen && !_vetoed && !_executed && _commissioned && _fundsAvailable
+    });
+  }
+
+  /// @dev Builds the EIP-712 digest for a request authorization
+  function _hashRequestAuthorization(
+    uint256 _safetyNetId,
+    uint256 _amount,
+    uint256 _nonce,
+    uint256 _deadline
+  ) private view returns (bytes32) {
+    bytes32 _structHash = keccak256(abi.encode(_REQUEST_AUTHORIZATION_TYPEHASH, _safetyNetId, _amount, _nonce, _deadline));
+
+    bytes32 _domainSeparator =
+      keccak256(abi.encode(_EIP712_DOMAIN_TYPEHASH, _REQUEST_DOMAIN_NAME_HASH, _REQUEST_DOMAIN_VERSION_HASH, block.chainid, address(this)));
+
+    return keccak256(abi.encodePacked('\x19\x01', _domainSeparator, _structHash));
   }
 
   /// @dev Builds the EIP-712 digest for an invite
