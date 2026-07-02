@@ -25,6 +25,10 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   const { symbol, decimals } = useTokenInfo(net.token);
   const { withdraw, status, hash, error, isBusy } = useWithdraw();
   const [days, setDays] = useState("");
+  // Whether the submitted withdrawal was small (instant), captured at submit
+  // time so the success message keeps describing the transaction that actually
+  // ran even if the input changes afterwards.
+  const [submittedSmall, setSubmittedSmall] = useState(false);
 
   const dailyAmount =
     (details.monthlyContribute * net.redeemRatio) / DAYS_IN_A_MONTH;
@@ -110,7 +114,9 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
 
         <ActionButton
           onClick={() => {
-            if (parsedDays !== null) withdraw(net.id, parsedDays);
+            if (parsedDays === null) return;
+            setSubmittedSmall(isSmall);
+            withdraw(net.id, parsedDays);
           }}
           isLoading={isBusy}
           disabled={
@@ -127,7 +133,7 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
           hash={hash}
           error={error}
           successLabel={
-            isSmall
+            submittedSmall
               ? "Withdrawn"
               : "Request created — executable after the contest window"
           }

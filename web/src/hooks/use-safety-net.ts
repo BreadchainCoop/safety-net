@@ -47,7 +47,10 @@ export function useSafetyNetDetails(id: bigint | undefined) {
     args: [id ?? 0n, address ?? zeroAddress],
     query: {
       enabled: isContractConfigured && id !== undefined,
+      // Keep polling even when the tab is in the background: contest windows
+      // can be short, so members must see new requests without a reload.
       refetchInterval: REFETCH_MS,
+      refetchIntervalInBackground: true,
     },
   });
 }
@@ -65,6 +68,7 @@ export function useHasContested(requestIds: readonly bigint[]) {
       enabled:
         isContractConfigured && Boolean(address) && requestIds.length > 0,
       refetchInterval: REFETCH_MS,
+      refetchIntervalInBackground: true,
     },
   });
 

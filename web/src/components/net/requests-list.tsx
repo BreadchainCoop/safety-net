@@ -8,6 +8,7 @@ import { TimeDisplay } from "@/components/ui/time-display";
 import { TxStatus } from "@/components/ui/tx-status";
 import { ActionButton } from "@/components/ui/action-button";
 import { Badge, Card, EmptyState } from "@/components/ui/ui";
+import { useNow } from "@/hooks/use-now";
 import { useHasContested } from "@/hooks/use-safety-net";
 import {
   useContest,
@@ -31,6 +32,7 @@ function RequestRow({
   hasContested: boolean;
 }) {
   const { address } = useAccount();
+  const now = useNow();
   const net = details.safetyNet;
   const { symbol, decimals } = useTokenInfo(net.token);
   const contestTx = useContest();
@@ -38,6 +40,9 @@ function RequestRow({
 
   const status = requestStatus(view);
   const contestEnds = view.request.timestamp + net.contestWindow;
+  // The contract-derived isContestable flag only updates on refetch; also gate
+  // on the live clock so the button can't be clicked after the window closed.
+  const contestWindowClosed = now >= Number(contestEnds);
   const memberCount = Number(details.memberCount);
   const votesToVeto =
     Math.floor((memberCount * Number(net.contestThreshold)) / 100) + 1;
@@ -92,9 +97,13 @@ function RequestRow({
             variant="destructive"
             onClick={() => contestTx.contest(view.id)}
             isLoading={contestTx.isBusy}
-            disabled={hasContested}
+            disabled={hasContested || contestWindowClosed}
           >
-            {hasContested ? "You contested this" : "Contest"}
+            {hasContested
+              ? "You contested this"
+              : contestWindowClosed
+                ? "Contest window ended"
+                : "Contest"}
           </ActionButton>
           <TxStatus
             status={contestTx.status}
