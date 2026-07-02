@@ -35,6 +35,7 @@ export function useTx() {
   const queryClient = useQueryClient();
 
   const {
+    data: receipt,
     isLoading: isConfirming,
     isSuccess,
     error: receiptError,
@@ -81,6 +82,8 @@ export function useTx() {
     run,
     reset,
     hash,
+    /** Confirmed receipt (for parsing emitted events on success). */
+    receipt,
     status,
     isBusy: isSigning || isConfirming,
     isSuccess,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAccount } from "wagmi";
-import { isAddress, type Address } from "viem";
-import { Caption } from "@breadcoop/ui";
-import { X } from "@phosphor-icons/react";
+import { isAddress, parseEventLogs, type Address } from "viem";
+import { Body, Button, Caption, Heading4 } from "@breadcoop/ui";
+import { ArrowRight, CheckCircle, X } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
@@ -14,7 +15,8 @@ import { AddressDisplay } from "@/components/ui/address-display";
 import { useCreateSafetyNet } from "@/hooks/use-safety-net-writes";
 import { useIsTokenAllowed } from "@/hooks/use-safety-net";
 import { useTokenInfo } from "@/hooks/use-token";
-import { BREAD_ADDRESS, WXDAI_ADDRESS } from "@/lib/config";
+import { safetyNetAbi } from "@/lib/abi/safety-net";
+import { BREAD_ADDRESS, REDEEM_RATIO, WXDAI_ADDRESS } from "@/lib/config";
 import { parseAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createNetSchema, type CreateNetValues } from "./schema";
@@ -23,11 +25,14 @@ const inputClass =
   "w-full rounded-xl border border-paper-2 bg-paper-main px-4 py-2.5 text-text-standard outline-none focus:border-primary-jade disabled:opacity-60";
 
 function Field({
+  id,
   label,
   help,
   error,
   children,
 }: {
+  /** Control id — the label points at it; help/error get `${id}-help/-error`. */
+  id?: string;
   label: string;
   help?: string;
   error?: string;
@@ -35,16 +40,38 @@ function Field({
 }) {
   return (
     <div>
-      <Caption className="text-surface-grey-2">{label}</Caption>
+      <label htmlFor={id}>
+        <Caption className="text-surface-grey-2">{label}</Caption>
+      </label>
       <div className="mt-1.5">{children}</div>
       {help && !error && (
-        <p className="text-surface-grey mt-1.5 text-xs">{help}</p>
+        <p id={id ? `${id}-help` : undefined} className="text-surface-grey mt-1.5 text-xs">
+          {help}
+        </p>
       )}
       {error && (
-        <p className="text-system-red mt-1.5 text-xs font-medium">{error}</p>
+        <p
+          id={id ? `${id}-error` : undefined}
+          className="text-system-red mt-1.5 text-xs font-medium"
+        >
+          {error}
+        </p>
       )}
     </div>
   );
+}
+
+/** aria wiring for an input inside a <Field id={id} …>. */
+function fieldAria(id: string, error?: string, help?: string) {
+  return {
+    id,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error
+      ? `${id}-error`
+      : help
+        ? `${id}-help`
+        : undefined,
+  };
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -65,9 +92,18 @@ function nowLocalDateTime(): string {
 
 export function CreateForm() {
   const { address } = useAccount();
-  const { create, status, hash, error: txError, isBusy } = useCreateSafetyNet();
+  const {
+    create,
+    status,
+    hash,
+    receipt,
+    error: txError,
+    isBusy,
+  } = useCreateSafetyNet();
   const [memberInput, setMemberInput] = useState("");
   const [memberInputError, setMemberInputError] = useState<string | null>(null);
+  const fid = useId();
+  const id = (name: string) => `${fid}-${name}`;
 
   const {
     register,
@@ -83,7 +119,7 @@ export function CreateForm() {
       customToken: "",
       initialDeposit: "",
       fixedDeposit: "",
-      redeemRatio: 10,
+      redeemRatio: REDEEM_RATIO,
       autoThreshold: "",
       contestThreshold: 50,
       contestWindowDays: 3,
@@ -119,6 +155,22 @@ export function CreateForm() {
 
   const { symbol, decimals } = useTokenInfo(token);
   const { data: tokenAllowed } = useIsTokenAllowed(token);
+
+  // The new net's id, decoded from the SafetyNetCreated event in the receipt,
+  // so success can link straight to the net page (gap 6).
+  const createdId = useMemo(() => {
+    if (!receipt) return undefined;
+    try {
+      const logs = parseEventLogs({
+        abi: safetyNetAbi,
+        logs: receipt.logs,
+        eventName: "SafetyNetCreated",
+      });
+      return logs[0]?.args.id;
+    } catch {
+      return undefined;
+    }
+  }, [receipt]);
 
   const addMember = () => {
     const candidate = memberInput.trim();
@@ -165,7 +217,7 @@ export function CreateForm() {
       members: v.members as Address[],
       initialDeposit,
       fixedDeposit,
-      redeemRatio: BigInt(v.redeemRatio),
+      redeemRatio: BigInt(REDEEM_RATIO), // locked to 1 onchain in v1
       autoThreshold,
       contestWindow: BigInt(Math.round(v.contestWindowDays * 86_400)),
       epochDuration: BigInt(Math.round(v.epochDurationDays * 86_400)),
@@ -178,12 +230,17 @@ export function CreateForm() {
       <Card className="flex flex-col gap-5">
         <SectionTitle>Members</SectionTitle>
         <Field
+          id={id("members")}
           label="Founding members"
           help="Everyone listed here is a member from day one. You can invite more people later with a signed invite link."
           error={memberInputError ?? errors.members?.message}
         >
           <div className="flex gap-2">
             <input
+              {...fieldAria(
+                id("members"),
+                memberInputError ?? errors.members?.message,
+              )}
               className={inputClass}
               placeholder="0x… member address"
               value={memberInput}
@@ -216,7 +273,7 @@ export function CreateForm() {
                   )}
                   <button
                     type="button"
-                    title="Remove"
+                    aria-label={`Remove member ${m}`}
                     onClick={() => removeMember(m)}
                     className="text-surface-grey hover:text-system-red"
                   >
@@ -230,11 +287,17 @@ export function CreateForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <Field
+            id={id("min-members")}
             label="Minimum members"
             help="Smallest group size for the net to make sense (contract minimum: 2)."
             error={errors.minimumMembers?.message}
           >
             <input
+              {...fieldAria(
+                id("min-members"),
+                errors.minimumMembers?.message,
+                "help",
+              )}
               type="number"
               min={2}
               className={inputClass}
@@ -242,11 +305,17 @@ export function CreateForm() {
             />
           </Field>
           <Field
+            id={id("max-members")}
             label="Maximum members"
             help="Invites stop working once the group reaches this size."
             error={errors.maximumMembers?.message}
           >
             <input
+              {...fieldAria(
+                id("max-members"),
+                errors.maximumMembers?.message,
+                "help",
+              )}
               type="number"
               min={2}
               className={inputClass}
@@ -261,7 +330,11 @@ export function CreateForm() {
           help="The ERC20 everyone saves in. It must be allowed by the protocol."
           error={errors.customToken?.message}
         >
-          <div className="flex flex-wrap gap-2">
+          <div
+            role="group"
+            aria-label="Token"
+            className="flex flex-wrap gap-2"
+          >
             {(
               [
                 ["wxdai", "WXDAI"],
@@ -272,6 +345,7 @@ export function CreateForm() {
               <button
                 key={value}
                 type="button"
+                aria-pressed={tokenChoice === value}
                 onClick={() =>
                   setValue("tokenChoice", value, { shouldValidate: true })
                 }
@@ -288,6 +362,8 @@ export function CreateForm() {
           </div>
           {tokenChoice === "custom" && (
             <input
+              aria-label="Custom token address"
+              aria-invalid={errors.customToken ? true : undefined}
               className={`${inputClass} mt-2`}
               placeholder="0x… token address"
               {...register("customToken")}
@@ -303,11 +379,17 @@ export function CreateForm() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
+            id={id("initial-deposit")}
             label={`Initial deposit (${symbol})`}
             help="One-off joining payment. A new member's very first deposit must be exactly this amount, in a single payment."
             error={errors.initialDeposit?.message}
           >
             <input
+              {...fieldAria(
+                id("initial-deposit"),
+                errors.initialDeposit?.message,
+                "help",
+              )}
               inputMode="decimal"
               placeholder="0.0"
               className={inputClass}
@@ -315,11 +397,17 @@ export function CreateForm() {
             />
           </Field>
           <Field
+            id={id("fixed-deposit")}
             label={`Recurring deposit (${symbol})`}
-            help="Dues each member owes every epoch after joining. Can be paid in several partial payments."
+            help="Dues each member owes every epoch after joining. Can be paid in parts, and extra pays future epochs forward."
             error={errors.fixedDeposit?.message}
           >
             <input
+              {...fieldAria(
+                id("fixed-deposit"),
+                errors.fixedDeposit?.message,
+                "help",
+              )}
               inputMode="decimal"
               placeholder="0.0"
               className={inputClass}
@@ -330,24 +418,28 @@ export function CreateForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <Field
-            label="Redeem ratio (1–22)"
-            help="Withdrawal power multiplier: every 1 token deposited unlocks this many tokens of withdrawable balance."
-            error={errors.redeemRatio?.message}
+            label="Redeem ratio"
+            help="Fixed in v1: deposits and withdrawal power are 1:1 — every token deposited unlocks exactly one token of withdrawable balance (leverage disabled)."
           >
-            <input
-              type="number"
-              min={1}
-              max={22}
-              className={inputClass}
-              {...register("redeemRatio", { valueAsNumber: true })}
-            />
+            <div
+              aria-label="Redeem ratio, fixed at 1"
+              className="border-paper-2 bg-paper-2/50 text-surface-grey-2 w-full rounded-xl border px-4 py-2.5 font-bold"
+            >
+              ×1
+            </div>
           </Field>
           <Field
+            id={id("epoch-days")}
             label="Epoch length (days)"
             help="How often the recurring deposit is due. 30 days ≈ monthly."
             error={errors.epochDurationDays?.message}
           >
             <input
+              {...fieldAria(
+                id("epoch-days"),
+                errors.epochDurationDays?.message,
+                "help",
+              )}
               type="number"
               min={1}
               className={inputClass}
@@ -359,11 +451,17 @@ export function CreateForm() {
         <SectionTitle>Withdrawals</SectionTitle>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
+            id={id("auto-threshold")}
             label={`Instant-withdrawal threshold (${symbol})`}
             help="Withdrawals up to this amount are paid out instantly. Anything larger becomes a request the group can contest."
             error={errors.autoThreshold?.message}
           >
             <input
+              {...fieldAria(
+                id("auto-threshold"),
+                errors.autoThreshold?.message,
+                "help",
+              )}
               inputMode="decimal"
               placeholder="0.0"
               className={inputClass}
@@ -371,11 +469,17 @@ export function CreateForm() {
             />
           </Field>
           <Field
+            id={id("small-limit")}
             label="Instant withdrawals per epoch"
             help="How many instant (small) withdrawals each member may make per epoch."
             error={errors.smallWithdrawsLimit?.message}
           >
             <input
+              {...fieldAria(
+                id("small-limit"),
+                errors.smallWithdrawsLimit?.message,
+                "help",
+              )}
               type="number"
               min={1}
               className={inputClass}
@@ -386,11 +490,17 @@ export function CreateForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <Field
+            id={id("contest-threshold")}
             label="Contest threshold (%)"
             help="A large withdrawal is vetoed when MORE than this percentage of members contest it."
             error={errors.contestThreshold?.message}
           >
             <input
+              {...fieldAria(
+                id("contest-threshold"),
+                errors.contestThreshold?.message,
+                "help",
+              )}
               type="number"
               min={1}
               max={100}
@@ -399,11 +509,17 @@ export function CreateForm() {
             />
           </Field>
           <Field
+            id={id("contest-window")}
             label="Contest window (days)"
             help="How long the group has to contest a large withdrawal before it becomes executable."
             error={errors.contestWindowDays?.message}
           >
             <input
+              {...fieldAria(
+                id("contest-window"),
+                errors.contestWindowDays?.message,
+                "help",
+              )}
               type="number"
               min={0}
               step="any"
@@ -415,11 +531,13 @@ export function CreateForm() {
 
         <SectionTitle>Schedule</SectionTitle>
         <Field
+          id={id("start-time")}
           label="Start time"
           help="Deposits open at this time; epochs are counted from it."
           error={errors.startTime?.message}
         >
           <input
+            {...fieldAria(id("start-time"), errors.startTime?.message, "help")}
             type="datetime-local"
             className={inputClass}
             {...register("startTime")}
@@ -434,12 +552,45 @@ export function CreateForm() {
           >
             Create Safety Net
           </ActionButton>
-          <TxStatus
-            status={status}
-            hash={hash}
-            error={txError}
-            successLabel="Safety Net created — it will appear on your dashboard shortly."
-          />
+          {status === "success" ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="border-primary-jade/40 bg-primary-jade/5 mt-4 rounded-xl border p-4"
+            >
+              <Heading4 className="text-text-standard flex items-center gap-2">
+                <CheckCircle
+                  size={22}
+                  weight="fill"
+                  className="text-system-green shrink-0"
+                />
+                Safety Net{" "}
+                {createdId !== undefined ? `#${createdId.toString()} ` : ""}
+                created
+              </Heading4>
+              <Body className="text-surface-grey-2 mt-1 text-sm">
+                Next step: open your new net and generate single-use invite
+                links to bring in the rest of your group.
+              </Body>
+              <div className="mt-3">
+                <Button
+                  as={Link}
+                  app="net"
+                  variant="primary"
+                  rightIcon={<ArrowRight />}
+                  href={
+                    createdId !== undefined ? `/net/?id=${createdId}` : "/"
+                  }
+                >
+                  {createdId !== undefined
+                    ? `Open Safety Net #${createdId.toString()}`
+                    : "Go to your dashboard"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <TxStatus status={status} hash={hash} error={txError} />
+          )}
         </div>
       </Card>
     </form>

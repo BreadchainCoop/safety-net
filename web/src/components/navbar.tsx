@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Logo } from "@breadcoop/ui";
+import { useDisconnect } from "wagmi";
+import { Navbar as KitNavbar, Button } from "@breadcoop/ui";
+import { SignOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -12,10 +13,13 @@ const LINKS = [
   { href: "/docs", label: "Docs" },
 ];
 
-function NavLinks({ className }: { className?: string }) {
+function NavLinks() {
   const pathname = usePathname();
   return (
-    <>
+    <nav
+      aria-label="Main"
+      className="flex flex-col gap-2 md:mr-6 md:flex-row md:items-center md:gap-1"
+    >
       {LINKS.map((l) => {
         const active =
           l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
@@ -23,49 +27,54 @@ function NavLinks({ className }: { className?: string }) {
           <Link
             key={l.href}
             href={l.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
               active
                 ? "bg-primary-jade/10 text-primary-jade font-bold"
                 : "text-surface-grey-2 hover:text-text-standard",
-              className,
             )}
           >
             {l.label}
           </Link>
         );
       })}
-    </>
+    </nav>
   );
 }
 
-/** Sticky jade-branded header with nav links and the wallet button. */
+/** Disconnect action rendered inside the kit account menu. */
+function AccountActions() {
+  const { disconnect } = useDisconnect();
+  return (
+    <Button
+      app="net"
+      variant="secondary"
+      className="w-full"
+      rightIcon={<SignOut />}
+      onClick={() => disconnect()}
+    >
+      Disconnect
+    </Button>
+  );
+}
+
+/**
+ * Official `@breadcoop/ui` Navbar (app="net"): Safety Net logo lockup, the
+ * Breadchain solidarity-apps switcher, and the built-in mobile menu. Connect /
+ * account UI comes from the kit's "general" (wagmi + RainbowKit) auth path.
+ */
 export function Navbar() {
   return (
     <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
-      <nav className="section-container flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo variant="square" color="jade" size={28} />
-          <span className="font-breadDisplay text-text-standard hidden text-lg font-bold sm:block">
-            Safety Net
-          </span>
-        </Link>
-
-        <div className="hidden items-center gap-1 md:flex">
-          <NavLinks />
-        </div>
-
-        <ConnectButton
-          showBalance={false}
-          accountStatus="address"
-          chainStatus="icon"
-        />
-      </nav>
-
-      {/* Mobile nav */}
-      <div className="border-paper-2 flex gap-1 overflow-x-auto border-t px-4 py-2 md:hidden">
+      <KitNavbar
+        app="net"
+        Link={Link}
+        className="section-container"
+        actionItems={<AccountActions />}
+      >
         <NavLinks />
-      </div>
+      </KitNavbar>
     </header>
   );
 }

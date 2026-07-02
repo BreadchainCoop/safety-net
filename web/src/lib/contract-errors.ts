@@ -18,7 +18,7 @@ export const SAFETY_NET_ERRORS: Record<string, string> = {
   DepositWindowClosed: "The deposit window for this epoch has closed.",
   SafetyNetExpired: "This Safety Net has expired.",
   ExceedsDepositAmount:
-    "This deposit would exceed your dues for the current epoch.",
+    "This deposit couldn't be fully allocated — it exceeds your remaining dues plus the 12-epoch prepay window (some future epochs may already be prepaid).",
   DepositBeforeSafetyNetStart:
     "Deposits open when the Safety Net starts — it hasn't started yet.",
   TokenNotAllowed: "This token is not allowed for Safety Nets.",
@@ -51,10 +51,22 @@ export const SAFETY_NET_ERRORS: Record<string, string> = {
   AlreadyMember: "You are already a member of this Safety Net.",
   SafetyNetFull: "This Safety Net has reached its maximum number of members.",
   RequestNonceAlreadyUsed: "This signed request has already been submitted.",
+  AuthorizationExpired:
+    "This signed request has expired — ask for a new one.",
   // Common OpenZeppelin / ERC20 errors surfaced through the same path
   OwnableUnauthorizedAccount: "Only the contract owner can do this.",
   ERC20InsufficientBalance: "Your token balance is too low for this amount.",
   ERC20InsufficientAllowance:
     "Token allowance too low — approve the Safety Net contract first.",
   SafeERC20FailedOperation: "The token transfer failed.",
+  ECDSAInvalidSignature: "This signature is invalid — ask for a new link.",
+  ECDSAInvalidSignatureLength:
+    "This signature is malformed — the link may have been truncated when shared.",
+  ECDSAInvalidSignatureS:
+    "This signature is malformed — ask for a new link.",
+  OwnableInvalidOwner: "That owner address is invalid.",
+  ReentrancyGuardReentrantCall:
+    "The contract rejected a re-entrant call. Please try again.",
+  InvalidInitialization: "The contract is already initialized.",
+  NotInitializing: "The contract is not initializing.",
 };

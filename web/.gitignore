@@ -13,6 +13,8 @@ npm-debug.log*
 # env files
 .env
 .env*.local
+# verify-mode key (dev-only, never commit)
+.env.verify
 
 # typescript
 *.tsbuildinfo

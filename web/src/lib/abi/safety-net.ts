@@ -34,6 +34,19 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_PREPAY_EPOCHS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MINIMUM_REDEEM_RATIO",
     "inputs": [],
     "outputs": [

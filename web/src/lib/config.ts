@@ -1,22 +1,91 @@
 import { gnosis } from "wagmi/chains";
-import { zeroAddress, type Address } from "viem";
+import { isAddress, zeroAddress, type Address } from "viem";
+import { z } from "zod";
 
 /** The chain the dapp targets (Gnosis mainnet, id 100). */
 export const CHAIN = gnosis;
 export const CHAIN_ID: number = gnosis.id;
 
-/** Treat empty-string env vars (e.g. an unset CI repo var) as absent. */
-const envOr = (value: string | undefined, fallback: string): string =>
-  value && value.length > 0 ? value : fallback;
+/*//////////////////////////////////////////////////////////////
+                    CLIENT ENV (zod-validated)
+//////////////////////////////////////////////////////////////*/
 
-export const RPC_URL = envOr(
-  process.env.NEXT_PUBLIC_RPC_URL,
+/**
+ * All client env is validated here (app-stacks env.ts pattern): a var that is
+ * present but malformed fails `next build` loudly instead of silently
+ * misconfiguring an app that moves real money. Absent vars fall back to
+ * working defaults with a console warning.
+ *
+ * Empty strings (e.g. an unset CI repo var) are treated as absent.
+ */
+const optional = (value: string | undefined): string | undefined =>
+  value && value.length > 0 ? value : undefined;
+
+const clientEnvSchema = z.object({
+  NEXT_PUBLIC_SAFETYNET_ADDRESS: z
+    .string()
+    .refine((v): boolean => isAddress(v), {
+      message: "must be a 0x-prefixed checksummed EVM address",
+    })
+    .optional(),
+  NEXT_PUBLIC_RPC_URL: z
+    .url({ error: "must be a valid URL" })
+    .refine((v) => v.startsWith("http"), {
+      message: "must be an http(s) RPC endpoint",
+    })
+    .optional(),
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: z
+    .string()
+    .regex(/^[0-9a-f]{32}$/i, {
+      message: "must be a 32-char hex WalletConnect Cloud project id",
+    })
+    .optional(),
+  NEXT_PUBLIC_SITE_URL: z.url({ error: "must be a valid URL" }).optional(),
+});
+
+const parsedEnv = clientEnvSchema.safeParse({
+  NEXT_PUBLIC_SAFETYNET_ADDRESS: optional(
+    process.env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
+  ),
+  NEXT_PUBLIC_RPC_URL: optional(process.env.NEXT_PUBLIC_RPC_URL),
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: optional(
+    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+  ),
+  NEXT_PUBLIC_SITE_URL: optional(process.env.NEXT_PUBLIC_SITE_URL),
+});
+
+if (!parsedEnv.success) {
+  const details = parsedEnv.error.issues
+    .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+    .join("\n");
+  throw new Error(`Invalid NEXT_PUBLIC_* environment variables:\n${details}`);
+}
+
+const env = parsedEnv.data;
+
+/** Use `fallback` when the env var is absent, warning loudly in the console. */
+function withDefault(
+  value: string | undefined,
+  fallback: string,
+  name: string,
+): string {
+  if (value === undefined) {
+    console.warn(`[config] ${name} not set — falling back to ${fallback}`);
+    return fallback;
+  }
+  return value;
+}
+
+export const RPC_URL = withDefault(
+  env.NEXT_PUBLIC_RPC_URL,
   "https://rpc.gnosischain.com",
+  "NEXT_PUBLIC_RPC_URL",
 );
 
-export const WALLETCONNECT_PROJECT_ID = envOr(
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-  "safety_net_demo",
+export const WALLETCONNECT_PROJECT_ID = withDefault(
+  env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+  "434ee6dc8c1d49a393ff4130eae2942c",
+  "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID",
 );
 
 /**
@@ -24,12 +93,27 @@ export const WALLETCONNECT_PROJECT_ID = envOr(
  * Overridable via NEXT_PUBLIC_SAFETYNET_ADDRESS for other deployments.
  * `isContractConfigured` gates all reads/writes if set to the zero address.
  */
-export const SAFETYNET_ADDRESS: Address = envOr(
-  process.env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
-  "0xD09DBBD3624B3c3F7c48fA9B06A7b124d47C5D0b",
+export const SAFETYNET_ADDRESS: Address = withDefault(
+  env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
+  "0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE",
+  "NEXT_PUBLIC_SAFETYNET_ADDRESS",
 ) as Address;
 
 export const isContractConfigured = SAFETYNET_ADDRESS !== zeroAddress;
+
+/** Optional base path for project-subpath hosting (GitHub Pages). */
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+/** Canonical site URL for metadata / OG unfurls. */
+export const SITE_URL = withDefault(
+  env.NEXT_PUBLIC_SITE_URL,
+  "https://breadchaincoop.github.io/safety-net",
+  "NEXT_PUBLIC_SITE_URL",
+);
+
+/*//////////////////////////////////////////////////////////////
+                        PROTOCOL CONSTANTS
+//////////////////////////////////////////////////////////////*/
 
 /** Known Gnosis tokens offered in the token picker. */
 export const WXDAI_ADDRESS: Address =
@@ -52,9 +136,19 @@ export const addressUrl = (a: string) => `${BLOCK_EXPLORER}/address/${a}`;
 /** Mirrors SafetyNet.DAYS_IN_A_MONTH — daily withdrawable divisor. */
 export const DAYS_IN_A_MONTH = 30n;
 
-/** Redeem ratio bounds (SafetyNet.MINIMUM/MAXIMUM_REDEEM_RATIO). */
+/**
+ * Redeem ratio bounds (SafetyNet.MINIMUM/MAXIMUM_REDEEM_RATIO). Locked to
+ * exactly 1 in v1: deposits and withdrawal power are 1:1, leverage disabled.
+ */
 export const MIN_REDEEM_RATIO = 1;
-export const MAX_REDEEM_RATIO = 22;
+export const MAX_REDEEM_RATIO = 1;
+export const REDEEM_RATIO = 1;
+
+/**
+ * Mirrors SafetyNet.MAX_PREPAY_EPOCHS — a deposit may prepay dues at most
+ * this many epochs beyond the current one.
+ */
+export const MAX_PREPAY_EPOCHS = 12n;
 
 /*//////////////////////////////////////////////////////////////
                           VERIFY MODE
@@ -62,17 +156,21 @@ export const MAX_REDEEM_RATIO = 22;
 
 /**
  * Verify mode: dev-only wallet built from a private key so E2E onchain tests
- * can run without a browser extension. Requires BOTH NEXT_PUBLIC_VERIFY_MODE
- * and a private key. Note: only the NEXT_PUBLIC_-prefixed key is inlined into
- * the client bundle by Next; VERIFY_PRIVATE_KEY works for `next dev` server
- * rendering only, so prefer NEXT_PUBLIC_VERIFY_PRIVATE_KEY.
+ * can run without a browser extension.
+ *
+ * SECURITY: the private key env var is only read when NODE_ENV is
+ * "development" AND NEXT_PUBLIC_VERIFY_MODE is "true". `next build` statically
+ * replaces NODE_ENV with "production", so the whole expression constant-folds
+ * to `undefined` and the minifier strips the inlined key from every production
+ * bundle — even if the build environment has NEXT_PUBLIC_VERIFY_PRIVATE_KEY
+ * set by mistake. Keep the key in .env.verify (see .env.verify.example), never
+ * in .env / CI variables.
  */
-const verifyKey =
-  process.env.NEXT_PUBLIC_VERIFY_PRIVATE_KEY || process.env.VERIFY_PRIVATE_KEY;
+export const VERIFY_PRIVATE_KEY: `0x${string}` | undefined =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_VERIFY_MODE === "true" &&
+  process.env.NEXT_PUBLIC_VERIFY_PRIVATE_KEY
+    ? (process.env.NEXT_PUBLIC_VERIFY_PRIVATE_KEY as `0x${string}`)
+    : undefined;
 
-export const VERIFY_MODE =
-  process.env.NEXT_PUBLIC_VERIFY_MODE === "true" && Boolean(verifyKey);
-
-export const VERIFY_PRIVATE_KEY: `0x${string}` | undefined = VERIFY_MODE
-  ? (verifyKey as `0x${string}`)
-  : undefined;
+export const VERIFY_MODE = VERIFY_PRIVATE_KEY !== undefined;

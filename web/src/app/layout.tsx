@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Navbar } from "@/components/navbar";
@@ -6,11 +6,12 @@ import { VerifyBanner } from "@/components/verify-banner";
 import { NotificationBanner } from "@/components/notification-banner";
 import { ConfigWarning } from "@/components/config-warning";
 import { SiteFooter } from "@/components/site-footer";
+import { buildMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Safety Net",
-  description:
-    "Group savings with a social safety net — pooled deposits, mutual accountability, and community-approved withdrawals on Gnosis Chain.",
+export const metadata: Metadata = buildMetadata();
+
+export const viewport: Viewport = {
+  themeColor: "#286b63", // primary-jade
 };
 
 export default function RootLayout({

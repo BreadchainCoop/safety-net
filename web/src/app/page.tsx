@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAccount } from "wagmi";
 import { Button } from "@breadcoop/ui";
 import { Plus } from "@phosphor-icons/react";
 import { ConnectGate } from "@/components/ui/connect-gate";
+import { Landing } from "@/components/landing";
 import {
   EmptyState,
   ErrorState,
@@ -59,6 +62,15 @@ function Dashboard() {
 }
 
 export default function HomePage() {
+  const { isConnected } = useAccount();
+  // The static export prerenders the disconnected state; render the same
+  // (landing) on the first client pass to avoid a hydration mismatch, then
+  // switch to the dashboard once the wallet reconnects.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted || !isConnected) return <Landing />;
+
   return (
     <>
       <PageHeader

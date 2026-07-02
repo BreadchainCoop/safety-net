@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { formatUnits, isAddress, type Address } from "viem";
 import { Caption } from "@breadcoop/ui";
@@ -16,6 +16,7 @@ import {
   useTokenBalance,
   useTokenInfo,
 } from "@/hooks/use-token";
+import { MAX_PREPAY_EPOCHS } from "@/lib/config";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SafetyNetDetails } from "@/lib/types";
@@ -23,10 +24,50 @@ import type { SafetyNetDetails } from "@/lib/types";
 const inputClass =
   "w-full rounded-xl border border-paper-2 bg-paper-main px-4 py-2.5 text-text-standard outline-none focus:border-primary-jade";
 
+const APPROVE_PREF_KEY = "safetynet.approveUnlimited";
+
+const ordinal = (n: number): string => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+};
+
 /**
- * Approve → deposit state machine (crowdstake.fun pattern). Handles both the
- * exact initial deposit for onboarding members and partial recurring
- * payments, for yourself or for another member.
+ * Live preview of how the contract will allocate a recurring deposit:
+ * this epoch's remaining dues first, then future epochs (prepay), each up to
+ * fixedDeposit. Assumes future epochs aren't already prepaid — the contract
+ * reverts with ExceedsDepositAmount if the value can't be fully allocated.
+ */
+function describeAllocation(
+  amount: bigint,
+  duesRemaining: bigint,
+  fixedDeposit: bigint,
+  decimals: number,
+  symbol: string,
+): string {
+  if (amount <= duesRemaining) {
+    if (amount === duesRemaining) return "Covers the rest of this epoch's dues.";
+    return `Goes toward this epoch's dues — ${formatAmount(duesRemaining - amount, decimals)} ${symbol} will still be due.`;
+  }
+  const excess = amount - duesRemaining;
+  const fullEpochs = fixedDeposit > 0n ? Number(excess / fixedDeposit) : 0;
+  const partial = fixedDeposit > 0n ? excess % fixedDeposit : 0n;
+  const base =
+    duesRemaining > 0n
+      ? "Covers this epoch's dues"
+      : "This epoch is already paid";
+
+  if (fullEpochs === 0)
+    return `${base} + prepays ${formatAmount(partial, decimals)} ${symbol} toward the next epoch.`;
+  const epochs = `${fullEpochs} future epoch${fullEpochs === 1 ? "" : "s"}`;
+  if (partial === 0n) return `${base} + prepays ${epochs} in full.`;
+  return `${base} + prepays ${epochs} (${formatAmount(partial, decimals)} ${symbol} toward the ${ordinal(fullEpochs + 1)}).`;
+}
+
+/**
+ * Approve → deposit state machine (crowdstake.fun pattern). Handles the exact
+ * initial deposit for onboarding members and recurring payments — including
+ * prepaying future epochs — for yourself or for another member.
  *
  * Note: `depositFor` only covers the gas — the contract pulls tokens from the
  * *member* being deposited for, so their allowance/balance is what matters.
@@ -35,10 +76,32 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
   const { address } = useAccount();
   const net = details.safetyNet;
   const { symbol, decimals } = useTokenInfo(net.token);
+  const otherInputId = useId();
+  const approvePrefId = useId();
 
   const [mode, setMode] = useState<"self" | "other">("self");
   const [otherMember, setOtherMember] = useState("");
   const [amount, setAmount] = useState("");
+  // Approve unlimited once (reference default) vs the exact amount each time.
+  // Remembered per browser in localStorage.
+  const [approveUnlimited, setApproveUnlimited] = useState(true);
+
+  useEffect(() => {
+    try {
+      setApproveUnlimited(localStorage.getItem(APPROVE_PREF_KEY) !== "exact");
+    } catch {
+      // storage unavailable — keep the default
+    }
+  }, []);
+
+  const setApprovePref = (unlimited: boolean) => {
+    setApproveUnlimited(unlimited);
+    try {
+      localStorage.setItem(APPROVE_PREF_KEY, unlimited ? "unlimited" : "exact");
+    } catch {
+      // storage unavailable — preference lasts for the session
+    }
+  };
 
   const beneficiary: Address | undefined =
     mode === "self"
@@ -86,11 +149,35 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
     parsed !== null && parsed > 0n && (allowance ?? 0n) < parsed;
   const insufficientBalance =
     parsed !== null && balance !== undefined && balance < parsed;
-  const exceedsDues =
+  // Upper bound on what the prepay window can absorb: this epoch's remaining
+  // dues + MAX_PREPAY_EPOCHS full epochs. (Future-epoch fills can't be read
+  // cheaply, so a deposit inside this bound can still revert with
+  // ExceedsDepositAmount when epochs are already prepaid — the error copy
+  // explains that case.)
+  const maxCapacity =
+    duesRemaining !== undefined
+      ? duesRemaining + MAX_PREPAY_EPOCHS * net.fixedDeposit
+      : undefined;
+  const exceedsCapacity =
     !onboarding &&
     parsed !== null &&
+    maxCapacity !== undefined &&
+    parsed > maxCapacity;
+
+  const allocationPreview =
+    !onboarding &&
+    parsed !== null &&
+    parsed > 0n &&
     duesRemaining !== undefined &&
-    parsed > duesRemaining;
+    !exceedsCapacity
+      ? describeAllocation(
+          parsed,
+          duesRemaining,
+          net.fixedDeposit,
+          decimals,
+          symbol,
+        )
+      : null;
 
   useEffect(() => {
     if (approveTx.isSuccess) refetchAllowance();
@@ -110,7 +197,11 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
   const submit = () => {
     if (parsed === null || parsed === 0n || !beneficiary) return;
     if (mode === "self") {
-      if (needsApproval) approveTx.approve(net.token, parsed);
+      if (needsApproval)
+        approveTx.approve(
+          net.token,
+          approveUnlimited ? undefined : parsed,
+        );
       else depositTx.deposit(net.id, parsed);
     } else {
       depositForTx.depositFor(net.id, parsed, beneficiary);
@@ -123,12 +214,14 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
     !beneficiary ||
     isMember === false ||
     insufficientBalance ||
-    exceedsDues ||
+    exceedsCapacity ||
     (mode === "other" && needsApproval);
 
   const buttonLabel =
     mode === "self" && needsApproval
-      ? `Approve ${symbol}`
+      ? approveUnlimited
+        ? `Approve ${symbol}`
+        : `Approve ${parsed !== null ? formatAmount(parsed, decimals) : ""} ${symbol}`
       : onboarding
         ? `Pay initial deposit (${formatAmount(net.initialDeposit, decimals)} ${symbol})`
         : "Deposit";
@@ -137,7 +230,11 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
     <Card>
       <div className="flex items-center justify-between gap-2">
         <Caption className="text-surface-grey-2">Deposit</Caption>
-        <div className="bg-paper-2 flex rounded-lg p-0.5 text-xs font-bold">
+        <div
+          role="group"
+          aria-label="Who are you depositing for?"
+          className="bg-paper-2 flex rounded-lg p-0.5 text-xs font-bold"
+        >
           {(
             [
               ["self", "My dues"],
@@ -147,6 +244,7 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
             <button
               key={value}
               type="button"
+              aria-pressed={mode === value}
               onClick={() => setMode(value)}
               className={cn(
                 "rounded-md px-2.5 py-1 transition-colors",
@@ -164,11 +262,17 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
       <div className="mt-4 flex flex-col gap-3">
         {mode === "other" && (
           <div>
-            <Caption className="text-surface-grey-2">Member address</Caption>
+            <label htmlFor={otherInputId}>
+              <Caption className="text-surface-grey-2">Member address</Caption>
+            </label>
             <input
+              id={otherInputId}
               className={`${inputClass} mt-1.5`}
               placeholder="0x… member to pay dues for"
               value={otherMember}
+              aria-invalid={
+                (otherMember !== "" && !isAddress(otherMember)) || undefined
+              }
               onChange={(e) => setOtherMember(e.target.value)}
             />
             {otherMember && !isAddress(otherMember) && (
@@ -191,14 +295,25 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
           symbol={symbol}
           decimals={decimals}
           disabled={onboarding}
+          error={insufficientBalance || exceedsCapacity}
           help={
             onboarding
               ? "First deposit: pay exactly the initial deposit in one payment to activate membership."
               : duesRemaining === 0n
-                ? "All paid up — deposits reopen next epoch."
-                : "Partial payments are fine, up to your remaining dues for this epoch."
+                ? "All paid up for this epoch — extra deposits prepay future epochs (up to 12 ahead)."
+                : "Partial payments are fine. Anything beyond this epoch's dues prepays future epochs (up to 12 ahead)."
           }
         />
+
+        {allocationPreview && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-primary-jade text-xs font-medium"
+          >
+            {allocationPreview}
+          </p>
+        )}
 
         {insufficientBalance && (
           <p className="text-system-red text-xs font-medium">
@@ -206,10 +321,11 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
             {formatAmount(balance, decimals)}) doesn&apos;t cover this deposit.
           </p>
         )}
-        {exceedsDues && (
+        {exceedsCapacity && (
           <p className="text-system-red text-xs font-medium">
-            That exceeds the {formatAmount(duesRemaining, decimals)} {symbol}{" "}
-            still owed this epoch.
+            That&apos;s more than this epoch&apos;s dues plus{" "}
+            {MAX_PREPAY_EPOCHS.toString()} epochs of prepay — the most that can
+            be deposited now is {formatAmount(maxCapacity, decimals)} {symbol}.
           </p>
         )}
         {mode === "other" && needsApproval && parsed !== null && (
@@ -218,6 +334,23 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
             first approve the SafetyNet contract for at least{" "}
             {formatAmount(parsed, decimals)} {symbol}.
           </p>
+        )}
+
+        {mode === "self" && needsApproval && (
+          <label
+            htmlFor={approvePrefId}
+            className="text-surface-grey-2 flex items-center gap-2 text-xs font-medium"
+          >
+            <input
+              id={approvePrefId}
+              type="checkbox"
+              checked={approveUnlimited}
+              onChange={(e) => setApprovePref(e.target.checked)}
+              className="accent-primary-jade h-3.5 w-3.5"
+            />
+            Approve once for all future deposits (recommended — dues recur
+            every epoch)
+          </label>
         )}
 
         <ActionButton

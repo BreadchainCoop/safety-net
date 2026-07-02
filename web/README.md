@@ -29,27 +29,32 @@ pnpm generate:abi   # regenerate src/lib/abi/safety-net.ts from forge output
 ## Environment variables
 
 All client config is `NEXT_PUBLIC_*` (inlined at build time — rebuild after
-changing them). See `.env.example`.
+changing them). Values are **zod-validated** in `src/lib/config.ts`: a var
+that is present but malformed (bad address, bad URL) fails `next build`;
+absent vars fall back to working defaults with a console warning. See
+`.env.example`.
 
-| Variable                               | Default                       | Purpose                                                                                            |
-| -------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SAFETYNET_ADDRESS`        | `0x0000…0000` placeholder     | The SafetyNet **proxy** on Gnosis. Until set, the app shows a warning and disables on-chain calls. |
-| `NEXT_PUBLIC_RPC_URL`                  | `https://rpc.gnosischain.com` | Gnosis RPC endpoint.                                                                               |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | demo value                    | WalletConnect Cloud id (injected wallets work without it).                                         |
-| `NEXT_PUBLIC_BASE_PATH`                | _(empty)_                     | Optional subpath hosting.                                                                          |
-| `NEXT_PUBLIC_VERIFY_MODE`              | `false`                       | Enables verify mode (see below).                                                                   |
-| `NEXT_PUBLIC_VERIFY_PRIVATE_KEY`       | _(empty)_                     | Private key for the verify-mode dev wallet.                                                        |
+| Variable                               | Default                                     | Purpose                                                                    |
+| -------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SAFETYNET_ADDRESS`        | canonical proxy (`0x4b1B…6FdE`)             | The SafetyNet **proxy** on Gnosis. Zero address disables on-chain calls.   |
+| `NEXT_PUBLIC_RPC_URL`                  | `https://rpc.gnosischain.com`               | Primary Gnosis RPC (public fallbacks are appended — `src/lib/wagmi.ts`).   |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | demo value                                  | WalletConnect Cloud id (injected wallets work without it).                 |
+| `NEXT_PUBLIC_SITE_URL`                 | `https://breadchaincoop.github.io/safety-net` | Canonical URL for OG/Twitter link unfurls.                               |
+| `NEXT_PUBLIC_BASE_PATH`                | _(empty)_                                   | Optional subpath hosting.                                                  |
+| `NEXT_PUBLIC_VERIFY_MODE`              | `false`                                     | Enables verify mode — **`next dev` only**, see below.                      |
+| `NEXT_PUBLIC_VERIFY_PRIVATE_KEY`       | _(empty)_                                   | Dev-wallet key — **ignored outside development builds**, see below.        |
 
 Known tokens: WXDAI `0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d` (default),
 BREAD `0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3` — see `src/lib/config.ts`.
 
 ## Verify mode (E2E onchain testing)
 
-Set **both**:
+Copy `.env.verify.example` to `.env.verify` (gitignored), fill in a throwaway
+test key, and run `next dev` with **both** set:
 
 ```bash
 NEXT_PUBLIC_VERIFY_MODE=true
-NEXT_PUBLIC_VERIFY_PRIVATE_KEY=0x<test key>
+NEXT_PUBLIC_VERIFY_PRIVATE_KEY=0x<throwaway test key>
 ```
 
 A "VERIFY MODE" banner appears with a **Connect dev wallet** button. It
@@ -57,9 +62,22 @@ connects a wagmi connector built from the private key (viem
 `privateKeyToAccount`, `src/lib/dev-wallet.ts`) that signs and sends **real
 transactions on Gnosis** without a browser extension, through the exact same
 hooks/components as a normal wallet — including EIP-712 invite signing.
-Dev-only: never enable in production; the key is inlined into the JS bundle.
-(`VERIFY_PRIVATE_KEY` without the prefix is also read, but only the
-`NEXT_PUBLIC_` variant survives into the client bundle of a static export.)
+
+### Why the key can't leak into a production bundle
+
+`src/lib/config.ts` only reads `NEXT_PUBLIC_VERIFY_PRIVATE_KEY` when
+`process.env.NODE_ENV === "development"` **and**
+`NEXT_PUBLIC_VERIFY_MODE === "true"`. `next build` statically replaces
+`NODE_ENV` with `"production"`, so the whole expression constant-folds to
+`undefined` and the minifier strips the inlined key from every production
+bundle — even if a build environment has the var set by mistake.
+
+Operational rules regardless:
+
+- keep the key in `.env.verify`, never in `.env` (which mirrors production);
+- **never** define `NEXT_PUBLIC_VERIFY_*` in CI / GitHub Pages repository
+  variables;
+- use a throwaway key holding only dust for testing.
 
 ## Architecture
 

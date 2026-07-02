@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Caption } from "@breadcoop/ui";
 import { AddressDisplay } from "@/components/ui/address-display";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TimeDisplay } from "@/components/ui/time-display";
 import { TxStatus } from "@/components/ui/tx-status";
 import { ActionButton } from "@/components/ui/action-button";
@@ -15,7 +16,7 @@ import {
   useExecuteContestedWithdrawal,
 } from "@/hooks/use-safety-net-writes";
 import { useTokenInfo } from "@/hooks/use-token";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, shortenAddress } from "@/lib/format";
 import {
   requestStatus,
   type RequestView,
@@ -37,6 +38,7 @@ function RequestRow({
   const { symbol, decimals } = useTokenInfo(net.token);
   const contestTx = useContest();
   const executeTx = useExecuteContestedWithdrawal();
+  const [confirmingContest, setConfirmingContest] = useState(false);
 
   const status = requestStatus(view);
   const contestEnds = view.request.timestamp + net.contestWindow;
@@ -95,7 +97,7 @@ function RequestRow({
         <div className="mt-3 max-w-xs">
           <ActionButton
             variant="destructive"
-            onClick={() => contestTx.contest(view.id)}
+            onClick={() => setConfirmingContest(true)}
             isLoading={contestTx.isBusy}
             disabled={hasContested || contestWindowClosed}
           >
@@ -111,6 +113,24 @@ function RequestRow({
             error={contestTx.error}
             successLabel="Contest recorded"
           />
+          <ConfirmDialog
+            open={confirmingContest}
+            title="Contest this withdrawal?"
+            confirmLabel="Yes, contest it"
+            destructive
+            onConfirm={() => {
+              setConfirmingContest(false);
+              contestTx.contest(view.id);
+            }}
+            onCancel={() => setConfirmingContest(false)}
+          >
+            You&apos;re voting to veto the withdrawal of{" "}
+            {formatAmount(view.request.amount, decimals)} {symbol} requested by{" "}
+            {shortenAddress(view.request.owner)}. A contest can&apos;t be
+            withdrawn once cast —
+            if {votesToVeto} of {memberCount} members contest, the request is
+            permanently vetoed and no funds move.
+          </ConfirmDialog>
         </div>
       )}
 

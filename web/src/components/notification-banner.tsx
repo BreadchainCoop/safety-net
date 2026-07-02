@@ -48,7 +48,7 @@ function NotificationRow({
       </span>
       <button
         type="button"
-        title="Dismiss"
+        aria-label="Dismiss notification"
         onClick={onDismiss}
         className="shrink-0 opacity-70 hover:opacity-100"
       >
@@ -68,7 +68,11 @@ export function NotificationBanner() {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="section-container flex flex-col gap-2 pt-4">
+    <div
+      role="status"
+      aria-live="polite"
+      className="section-container flex flex-col gap-2 pt-4"
+    >
       {notifications.map((n) => (
         <NotificationRow
           key={n.key}

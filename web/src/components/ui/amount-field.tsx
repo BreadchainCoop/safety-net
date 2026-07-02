@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { formatUnits } from "viem";
 import { Caption } from "@breadcoop/ui";
 import { formatAmount } from "@/lib/format";
@@ -15,6 +16,7 @@ export function AmountField({
   decimals = 18,
   disabled,
   help,
+  error,
 }: {
   label: string;
   value: string;
@@ -25,11 +27,16 @@ export function AmountField({
   decimals?: number;
   disabled?: boolean;
   help?: string;
+  error?: boolean;
 }) {
+  const id = useId();
+  const helpId = `${id}-help`;
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <Caption className="text-surface-grey-2">{label}</Caption>
+        <label htmlFor={id}>
+          <Caption className="text-surface-grey-2">{label}</Caption>
+        </label>
         {balance !== undefined && (
           <button
             type="button"
@@ -42,10 +49,13 @@ export function AmountField({
       </div>
       <div className="border-paper-2 bg-paper-main focus-within:border-primary-jade mt-2 flex items-center gap-2 rounded-xl border px-4 py-3">
         <input
+          id={id}
           inputMode="decimal"
           placeholder="0.0"
           value={value}
           disabled={disabled}
+          aria-invalid={error || undefined}
+          aria-describedby={help ? helpId : undefined}
           onChange={(e) => onChange(e.target.value)}
           className="font-breadDisplay text-text-standard placeholder:text-surface-grey w-full bg-transparent text-2xl font-bold outline-none disabled:opacity-60"
         />
@@ -54,7 +64,9 @@ export function AmountField({
         </span>
       </div>
       {help && (
-        <Caption className="text-surface-grey mt-1.5 block">{help}</Caption>
+        <span id={helpId} className="mt-1.5 block">
+          <Caption className="text-surface-grey">{help}</Caption>
+        </span>
       )}
     </div>
   );

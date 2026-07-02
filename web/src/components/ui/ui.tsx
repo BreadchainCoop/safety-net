@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Body, Caption, Heading2, Heading4, LoadingIcon } from "@breadcoop/ui";
+import { Info } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 /** Page title + subtitle used at the top of every page. */
@@ -141,7 +142,10 @@ export function Badge({
   );
 }
 
-/** Definition-list row used in overview panels. */
+/**
+ * Definition-list row used in overview panels. `help` renders as a visible
+ * tap-to-toggle explanation (works on touch, unlike title= tooltips).
+ */
 export function InfoRow({
   label,
   children,
@@ -151,14 +155,38 @@ export function InfoRow({
   children: ReactNode;
   help?: string;
 }) {
+  const [showHelp, setShowHelp] = useState(false);
+  const helpId = useId();
   return (
-    <div className="border-paper-2 flex items-start justify-between gap-4 border-b py-2 text-sm last:border-b-0">
-      <span className="text-surface-grey-2" title={help}>
-        {label}
-      </span>
-      <span className="text-text-standard text-right font-medium">
-        {children}
-      </span>
+    <div className="border-paper-2 border-b py-2 text-sm last:border-b-0">
+      <div className="flex items-start justify-between gap-4">
+        <span className="text-surface-grey-2 inline-flex items-center gap-1">
+          {label}
+          {help && (
+            <button
+              type="button"
+              aria-label={`What does “${label}” mean?`}
+              aria-expanded={showHelp}
+              aria-controls={helpId}
+              onClick={() => setShowHelp((v) => !v)}
+              className={cn(
+                "hover:text-primary-jade transition-colors",
+                showHelp ? "text-primary-jade" : "text-surface-grey",
+              )}
+            >
+              <Info size={14} weight={showHelp ? "fill" : "regular"} />
+            </button>
+          )}
+        </span>
+        <span className="text-text-standard text-right font-medium">
+          {children}
+        </span>
+      </div>
+      {help && showHelp && (
+        <p id={helpId} className="text-surface-grey mt-1 max-w-prose text-xs">
+          {help}
+        </p>
+      )}
     </div>
   );
 }

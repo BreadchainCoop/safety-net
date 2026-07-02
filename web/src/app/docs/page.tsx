@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { GifSlot } from "@/components/gif-slot";
+import { buildMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "How it works — Safety Net",
-};
+export const metadata: Metadata = buildMetadata({
+  title: "How it works",
+  description:
+    "Every Safety Net flow, step by step: create, invite, deposit (with prepay), withdraw, contest, execute, decommission.",
+  path: "/docs/",
+});
 
 interface Section {
   id: string;
@@ -19,7 +23,7 @@ const SECTIONS: Section[] = [
     title: "1. Create a Safety Net",
     body: [
       "A Safety Net is a shared savings pool with rules everyone agrees to up front: which token you save in, how much everyone deposits, and how withdrawals are approved.",
-      "The creator lists the founding members, sets the one-off initial deposit and the recurring deposit due every epoch (e.g. every 30 days), and picks the redeem ratio — the multiplier that turns deposits into withdrawable balance. Small withdrawals below the instant threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
+      "The creator lists the founding members and sets the one-off initial deposit and the recurring deposit due every epoch (e.g. every 30 days). Deposits convert 1:1 into withdrawable balance — the redeem ratio is locked to ×1 in v1, so there's no leverage. Small withdrawals below the instant threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
     ],
   },
   {
@@ -37,7 +41,8 @@ const SECTIONS: Section[] = [
     title: "3. Deposit",
     body: [
       "Your very first deposit is the initial deposit, paid exactly and in one payment — it activates your membership and sets your recurring dues.",
-      "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit multiplies by the redeem ratio into your withdrawable balance.",
+      "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit adds 1:1 to your withdrawable balance.",
+      "You can also pay ahead: deposit more than this epoch's dues and the extra prepays future epochs — the current epoch's remaining dues fill first, then the next epoch, and so on, up to 12 epochs ahead. The app previews exactly how a deposit will be allocated before you send it.",
     ],
   },
   {
@@ -45,7 +50,7 @@ const SECTIONS: Section[] = [
     gif: "withdraw",
     title: "4. Withdraw",
     body: [
-      'Withdrawals are measured in "days of income": one day is worth your monthly contribution × redeem ratio ÷ 30. Pick how many days you need and the app shows the exact amount.',
+      'Withdrawals are measured in "days of income": one day is worth your monthly contribution ÷ 30 (the redeem ratio is ×1 in v1). Pick how many days you need and the app shows the exact amount.',
       "If the amount is at or below the net's instant threshold it's transferred immediately (up to a per-epoch limit of instant withdrawals). Anything larger creates a withdrawal request that your group can review first.",
     ],
   },

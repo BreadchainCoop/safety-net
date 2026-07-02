@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, Copy } from "@phosphor-icons/react";
+import { blo } from "blo";
+import { CopyButtonIcon } from "@breadcoop/ui";
 import type { Address } from "viem";
 import { addressUrl } from "@/lib/config";
 import { shortenAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** Truncated address with a copy button and explorer link. */
+/**
+ * Truncated address with a blo identicon (recognize members at a glance,
+ * crowdstaking-v2 pattern), a copy button (kit CopyButtonIcon), and an
+ * explorer link.
+ */
 export function AddressDisplay({
   address,
   className,
@@ -17,16 +21,17 @@ export function AddressDisplay({
   className?: string;
   chars?: number;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1_500);
-    return () => clearTimeout(t);
-  }, [copied]);
-
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- tiny data-URL identicon; next/image adds nothing */}
+      <img
+        src={blo(address as Address)}
+        alt=""
+        aria-hidden
+        width={16}
+        height={16}
+        className="h-4 w-4 shrink-0 rounded-sm"
+      />
       <a
         href={addressUrl(address)}
         target="_blank"
@@ -36,20 +41,12 @@ export function AddressDisplay({
       >
         {shortenAddress(address, chars)}
       </a>
-      <button
-        type="button"
-        title="Copy address"
-        onClick={() => {
-          navigator.clipboard?.writeText(address).then(() => setCopied(true));
-        }}
-        className="text-surface-grey hover:text-primary-jade transition-colors"
-      >
-        {copied ? (
-          <Check size={14} weight="bold" className="text-system-green" />
-        ) : (
-          <Copy size={14} />
-        )}
-      </button>
+      <CopyButtonIcon
+        textToCopy={address}
+        aria-label={`Copy address ${address}`}
+        checkedIconSize={14}
+        className="[&>svg]:h-3.5 [&>svg]:w-3.5"
+      />
     </span>
   );
 }

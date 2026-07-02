@@ -1,6 +1,6 @@
 import { isAddress } from "viem";
 import { z } from "zod";
-import { MAX_REDEEM_RATIO, MIN_REDEEM_RATIO } from "@/lib/config";
+import { REDEEM_RATIO } from "@/lib/config";
 
 const addressString = z
   .string()
@@ -27,11 +27,9 @@ export const createNetSchema = z
     customToken: z.string().trim(),
     initialDeposit: amountString,
     fixedDeposit: amountString,
-    redeemRatio: z
-      .number({ error: "Enter a whole number" })
-      .int("Whole numbers only")
-      .min(MIN_REDEEM_RATIO, `At least ${MIN_REDEEM_RATIO}`)
-      .max(MAX_REDEEM_RATIO, `At most ${MAX_REDEEM_RATIO}`),
+    // Locked onchain in v1 (MINIMUM/MAXIMUM_REDEEM_RATIO are both 1):
+    // deposits and withdrawal power are 1:1, leverage disabled.
+    redeemRatio: z.literal(REDEEM_RATIO),
     autoThreshold: amountString,
     contestThreshold: z
       .number({ error: "Enter a percentage" })

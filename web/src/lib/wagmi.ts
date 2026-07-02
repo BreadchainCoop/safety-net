@@ -1,4 +1,4 @@
-import { http, createConfig, type CreateConnectorFn } from "wagmi";
+import { fallback, http, createConfig, type CreateConnectorFn } from "wagmi";
 import { gnosis } from "wagmi/chains";
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import {
@@ -61,8 +61,17 @@ export const wagmiConfig = createConfig({
   // a discovered extension connector can stall wagmi's reconnect-on-mount,
   // leaving the app stuck in "connecting" and the dev wallet unusable.
   ...(VERIFY_MODE ? { multiInjectedProviderDiscovery: false } : {}),
+  // Multi-provider fallback (crowdstaking-v2 pattern): if the primary RPC
+  // hiccups, reads fail over instead of blanking the whole app.
   transports: {
-    [gnosis.id]: http(RPC_URL),
+    [gnosis.id]: fallback([
+      http(RPC_URL, { timeout: 7_000, retryCount: 1 }),
+      http("https://1rpc.io/gnosis", { timeout: 7_000, retryCount: 1 }),
+      http("https://gnosis-mainnet.public.blastapi.io", {
+        timeout: 7_000,
+        retryCount: 1,
+      }),
+    ]),
   },
   ssr: true,
 });

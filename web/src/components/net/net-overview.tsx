@@ -39,11 +39,7 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
         <StatCard
           label="My withdrawable"
           value={`${formatAmount(details.withdrawableBalance, decimals)} ${symbol}`}
-          sub={
-            details.isMember
-              ? `deposits × ${net.redeemRatio.toString()} redeem ratio`
-              : "not a member"
-          }
+          sub={details.isMember ? "1:1 with your deposits" : "not a member"}
           accent={details.isMember}
         />
         <StatCard
@@ -97,13 +93,13 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
           </InfoRow>
           <InfoRow
             label="Recurring deposit"
-            help="Dues owed by each member every epoch (partial payments allowed)."
+            help="Dues owed by each member every epoch. Partial payments are fine, and anything extra prepays future epochs (up to 12 ahead)."
           >
             {formatAmount(net.fixedDeposit, decimals)} {symbol} / epoch
           </InfoRow>
           <InfoRow
             label="Redeem ratio"
-            help="Every 1 token deposited unlocks this many tokens of withdrawable balance."
+            help="Fixed at ×1 in v1: every token deposited is exactly one token of withdrawable balance — deposits and withdrawal power are 1:1."
           >
             ×{net.redeemRatio.toString()}
           </InfoRow>

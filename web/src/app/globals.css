@@ -21,6 +21,13 @@ body {
   scroll-margin-top: 5rem;
 }
 
+/* Visible keyboard-focus ring (a11y): jade outline on every focusable
+   element, only for keyboard navigation (:focus-visible). */
+:focus-visible {
+  outline: 2px solid var(--color-primary-jade, #286b63);
+  outline-offset: 2px;
+}
+
 @layer base {
   body {
     @apply text-text-standard font-breadBody antialiased;

@@ -33,7 +33,7 @@ export function GifSlot({ name, alt }: { name: string; alt: string }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       ref={ref}
-      src={`/docs/gifs/${name}.gif`}
+      src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/docs/gifs/${name}.gif`}
       alt={alt}
       className="border-paper-2 w-full rounded-xl border"
       onError={() => setMissing(true)}

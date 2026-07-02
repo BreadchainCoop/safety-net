@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Caption } from "@breadcoop/ui";
 import { Lightning, UsersThree } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
@@ -25,6 +25,7 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   const { symbol, decimals } = useTokenInfo(net.token);
   const { withdraw, status, hash, error, isBusy } = useWithdraw();
   const [days, setDays] = useState("");
+  const daysId = useId();
   // Whether the submitted withdrawal was small (instant), captured at submit
   // time so the success message keeps describing the transaction that actually
   // ran even if the input changes afterwards.
@@ -52,21 +53,26 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
       <div className="mt-4 flex flex-col gap-3">
         <div>
           <div className="flex items-baseline justify-between gap-2">
-            <Caption className="text-surface-grey-2">Days requested</Caption>
+            <label htmlFor={daysId}>
+              <Caption className="text-surface-grey-2">Days requested</Caption>
+            </label>
             <span className="text-primary-jade text-xs font-medium">
               1 day = {formatAmount(dailyAmount, decimals)} {symbol}
             </span>
           </div>
           <input
+            id={daysId}
             type="number"
             min={1}
             step={1}
             placeholder="e.g. 7"
+            aria-invalid={exceedsBalance || undefined}
+            aria-describedby={`${daysId}-help`}
             className={`${inputClass} mt-1.5`}
             value={days}
             onChange={(e) => setDays(e.target.value)}
           />
-          <p className="text-surface-grey mt-1.5 text-xs">
+          <p id={`${daysId}-help`} className="text-surface-grey mt-1.5 text-xs">
             You withdraw in &quot;days of income&quot;: each day is worth your
             recurring deposit × the redeem ratio (×
             {net.redeemRatio.toString()}) ÷ 30.

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAccount } from "wagmi";
-import { Caption } from "@breadcoop/ui";
-import { Check, Copy, PaperPlaneTilt } from "@phosphor-icons/react";
+import { Caption, CopyButtonIcon } from "@breadcoop/ui";
+import { PaperPlaneTilt } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Card } from "@/components/ui/ui";
 import { useSignInvite, type SignedInvite } from "@/hooks/use-invite";
@@ -19,13 +19,6 @@ export function InvitePanel({ details }: { details: SafetyNetDetails }) {
   const net = details.safetyNet;
   const { sign, isPending, error } = useSignInvite();
   const [invite, setInvite] = useState<SignedInvite | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1_500);
-    return () => clearTimeout(t);
-  }, [copied]);
 
   const isOwner = address?.toLowerCase() === net.owner.toLowerCase();
   if (!isOwner) return null;
@@ -70,26 +63,17 @@ export function InvitePanel({ details }: { details: SafetyNetDetails }) {
           <div className="flex items-center gap-2">
             <input
               readOnly
+              aria-label="Invite link"
               value={invite.link}
               onFocus={(e) => e.target.select()}
               className="text-text-standard w-full bg-transparent font-mono text-xs outline-none"
             />
-            <button
-              type="button"
-              title="Copy invite link"
-              onClick={() =>
-                navigator.clipboard
-                  ?.writeText(invite.link)
-                  .then(() => setCopied(true))
-              }
-              className="text-primary-jade hover:text-jade-2 shrink-0"
-            >
-              {copied ? (
-                <Check size={16} weight="bold" className="text-system-green" />
-              ) : (
-                <Copy size={16} />
-              )}
-            </button>
+            <CopyButtonIcon
+              textToCopy={invite.link}
+              aria-label="Copy invite link"
+              checkedIconSize={16}
+              className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
+            />
           </div>
           <p className="text-surface-grey mt-2 text-xs">
             Share this link privately — anyone with it can join (once).

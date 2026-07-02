@@ -54,5 +54,6 @@ export function buildJoinLink(
   signature: `0x${string}`,
 ): string {
   const base = typeof window === "undefined" ? "" : window.location.origin;
-  return `${base}/join/?net=${safetyNetId}&nonce=${nonce}&sig=${signature}`;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  return `${base}${basePath}/join/?net=${safetyNetId}&nonce=${nonce}&sig=${signature}`;
 }
