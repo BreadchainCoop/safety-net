@@ -1,0 +1,131 @@
+"use client";
+
+import { Caption } from "@breadcoop/ui";
+import { AddressDisplay } from "@/components/ui/address-display";
+import { Card, InfoRow, ProgressBar, StatCard } from "@/components/ui/ui";
+import { useNow } from "@/hooks/use-now";
+import { useTokenInfo } from "@/hooks/use-token";
+import {
+  formatAmount,
+  formatDateTime,
+  formatDuration,
+  formatRelative,
+} from "@/lib/format";
+import type { SafetyNetDetails } from "@/lib/types";
+
+/** Headline stats + epoch progress + the net's configured rules. */
+export function NetOverview({ details }: { details: SafetyNetDetails }) {
+  const now = useNow();
+  const net = details.safetyNet;
+  const { symbol, decimals } = useTokenInfo(net.token);
+
+  const start = Number(net.safetyNetStart);
+  const epochDuration = Number(net.epochDuration);
+  const started = now >= start;
+  const epochIndex = Number(details.currentEpochIndex);
+  const epochStart = start + epochIndex * epochDuration;
+  const epochProgress = started
+    ? Math.min(1, (now - epochStart) / epochDuration)
+    : 0;
+  const epochEndsIn = started ? epochStart + epochDuration - now : 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Pool balance"
+          value={`${formatAmount(details.totalBalance, decimals)} ${symbol}`}
+        />
+        <StatCard
+          label="My withdrawable"
+          value={`${formatAmount(details.withdrawableBalance, decimals)} ${symbol}`}
+          sub={
+            details.isMember
+              ? `deposits × ${net.redeemRatio.toString()} redeem ratio`
+              : "not a member"
+          }
+          accent={details.isMember}
+        />
+        <StatCard
+          label="Members"
+          value={details.memberCount.toString()}
+          sub={`min ${net.minimumMembers.toString()} / max ${net.maximumMembers.toString()}`}
+        />
+        <StatCard
+          label="My dues this epoch"
+          value={
+            details.isMember
+              ? details.duesRemaining > 0n
+                ? `${formatAmount(details.duesRemaining, decimals)} ${symbol}`
+                : "Paid ✓"
+              : "—"
+          }
+          sub={`of ${formatAmount(net.fixedDeposit, decimals)} ${symbol} recurring`}
+        />
+      </div>
+
+      <Card>
+        <div className="flex items-baseline justify-between gap-2">
+          <Caption className="text-surface-grey-2">
+            {started
+              ? `Epoch ${epochIndex} — ends ${formatDuration(epochEndsIn)} from now`
+              : `Starts ${formatRelative(net.safetyNetStart, now)} (${formatDateTime(net.safetyNetStart)})`}
+          </Caption>
+          <Caption className="text-surface-grey">
+            {formatDuration(epochDuration)} per epoch
+          </Caption>
+        </div>
+        <div className="mt-3">
+          <ProgressBar value={epochProgress} />
+        </div>
+      </Card>
+
+      <Card>
+        <Caption className="text-surface-grey-2">Rules</Caption>
+        <div className="mt-2">
+          <InfoRow label="Token">
+            {symbol} <AddressDisplay address={net.token} />
+          </InfoRow>
+          <InfoRow label="Owner">
+            <AddressDisplay address={net.owner} />
+          </InfoRow>
+          <InfoRow
+            label="Initial deposit"
+            help="One-off joining payment — a member's first deposit must be exactly this."
+          >
+            {formatAmount(net.initialDeposit, decimals)} {symbol}
+          </InfoRow>
+          <InfoRow
+            label="Recurring deposit"
+            help="Dues owed by each member every epoch (partial payments allowed)."
+          >
+            {formatAmount(net.fixedDeposit, decimals)} {symbol} / epoch
+          </InfoRow>
+          <InfoRow
+            label="Redeem ratio"
+            help="Every 1 token deposited unlocks this many tokens of withdrawable balance."
+          >
+            ×{net.redeemRatio.toString()}
+          </InfoRow>
+          <InfoRow
+            label="Instant withdrawals"
+            help="Withdrawals up to this amount are paid instantly; larger ones create a contestable request."
+          >
+            ≤ {formatAmount(net.autoThreshold, decimals)} {symbol}, max{" "}
+            {net.smallWithdrawsLimit.toString()}× per epoch
+          </InfoRow>
+          <InfoRow
+            label="Contest rule"
+            help="A large withdrawal is vetoed when more than this share of members contest it within the window."
+          >
+            &gt;{net.contestThreshold.toString()}% of members within{" "}
+            {formatDuration(net.contestWindow)}
+          </InfoRow>
+          <InfoRow label="Started">
+            {formatDateTime(net.safetyNetStart)}
+          </InfoRow>
+        </div>
+      </Card>
+    </div>
+  );
+}
