@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
+import {ReentrancyGuard} from './utils/ReentrancyGuard.sol';
 
 /// @title SafetyNet
 /// @notice Simple implementation of a Broodfond for ERC20 tokens
@@ -22,10 +22,18 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
   /// @notice Minimum redeem ratio
+  /// @dev Together with {MAXIMUM_REDEEM_RATIO} this locks `redeemRatio` to exactly 1 in v1
   uint256 public constant MINIMUM_REDEEM_RATIO = 1;
 
   /// @notice Maximum redeem ratio
-  uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
+  /// @dev Locked to 1 in v1: with a ratio > 1, member withdrawable balances (deposits x ratio) would
+  ///      exceed the actual pool funds — insolvency by design — and decommission() would underflow
+  ///      when refunding. Leverage (ratio > 1) is deferred to v2 research.
+  uint256 public constant MAXIMUM_REDEEM_RATIO = 1;
+
+  /// @notice Maximum number of future epochs a member can prepay beyond the current epoch
+  /// @dev Bounds the deposit allocation loop in {_deposit}; roughly one year of monthly epochs
+  uint256 public constant MAX_PREPAY_EPOCHS = 12;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
   string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
@@ -126,6 +134,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _;
   }
 
+  /// @dev The inherited plain (non-upgradeable) ReentrancyGuard is kept intentionally: its constructor
+  ///      only presets the guard slot to 1 as a gas optimization, and behind a proxy the slot simply
+  ///      starts at 0, which is functionally equivalent and safe. It is vendored under
+  ///      `src/contracts/utils/` so its constructor can carry its own unsafe-allow annotation, since
+  ///      upgrades-core cannot suppress constructor findings on parents inside node_modules.
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -544,8 +557,14 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit is the total amount
-   *      Each epoch after initial deposit, a member must pay exactly `fixedDeposit`.
-   *      Partial deposits are allowed until the epoch sum == fixedDeposit.
+   *      After onboarding, partial deposits are allowed until the epoch sum == fixedDeposit,
+   *      and any excess carries forward into future epochs (prepay): the current epoch's
+   *      remaining dues are filled first, then the next epoch, and so on, up to
+   *      `MAX_PREPAY_EPOCHS` epochs beyond the current one. Reverts with
+   *      {ExceedsDepositAmount} if the value cannot be fully allocated within that window.
+   *      The full value is credited to `safetyNetBalance` and `memberWithdrawableBalance`
+   *      immediately (redeemRatio is 1, so deposits are fully backed; prepaid funds return
+   *      through the normal withdrawable-balance refund on decommission).
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     SafetyNet storage _safetyNet = safetyNets[_id];
@@ -568,16 +587,31 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       safetyNetMemberContribute[_id][_member] = _safetyNet.fixedDeposit;
 
       // Set epoch paid to full initial
-      epochPaid = initial;
+      epochMemberDepositedAmount[_id][epoch][_member] = initial;
     } else {
-      // Subsequent months: partials allowed up to fixedDeposit
-      if (epochPaid + _value > _safetyNet.fixedDeposit) revert ExceedsDepositAmount();
-      epochPaid += _value;
+      // Subsequent months: fill the current epoch's remaining dues first, then carry any
+      // excess into future epochs (prepay), bounded by MAX_PREPAY_EPOCHS ahead.
+      uint256 _remaining = _value;
+      uint256 _fixedDeposit = _safetyNet.fixedDeposit;
+      uint256 _lastPrepayEpoch = epoch + MAX_PREPAY_EPOCHS;
+
+      for (uint256 _targetEpoch = epoch; _remaining > 0; _targetEpoch++) {
+        // Value cannot be fully allocated within the prepay window
+        if (_targetEpoch > _lastPrepayEpoch) revert ExceedsDepositAmount();
+
+        uint256 _paid = epochMemberDepositedAmount[_id][_targetEpoch][_member];
+        if (_paid >= _fixedDeposit) continue;
+
+        uint256 _fill = _fixedDeposit - _paid;
+        if (_remaining < _fill) _fill = _remaining;
+
+        epochMemberDepositedAmount[_id][_targetEpoch][_member] = _paid + _fill;
+        _remaining -= _fill;
+      }
     }
 
     safetyNetBalance[_id] += _value;
     memberWithdrawableBalance[_id][_member] += _value * _safetyNet.redeemRatio;
-    epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
     IERC20(_safetyNet.token).safeTransferFrom(_member, address(this), _value);
 

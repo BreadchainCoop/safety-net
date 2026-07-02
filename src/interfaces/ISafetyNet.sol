@@ -24,7 +24,7 @@ interface ISafetyNet {
   /// @param members List of member addresses
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param redeemRatio Ratio of deposit to withdrawal
+  /// @param redeemRatio Ratio of deposit to withdrawal; must be exactly 1 in v1 (leverage is disabled), field retained for forward-compatibility
   /// @param contestWindow Duration of the contest period for requests
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
@@ -354,11 +354,17 @@ interface ISafetyNet {
   function decommission(uint256 id) external;
 
   /// @notice Makes a deposit into a Safety Net
+  /// @dev The first deposit (onboarding) must equal `initialDeposit` exactly. Afterwards, partial
+  ///      payments toward the current epoch's `fixedDeposit` dues are allowed, and any excess is
+  ///      carried forward as prepayment of future epochs, up to `MAX_PREPAY_EPOCHS` (12) epochs
+  ///      beyond the current one; reverts if the value cannot be fully allocated within that window
   /// @param id The Safety Net ID
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
   /// @notice Makes a deposit into a Safety Net for another member
+  /// @dev Same allocation rules as {deposit}: exact `initialDeposit` for onboarding, then partial
+  ///      payments plus prepayment of up to `MAX_PREPAY_EPOCHS` (12) future epochs
   /// @param id The Safety Net ID
   /// @param value Amount to deposit
   /// @param member The member address making the deposit

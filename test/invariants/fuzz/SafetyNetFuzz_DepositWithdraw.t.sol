@@ -44,10 +44,11 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 duesRemainingBefore = _safetyNet.duesRemainingThisEpoch(id, actor);
 
     if (duesRemainingBefore == 0) {
-      // already fully paid this epoch → any extra should exceed cap
+      // already fully paid this epoch → any extra carries forward as prepayment of a future epoch
       vm.prank(actor);
-      vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
-      try _safetyNet.deposit(id, 1) {} catch {}
+      _safetyNet.deposit(id, 1);
+      assertEq(_safetyNet.duesRemainingThisEpoch(id, actor), 0, 'current epoch stays fully paid');
+      assertEq(_safetyNet.memberWithdrawableBalance(id, actor), beforeWithdrawable + 1, 'prepay credited to withdrawable');
       return;
     }
 

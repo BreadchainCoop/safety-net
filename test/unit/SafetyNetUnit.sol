@@ -351,6 +351,32 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _sn.create(_safetyNet);
   }
 
+  function test_CreateWhenRedeemRatioIsZero() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.redeemRatio = 0;
+    vm.expectRevert(ISafetyNet.InvalidRatio.selector);
+    _sn.create(_safetyNet);
+  }
+
+  function test_CreateWhenRedeemRatioIsGreaterThanOne() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // Leverage is disabled in v1: the redeem ratio must be exactly 1
+    _safetyNet.redeemRatio = 2;
+    vm.expectRevert(ISafetyNet.InvalidRatio.selector);
+    _sn.create(_safetyNet);
+  }
+
+  function test_CreateWhenRedeemRatioIsOne() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.redeemRatio = 1;
+    uint256 id = _sn.create(_safetyNet);
+    assertEq(_sn.getSafetyNet(id).redeemRatio, 1);
+  }
+
   function test_CreateWhenMembersArrayIsEmpty() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
@@ -487,6 +513,34 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     assertEq(_token.balanceOf(_bob), preBalanceBob + withdrawableBob + equalShare);
   }
 
+  function test_DecommissionWhenMemberHasPrepaidFutureEpochs() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+
+    // epoch 0: both members onboard
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+
+    // Alice prepays epochs 1..3; Bob pays nothing further
+    vm.prank(_alice);
+    _sn.deposit(id, 3 * _safetyNet.fixedDeposit);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit + 3 * _safetyNet.fixedDeposit);
+
+    // Bob misses epoch 1, so the net becomes decommissionable in epoch 2
+    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    assertTrue(_sn.isDecommissionable(id));
+
+    uint256 preAlice = _token.balanceOf(_alice);
+    uint256 preBob = _token.balanceOf(_bob);
+    _sn.decommission(id);
+
+    // Alice's refund includes her prepaid deposits; nothing is left over to split
+    assertEq(_token.balanceOf(_alice), preAlice + _safetyNet.initialDeposit + 3 * _safetyNet.fixedDeposit);
+    assertEq(_token.balanceOf(_bob), preBob + _safetyNet.initialDeposit);
+    assertEq(_sn.safetyNetBalance(id), 0);
+  }
+
   // ---------- deposit ----------
   function test_DepositWhenSafetyNetOwnerIsZeroAddress() external {
     vm.expectRevert(ISafetyNet.NotCommissioned.selector);
@@ -547,13 +601,108 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     vm.prank(_alice);
     _sn.deposit(id, 9 ether);
 
-    // Now any extra exceeds the epoch cap
-    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    // Fully paid flag (derived) is now true
+    uint256 epoch = _sn.getCurrentEpochIndex(id);
+    assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, epoch));
+
+    // Any extra now carries forward into the next epoch as prepayment
     vm.prank(_alice);
     _sn.deposit(id, 1 ether);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch, _alice), 10 ether);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 1, _alice), 1 ether);
+  }
 
-    // Fully paid flag (derived) is now true
-    assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, _sn.getCurrentEpochIndex(id)));
+  function test_DepositWhenPayingExactDuesForTheEpoch() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _nextEpoch(id);
+
+    uint256 epoch = _sn.getCurrentEpochIndex(id);
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.fixedDeposit);
+
+    assertEq(_sn.duesRemainingThisEpoch(id, _alice), 0);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch, _alice), _safetyNet.fixedDeposit);
+
+    // Nothing spills into the next epoch
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 1, _alice), 0);
+  }
+
+  function test_DepositWhenOverpaymentCarriesIntoFutureEpochs() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.fixedDeposit = 20 ether;
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _nextEpoch(id);
+    uint256 epoch = _sn.getCurrentEpochIndex(id);
+
+    // Partial payment toward the current epoch first
+    vm.prank(_alice);
+    _sn.deposit(id, 10 ether);
+
+    uint256 withdrawableBefore = _sn.memberWithdrawableBalance(id, _alice);
+    uint256 balanceBefore = _sn.safetyNetBalance(id);
+
+    // 45 ether: 10 completes the current epoch, 20 fills epoch+1, 15 partially prepays epoch+2
+    vm.expectEmit(true, true, false, true);
+    emit ISafetyNet.FundsDeposited(id, _alice, 45 ether);
+    vm.prank(_alice);
+    _sn.deposit(id, 45 ether);
+
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch, _alice), 20 ether);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 1, _alice), 20 ether);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 2, _alice), 15 ether);
+    assertEq(_sn.duesRemainingThisEpoch(id, _alice), 0);
+    assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, epoch + 1));
+    assertFalse(_sn.hasMemberDepositedInEpoch(id, _alice, epoch + 2));
+
+    // The full value is credited to balances immediately
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), withdrawableBefore + 45 ether);
+    assertEq(_sn.safetyNetBalance(id), balanceBefore + 45 ether);
+
+    // A further deposit resumes filling at the first unfilled epoch
+    vm.prank(_alice);
+    _sn.deposit(id, 5 ether);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 2, _alice), 20 ether);
+  }
+
+  function test_DepositWhenPrepayingExactlyMaxPrepayEpochsAhead() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+
+    // Epoch 0 dues are covered by the initial deposit; 12 * fixedDeposit fills epochs 1..12 exactly
+    uint256 epoch = _sn.getCurrentEpochIndex(id);
+    uint256 maxPrepay = _sn.MAX_PREPAY_EPOCHS();
+    vm.prank(_alice);
+    _sn.deposit(id, maxPrepay * _safetyNet.fixedDeposit);
+
+    for (uint256 k = 1; k <= maxPrepay; k++) {
+      assertEq(_sn.epochMemberDepositedAmount(id, epoch + k, _alice), _safetyNet.fixedDeposit);
+      assertTrue(_sn.hasMemberDepositedInEpoch(id, _alice, epoch + k));
+    }
+
+    // The prepay window is now completely full: any further deposit cannot be allocated
+    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    vm.prank(_alice);
+    _sn.deposit(id, 1);
+  }
+
+  function test_DepositWhenPrepayingBeyondMaxPrepayEpochsReverts() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+
+    // One wei more than epochs 1..12 can absorb extends beyond the prepay window
+    uint256 overWindow = _sn.MAX_PREPAY_EPOCHS() * _safetyNet.fixedDeposit + 1;
+    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    vm.prank(_alice);
+    _sn.deposit(id, overWindow);
   }
 
   function test_DepositWhenTokenTransferFromFails() external {
@@ -662,9 +811,12 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     vm.prank(_bob);
     _sn.depositFor(id, 4 ether, _alice);
 
-    vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
+    // Epoch dues are met; any extra now prepays the following epoch
+    uint256 epoch = _sn.getCurrentEpochIndex(id);
     vm.prank(_bob);
     _sn.depositFor(id, 1 ether, _alice);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch, _alice), _safetyNet.fixedDeposit);
+    assertEq(_sn.epochMemberDepositedAmount(id, epoch + 1, _alice), 1 ether);
   }
 
   function test_DepositForWhenTokenTransferFromFailsFromSender() external {
@@ -1056,6 +1208,50 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _allowToken(address(_token));
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
     assertFalse(_sn.isDecommissionable(id));
+  }
+
+  function test_IsDecommissionableWhenAllMembersPrepaidFutureEpochs() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+
+    // Both members prepay epochs 1..3 while still in epoch 0
+    vm.prank(_alice);
+    _sn.deposit(id, 3 * _safetyNet.fixedDeposit);
+    vm.prank(_bob);
+    _sn.deposit(id, 3 * _safetyNet.fixedDeposit);
+
+    // Warping through the prepaid epochs never makes the net decommissionable
+    for (uint256 k = 1; k <= 4; k++) {
+      vm.warp(_safetyNet.safetyNetStart + k * _safetyNet.epochDuration + 1);
+      assertFalse(_sn.isDecommissionable(id));
+    }
+
+    // Epoch 4 was never paid, so from epoch 5 the net is decommissionable
+    vm.warp(_safetyNet.safetyNetStart + 5 * _safetyNet.epochDuration + 1);
+    assertTrue(_sn.isDecommissionable(id));
+  }
+
+  function test_GetMembersNeedingDepositWhenMemberPrepaidNextEpoch() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    uint256 id = _sn.create(_safetyNet);
+    _payInitial(id, _alice);
+    _payInitial(id, _bob);
+
+    // Alice prepays the next epoch while still in epoch 0
+    vm.prank(_alice);
+    _sn.deposit(id, _safetyNet.fixedDeposit);
+
+    // In the next epoch only Bob still owes dues
+    _nextEpoch(id);
+    address[] memory needing = _sn.getMembersNeedingDeposit(id);
+    assertEq(needing.length, 1);
+    assertEq(needing[0], _bob);
+    assertEq(_sn.duesRemainingThisEpoch(id, _alice), 0);
+    assertEq(_sn.duesRemainingThisEpoch(id, _bob), _safetyNet.fixedDeposit);
   }
 
   // ---------- invite  ----------
