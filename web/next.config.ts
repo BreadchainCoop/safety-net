@@ -5,6 +5,9 @@ import type { NextConfig } from "next";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
+  // Allow parallel dev servers (e.g. multi-wallet verify mode) to keep
+  // separate build dirs so their NEXT_PUBLIC_* env values don't collide.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Pure static export — no server runtime. The dapp talks to Gnosis directly
   // from the browser, so it can be hosted on any static host or IPFS.
   output: "export",

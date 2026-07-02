@@ -40,21 +40,27 @@ const walletConnectors = connectorsForWallets(
   { appName: "Safety Net", projectId: WALLETCONNECT_PROJECT_ID },
 );
 
-const connectors: CreateConnectorFn[] = [...walletConnectors];
-
-if (VERIFY_MODE && VERIFY_PRIVATE_KEY) {
-  connectors.push(
-    devWalletConnector({
-      privateKey: VERIFY_PRIVATE_KEY,
-      chain: CHAIN,
-      rpcUrl: RPC_URL,
-    }),
-  );
-}
+// In verify mode the dev wallet is the ONLY connector: extension-wallet SDK
+// connectors (WalletConnect, MetaMask SDK) can hang in getProvider() during
+// wagmi's reconnect-on-mount, leaving the app stuck in "connecting" forever.
+const connectors: CreateConnectorFn[] =
+  VERIFY_MODE && VERIFY_PRIVATE_KEY
+    ? [
+        devWalletConnector({
+          privateKey: VERIFY_PRIVATE_KEY,
+          chain: CHAIN,
+          rpcUrl: RPC_URL,
+        }),
+      ]
+    : [...walletConnectors];
 
 export const wagmiConfig = createConfig({
   chains: [gnosis],
   connectors,
+  // In verify mode, skip EIP-6963 discovery of browser-extension providers:
+  // a discovered extension connector can stall wagmi's reconnect-on-mount,
+  // leaving the app stuck in "connecting" and the dev wallet unusable.
+  ...(VERIFY_MODE ? { multiInjectedProviderDiscovery: false } : {}),
   transports: {
     [gnosis.id]: http(RPC_URL),
   },
