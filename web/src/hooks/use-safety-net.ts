@@ -157,6 +157,34 @@ export function useIsTokenAllowed(token: Address | undefined) {
   });
 }
 
+/**
+ * Batch used-status for the owner's generated invites — live accepted/pending
+ * tracking on the invite panel (app-stacks members.tsx pattern: stored links
+ * are checked against usedNonces on-chain via a multicall).
+ */
+export function useInviteNoncesUsed(
+  safetyNetId: bigint | undefined,
+  nonces: readonly bigint[],
+) {
+  const { data } = useReadContracts({
+    contracts: nonces.map((nonce) => ({
+      ...safetyNetContract,
+      functionName: "usedNonces" as const,
+      args: [safetyNetId ?? 0n, nonce] as const,
+    })),
+    query: {
+      enabled:
+        isContractConfigured && safetyNetId !== undefined && nonces.length > 0,
+      refetchInterval: REFETCH_MS,
+    },
+  });
+
+  return useMemo(
+    () => nonces.map((_, i) => data?.[i]?.result === true),
+    [data, nonces],
+  );
+}
+
 /** Whether an invite nonce has already been redeemed (join-page pre-check). */
 export function useInviteNonceUsed(
   safetyNetId: bigint | undefined,

@@ -20,6 +20,7 @@ import { BREAD_ADDRESS, REDEEM_RATIO, WXDAI_ADDRESS } from "@/lib/config";
 import { parseAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createNetSchema, type CreateNetValues } from "./schema";
+import { SuccessInvites } from "./success-invites";
 
 const inputClass =
   "w-full rounded-xl border border-paper-2 bg-paper-main px-4 py-2.5 text-text-standard outline-none focus:border-primary-jade disabled:opacity-60";
@@ -232,7 +233,7 @@ export function CreateForm() {
         <Field
           id={id("members")}
           label="Founding members"
-          help="Everyone listed here is a member from day one. You can invite more people later with a signed invite link."
+          help="Everyone listed here is a member from day one — no invite needed. Anyone you leave out can join later through a single-use invite link you sign."
           error={memberInputError ?? errors.members?.message}
         >
           <div className="flex gap-2">
@@ -569,9 +570,11 @@ export function CreateForm() {
                 created
               </Heading4>
               <Body className="text-surface-grey-2 mt-1 text-sm">
-                Next step: open your new net and generate single-use invite
-                links to bring in the rest of your group.
+                {createdId !== undefined
+                  ? "Everyone you listed as a founding member is in from day one. Bring in the rest of your group with invite links — right here, or later from the net page."
+                  : "Next step: open your new net and generate single-use invite links to bring in the rest of your group."}
               </Body>
+              {createdId !== undefined && <SuccessInvites id={createdId} />}
               <div className="mt-3">
                 <Button
                   as={Link}

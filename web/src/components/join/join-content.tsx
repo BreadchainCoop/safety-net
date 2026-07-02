@@ -3,6 +3,7 @@
 import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useAccount } from "wagmi";
 import { isHex, zeroAddress } from "viem";
 import { Caption } from "@breadcoop/ui";
 import { ActionButton } from "@/components/ui/action-button";
@@ -30,6 +31,7 @@ import { parseContractError } from "@/lib/parse-contract-error";
 /** Parses /join/?net=ID&nonce=N&sig=0x… and redeems the owner-signed invite. */
 function JoinInner() {
   const params = useSearchParams();
+  const { isConnected } = useAccount();
 
   const invite = useMemo(() => {
     try {
@@ -133,6 +135,13 @@ function JoinInner() {
         {symbol} in dues each epoch after that.
       </p>
 
+      <div className="border-system-warning/40 bg-system-warning/10 mt-4 rounded-xl border p-3">
+        <p className="text-system-warning text-xs font-medium">
+          Important: this invite can only be accepted once. If someone else
+          redeems this link first, it stops working.
+        </p>
+      </div>
+
       <div className="mt-4">
         {details.isMember || redeemTx.isSuccess ? (
           <p className="text-system-green text-sm font-medium">
@@ -145,8 +154,17 @@ function JoinInner() {
             </Link>{" "}
             to pay your initial deposit.
           </p>
+        ) : nonceUsed === true ? (
+          <p className="bg-paper-2 text-surface-grey-2 rounded-xl px-4 py-3 text-center text-sm font-medium">
+            This invite has already been used — ask the owner for a new link.
+          </p>
         ) : (
           <>
+            {!isConnected && (
+              <p className="text-surface-grey mb-2 text-xs">
+                Connect your wallet to accept this invite.
+              </p>
+            )}
             <ActionButton
               onClick={() =>
                 redeemTx.redeemInvite(
@@ -155,9 +173,9 @@ function JoinInner() {
                 )
               }
               isLoading={redeemTx.isBusy}
-              disabled={nonceUsed === true || full}
+              disabled={full}
             >
-              Join Safety Net
+              Accept invite
             </ActionButton>
             <TxStatus
               status={redeemTx.status}

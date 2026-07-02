@@ -1,39 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { Caption, CopyButtonIcon } from "@breadcoop/ui";
 import { PaperPlaneTilt } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
-import { Card } from "@/components/ui/ui";
-import { useSignInvite, type SignedInvite } from "@/hooks/use-invite";
+import { Badge, Card } from "@/components/ui/ui";
+import { inviteLink, useInviteLinks } from "@/hooks/use-invite";
+import { useInviteNoncesUsed } from "@/hooks/use-safety-net";
 import type { SafetyNetDetails } from "@/lib/types";
 
 /**
- * Owner-only: signs an EIP-712 invite (domain "SafetyNetInvite" v1, type
- * Invite(uint256 safetyNetId,uint256 nonce)) and produces a single-use
- * /join link to share (GitHub issue #66).
+ * Invite generation + tracking body (app-stacks StackSuccessResultModal /
+ * StackMembers parity, GitHub issue #66): batch-signs single-use EIP-712
+ * invites with signing progress, and lists every link generated in this
+ * browser with per-row copy and live Accepted/Pending status from usedNonces.
+ * Rendered inside the owner-only InvitePanel and the create-success box.
  */
-export function InvitePanel({ details }: { details: SafetyNetDetails }) {
-  const { address } = useAccount();
+export function InviteLinksBody({ details }: { details: SafetyNetDetails }) {
   const net = details.safetyNet;
-  const { sign, isPending, error } = useSignInvite();
-  const [invite, setInvite] = useState<SignedInvite | null>(null);
+  const { invites, generate, progress, isGenerating, error } = useInviteLinks(
+    net.id,
+  );
+  const countId = useId();
 
-  const isOwner = address?.toLowerCase() === net.owner.toLowerCase();
-  if (!isOwner) return null;
+  const remaining = Math.max(
+    0,
+    Number(net.maximumMembers) - Number(details.memberCount),
+  );
+  const full = remaining === 0;
+  const [count, setCount] = useState(() => Math.max(1, remaining));
 
-  const full = details.memberCount >= net.maximumMembers;
+  const nonces = useMemo(
+    () => invites.map((inv) => BigInt(inv.nonce)),
+    [invites],
+  );
+  const used = useInviteNoncesUsed(net.id, nonces);
+  const acceptedCount = used.filter(Boolean).length;
+
+  const clamped = Math.min(
+    Math.max(1, Math.floor(count) || 1),
+    Math.max(1, remaining),
+  );
 
   return (
-    <Card>
-      <Caption className="text-surface-grey-2">Invite a member</Caption>
-      <p className="text-surface-grey mt-2 text-xs">
-        As the owner you can invite people by signing an invite link. Each link
-        can be used once; the new member joins the moment they redeem it (no
-        transaction needed from you).
-      </p>
-
+    <div>
       {full && (
         <p className="text-system-warning mt-2 text-xs font-medium">
           The group is at its maximum of {net.maximumMembers.toString()} members
@@ -41,45 +52,134 @@ export function InvitePanel({ details }: { details: SafetyNetDetails }) {
         </p>
       )}
 
-      <div className="mt-4">
-        <ActionButton
-          onClick={async () => {
-            const signed = await sign(net.id);
-            if (signed) setInvite(signed);
-          }}
-          isLoading={isPending}
-        >
-          <span className="inline-flex items-center gap-2">
-            <PaperPlaneTilt size={16} weight="fill" /> Generate invite link
-          </span>
-        </ActionButton>
-        {error && (
-          <p className="text-system-red mt-2 text-xs font-medium">{error}</p>
-        )}
-      </div>
-
-      {invite && (
-        <div className="border-primary-jade/40 bg-primary-jade/5 mt-3 rounded-xl border p-3">
-          <div className="flex items-center gap-2">
+      {!full && (
+        <div className="mt-4 flex items-end gap-2">
+          <div>
+            <label htmlFor={countId}>
+              <Caption className="text-surface-grey-2">Links</Caption>
+            </label>
             <input
-              readOnly
-              aria-label="Invite link"
-              value={invite.link}
-              onFocus={(e) => e.target.select()}
-              className="text-text-standard w-full bg-transparent font-mono text-xs outline-none"
-            />
-            <CopyButtonIcon
-              textToCopy={invite.link}
-              aria-label="Copy invite link"
-              checkedIconSize={16}
-              className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
+              id={countId}
+              type="number"
+              min={1}
+              max={remaining}
+              value={count}
+              disabled={isGenerating}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="border-paper-2 bg-paper-main text-text-standard focus:border-primary-jade mt-1.5 w-20 rounded-xl border px-3 py-2.5 outline-none disabled:opacity-60"
             />
           </div>
-          <p className="text-surface-grey mt-2 text-xs">
-            Share this link privately — anyone with it can join (once).
-          </p>
+          <ActionButton
+            onClick={() => generate(clamped)}
+            isLoading={isGenerating}
+            className="w-full"
+          >
+            <span className="inline-flex items-center gap-2">
+              <PaperPlaneTilt size={16} weight="fill" /> Generate{" "}
+              {clamped === 1 ? "invite link" : `${clamped} invite links`}
+            </span>
+          </ActionButton>
         </div>
       )}
+      {progress && (
+        <p role="status" className="text-primary-jade mt-2 text-xs font-medium">
+          {progress}
+        </p>
+      )}
+      {error && (
+        <p className="text-system-red mt-2 text-xs font-medium">
+          {error} Links signed before the interruption were kept below.
+        </p>
+      )}
+
+      {invites.length > 0 && (
+        <>
+          <div className="text-surface-grey-2 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span>
+              Invited:{" "}
+              <span className="text-text-standard font-bold">
+                {invites.length}
+              </span>
+            </span>
+            <span>
+              Accepted:{" "}
+              <span className="text-text-standard font-bold">
+                {acceptedCount}
+              </span>
+            </span>
+            <span>
+              Pending:{" "}
+              <span className="text-text-standard font-bold">
+                {invites.length - acceptedCount}
+              </span>
+            </span>
+          </div>
+
+          <ul className="mt-2 flex max-h-96 flex-col gap-2 overflow-y-auto">
+            {invites.map((inv, i) => {
+              const link = inviteLink(net.id, inv);
+              const isUsed = used[i] === true;
+              return (
+                <li
+                  key={inv.nonce}
+                  className="border-paper-2 bg-paper-main flex items-center gap-2 rounded-xl border px-3 py-2"
+                >
+                  <span className="text-surface-grey font-mono text-xs">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <input
+                    readOnly
+                    aria-label={`Invite link ${i + 1}`}
+                    value={link}
+                    onFocus={(e) => e.target.select()}
+                    className="text-text-standard w-full min-w-0 bg-transparent font-mono text-xs outline-none"
+                  />
+                  <Badge tone={isUsed ? "green" : "warning"}>
+                    {isUsed ? "Accepted" : "Pending"}
+                  </Badge>
+                  <CopyButtonIcon
+                    textToCopy={link}
+                    aria-label={`Copy invite link ${i + 1}`}
+                    checkedIconSize={16}
+                    className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
+                  />
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="text-surface-grey mt-3 text-xs">
+            <span className="text-system-warning font-bold">Reminder: </span>
+            each link is unique and can only be used once. Links are saved only
+            in this browser — share them privately.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Owner-only: signs EIP-712 invites (domain "SafetyNetInvite" v1, type
+ * Invite(uint256 safetyNetId,uint256 nonce)) and manages the single-use
+ * /join links to share.
+ */
+export function InvitePanel({ details }: { details: SafetyNetDetails }) {
+  const { address } = useAccount();
+  const net = details.safetyNet;
+
+  const isOwner = address?.toLowerCase() === net.owner.toLowerCase();
+  if (!isOwner) return null;
+
+  return (
+    <Card>
+      <Caption className="text-surface-grey-2">Invite members</Caption>
+      <p className="text-surface-grey mt-2 text-xs">
+        As the owner you can invite people by signing invite links. Each link
+        can be used once; the new member joins the moment they redeem it (no
+        transaction needed from you).
+      </p>
+      <InviteLinksBody details={details} />
     </Card>
   );
 }
