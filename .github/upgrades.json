@@ -1,0 +1,5 @@
+{
+  "contracts": [
+    { "contract": "src/contracts/SafetyNet.sol:SafetyNet" }
+  ]
+}
