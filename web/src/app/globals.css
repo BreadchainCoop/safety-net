@@ -40,3 +40,26 @@ body {
     @apply mx-auto w-full max-w-6xl px-6;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Account dropdown (@breadcoop/ui Navbar) fit-up for our LIGHT navbar.
+   The kit's account widget is styled for the reference apps' dark navbar, so
+   its <Body> text (which only inherits color) renders near-invisible on our
+   cream paper. Force the standard near-black ink on the trigger and panel.
+   The panel wrapper carries the stable `.nav-account-menu` class; the trigger
+   carries `border-surface-ink`.
+   -------------------------------------------------------------------------- */
+.nav-account-menu,
+.nav-account-menu p,
+.nav-account-menu a,
+[class~="border-surface-ink"] {
+  color: var(--color-text-standard);
+}
+
+/* The kit points the chain icon at a root-absolute `/gnosis_icon.svg`, which
+   404s under our GitHub Pages base path and renders a broken-image glyph. Drop
+   it — the "Gnosis" network label alongside it is enough. (alt="" is unique to
+   this icon; the BREAD balance mark is an inline SVG, not an <img>.) */
+.nav-account-menu img[alt=""] {
+  display: none;
+}

@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useDisconnect } from "wagmi";
-import { Navbar as KitNavbar, Button } from "@breadcoop/ui";
-import { SignOut } from "@phosphor-icons/react";
+import { Navbar as KitNavbar } from "@breadcoop/ui";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -43,36 +41,17 @@ function NavLinks() {
   );
 }
 
-/** Disconnect action rendered inside the kit account menu. */
-function AccountActions() {
-  const { disconnect } = useDisconnect();
-  return (
-    <Button
-      app="net"
-      variant="secondary"
-      className="w-full"
-      rightIcon={<SignOut />}
-      onClick={() => disconnect()}
-    >
-      Disconnect
-    </Button>
-  );
-}
-
 /**
  * Official `@breadcoop/ui` Navbar (app="net"): Safety Net logo lockup, the
  * Breadchain solidarity-apps switcher, and the built-in mobile menu. Connect /
- * account UI comes from the kit's "general" (wagmi + RainbowKit) auth path.
+ * account UI (including the account dropdown's built-in "Sign out" action)
+ * comes from the kit's "general" (wagmi + RainbowKit) auth path, so we do not
+ * pass a second disconnect button via `actionItems`.
  */
 export function Navbar() {
   return (
     <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
-      <KitNavbar
-        app="net"
-        Link={Link}
-        className="section-container"
-        actionItems={<AccountActions />}
-      >
+      <KitNavbar app="net" Link={Link} className="section-container">
         <NavLinks />
       </KitNavbar>
     </header>
