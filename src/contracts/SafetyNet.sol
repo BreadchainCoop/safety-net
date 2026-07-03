@@ -73,6 +73,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Base denominator used for percentage calculations
   uint256 public constant PERCENTAGE_BASE = 100;
 
+  /// @notice TEST-ONLY storage-layout violation inserted to evaluate etherform's upgrade-safety check.
+  /// @dev Placing a new slot BEFORE the existing storage variables shifts every subsequent slot,
+  ///      which would brick a live proxy upgrade. The upgrade-safety job must catch this and fail.
+  uint256 public injectedUpgradeViolation;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
