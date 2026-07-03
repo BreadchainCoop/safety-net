@@ -1757,6 +1757,19 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "start",
+    "inputs": [
+      {
+        "name": "_id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "transferOwnership",
     "inputs": [
       {
@@ -2090,6 +2103,25 @@ export const safetyNetAbi = [
   },
   {
     "type": "event",
+    "name": "SafetyNetStarted",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "startTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "TokenAllowed",
     "inputs": [
       {
@@ -2206,6 +2238,11 @@ export const safetyNetAbi = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AlreadyActive",
+    "inputs": []
   },
   {
     "type": "error",
@@ -2356,6 +2393,11 @@ export const safetyNetAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidMembers",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidMinimumMembers",
     "inputs": []
   },
@@ -2406,12 +2448,22 @@ export const safetyNetAbi = [
   },
   {
     "type": "error",
+    "name": "NotActive",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotCommissioned",
     "inputs": []
   },
   {
     "type": "error",
     "name": "NotDecommissionable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotEnoughMembers",
     "inputs": []
   },
   {

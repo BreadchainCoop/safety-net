@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/metadata";
 export const metadata: Metadata = buildMetadata({
   title: "How it works",
   description:
-    "Every Safety Net flow, step by step: create, invite, deposit (with prepay), withdraw, contest, execute, decommission.",
+    "Every Safety Net flow, step by step: create, invite, start, deposit (with prepay), withdraw, contest, execute, decommission.",
   path: "/docs/",
 });
 
@@ -23,16 +23,18 @@ const SECTIONS: Section[] = [
     title: "1. Create a Safety Net",
     body: [
       "A Safety Net is a shared savings pool with rules everyone agrees to up front: which token you save in, how much everyone deposits, and how withdrawals are approved.",
-      "The creator lists the founding members and sets the one-off initial deposit and the recurring deposit due every epoch (e.g. every 30 days). Deposits convert 1:1 into withdrawable balance — the redeem ratio is locked to ×1 in v1, so there's no leverage. Small withdrawals below the instant threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
+      "You create the net alone and become its first member — no address lists. Pick the group size, the one-off initial deposit, and the recurring deposit due every epoch (e.g. every 30 days). Deposits convert 1:1 into withdrawable balance — the redeem ratio is locked to ×1 in v1, so there's no leverage. Small withdrawals below the instant threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
+      "Right after creation the app generates one single-use invite link per open seat, signed by your wallet — share those privately to bring in the rest of your group.",
     ],
   },
   {
     id: "invite",
     gif: "invite-join",
-    title: "2. Invite & join",
+    title: "2. Invite & join, then start",
     body: [
-      "The owner can grow the group after creation by generating an invite link. The link contains a signature from the owner's wallet (no transaction, no gas) and can be redeemed exactly once.",
-      "Whoever opens the link sees the net's rules — joining payment, recurring dues, current members — and joins by redeeming the invite on-chain. Invites stop working once the group hits its maximum size.",
+      "Invite links are generated automatically when the net is created, and the owner can make more from the net page while the net hasn't started. Each link contains a signature from the owner's wallet (no transaction, no gas) and can be redeemed exactly once.",
+      "Whoever opens the link sees the net's rules — joining payment, recurring dues, current members — and joins by redeeming the invite on-chain. Invites stop working once the group hits its maximum size, and joining closes for good once the net starts.",
+      "When at least the minimum number of members have joined, the owner starts the net. Starting locks membership — no more joins — and begins epoch 1: deposits open and recurring dues count from that moment.",
     ],
   },
   {
@@ -40,7 +42,7 @@ const SECTIONS: Section[] = [
     gif: "deposit",
     title: "3. Deposit",
     body: [
-      "Your very first deposit is the initial deposit, paid exactly and in one payment — it activates your membership and sets your recurring dues.",
+      "Deposits open once the owner starts the net. Your very first deposit is the initial deposit, paid exactly and in one payment — it activates your membership and sets your recurring dues.",
       "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit adds 1:1 to your withdrawable balance.",
       "You can also pay ahead: deposit more than this epoch's dues and the extra prepays future epochs — the current epoch's remaining dues fill first, then the next epoch, and so on, up to 12 epochs ahead. The app previews exactly how a deposit will be allocated before you send it.",
     ],

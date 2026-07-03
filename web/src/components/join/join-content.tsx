@@ -95,6 +95,9 @@ function JoinInner() {
     );
 
   const full = details.memberCount >= net.maximumMembers;
+  // Joining is only possible before start() — after that redeemInvite
+  // reverts with AlreadyActive, so pre-check instead of letting it revert.
+  const started = net.safetyNetStart !== 0n;
 
   return (
     <Card>
@@ -102,6 +105,9 @@ function JoinInner() {
         <Caption className="text-surface-grey-2">
           You&apos;ve been invited to
         </Caption>
+        {started && !details.isMember && (
+          <Badge tone="warning">Already started</Badge>
+        )}
         {nonceUsed === true && <Badge tone="red">Invite already used</Badge>}
         {full && <Badge tone="warning">Group is full</Badge>}
       </div>
@@ -153,6 +159,10 @@ function JoinInner() {
               Open Safety Net #{net.id.toString()}
             </Link>{" "}
             to pay your initial deposit.
+          </p>
+        ) : started ? (
+          <p className="bg-paper-2 text-surface-grey-2 rounded-xl px-4 py-3 text-center text-sm font-medium">
+            This Safety Net has already started — joining is closed.
           </p>
         ) : nonceUsed === true ? (
           <p className="bg-paper-2 text-surface-grey-2 rounded-xl px-4 py-3 text-center text-sm font-medium">

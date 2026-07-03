@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { Caption, CopyButtonIcon } from "@breadcoop/ui";
 import { PaperPlaneTilt } from "@phosphor-icons/react";
@@ -16,12 +16,22 @@ import type { SafetyNetDetails } from "@/lib/types";
  * invites with signing progress, and lists every link generated in this
  * browser with per-row copy and live Accepted/Pending status from usedNonces.
  * Rendered inside the owner-only InvitePanel and the create-success box.
+ *
+ * With `autoGenerate` (create-success box, app-stacks StackSuccessResultModal
+ * parity) the batch signing starts on mount — one link per open seat — as
+ * soon as the persisted links have loaded and only when none exist yet. On
+ * failure the signed links are kept and the generate button doubles as retry.
  */
-export function InviteLinksBody({ details }: { details: SafetyNetDetails }) {
+export function InviteLinksBody({
+  details,
+  autoGenerate = false,
+}: {
+  details: SafetyNetDetails;
+  autoGenerate?: boolean;
+}) {
   const net = details.safetyNet;
-  const { invites, generate, progress, isGenerating, error } = useInviteLinks(
-    net.id,
-  );
+  const { invites, isLoaded, generate, progress, isGenerating, error } =
+    useInviteLinks(net.id);
   const countId = useId();
 
   const remaining = Math.max(
@@ -30,6 +40,15 @@ export function InviteLinksBody({ details }: { details: SafetyNetDetails }) {
   );
   const full = remaining === 0;
   const [count, setCount] = useState(() => Math.max(1, remaining));
+
+  // Auto-start batch generation once per mount (never on top of links that
+  // already exist in this browser).
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoGenerate || autoStarted.current || !isLoaded) return;
+    autoStarted.current = true;
+    if (invites.length === 0 && remaining > 0) void generate(remaining);
+  }, [autoGenerate, isLoaded, invites.length, remaining, generate]);
 
   const nonces = useMemo(
     () => invites.map((inv) => BigInt(inv.nonce)),
@@ -177,7 +196,8 @@ export function InvitePanel({ details }: { details: SafetyNetDetails }) {
       <p className="text-surface-grey mt-2 text-xs">
         As the owner you can invite people by signing invite links. Each link
         can be used once; the new member joins the moment they redeem it (no
-        transaction needed from you).
+        transaction needed from you). Invites only work before the net starts
+        — starting locks membership.
       </p>
       <InviteLinksBody details={details} />
     </Card>

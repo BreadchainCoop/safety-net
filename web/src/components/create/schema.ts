@@ -2,13 +2,6 @@ import { isAddress } from "viem";
 import { z } from "zod";
 import { REDEEM_RATIO } from "@/lib/config";
 
-const addressString = z
-  .string()
-  .trim()
-  // `: boolean` prevents TS from inferring a type predicate (which would
-  // split the schema's input/output types and break the RHF resolver).
-  .refine((v): boolean => isAddress(v), "Not a valid address");
-
 /** Positive decimal token amount as a string (parsed with token decimals). */
 const amountString = z
   .string()
@@ -20,9 +13,12 @@ const amountString = z
 
 export const createNetSchema = z
   .object({
-    members: z
-      .array(addressString)
-      .min(1, "Add at least one member (you can invite more later)"),
+    // Group size cap (contract maximumMembers). The owner is the sole member
+    // at creation — everyone else joins via invite links before start().
+    memberCount: z
+      .number({ error: "Enter a whole number" })
+      .int("Whole numbers only")
+      .min(2, "At least 2 members are required"),
     tokenChoice: z.enum(["wxdai", "bread", "custom"]),
     customToken: z.string().trim(),
     initialDeposit: amountString,
@@ -48,32 +44,19 @@ export const createNetSchema = z
       .number({ error: "Enter a whole number" })
       .int("Whole numbers only")
       .min(1, "At least 1"),
-    startTime: z.string().min(1, "Pick a start time"),
     minimumMembers: z
       .number({ error: "Enter a whole number" })
       .int("Whole numbers only")
       .min(2, "The contract requires at least 2"),
-    maximumMembers: z
-      .number({ error: "Enter a whole number" })
-      .int("Whole numbers only")
-      .min(2, "At least 2"),
   })
   .check((ctx) => {
     const v = ctx.value;
-    if (v.maximumMembers < v.minimumMembers) {
+    if (v.memberCount < v.minimumMembers) {
       ctx.issues.push({
         code: "custom",
         message: "Must be ≥ minimum members",
-        path: ["maximumMembers"],
-        input: v.maximumMembers,
-      });
-    }
-    if (v.members.length > v.maximumMembers) {
-      ctx.issues.push({
-        code: "custom",
-        message: `You've added ${v.members.length} members but capped the group at ${v.maximumMembers}`,
-        path: ["maximumMembers"],
-        input: v.maximumMembers,
+        path: ["memberCount"],
+        input: v.memberCount,
       });
     }
     if (v.tokenChoice === "custom" && !isAddress(v.customToken)) {
@@ -82,14 +65,6 @@ export const createNetSchema = z
         message: "Enter a valid token address",
         path: ["customToken"],
         input: v.customToken,
-      });
-    }
-    if (Number.isNaN(Date.parse(v.startTime))) {
-      ctx.issues.push({
-        code: "custom",
-        message: "Not a valid date",
-        path: ["startTime"],
-        input: v.startTime,
       });
     }
   });

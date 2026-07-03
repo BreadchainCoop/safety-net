@@ -6,34 +6,31 @@ import { Body, Caption, Heading4 } from "@breadcoop/ui";
 import { ArrowRight, UsersThree } from "@phosphor-icons/react";
 import { Badge, Card } from "@/components/ui/ui";
 import { useTokenInfo } from "@/hooks/use-token";
-import { useNow } from "@/hooks/use-now";
-import { formatAmount, formatRelative } from "@/lib/format";
+import { formatAmount } from "@/lib/format";
 import type { SafetyNetDetails } from "@/lib/types";
 
 /** Status badges shared by the dashboard card and the net detail header. */
 export function NetStatusBadges({ details }: { details: SafetyNetDetails }) {
-  const now = useNow();
   const net = details.safetyNet;
 
   if (net.owner === zeroAddress) {
     return <Badge tone="grey">Wound down</Badge>;
   }
 
-  const notStarted = Number(net.safetyNetStart) > now;
+  // safetyNetStart stays 0 until the owner calls start().
+  const pending = net.safetyNetStart === 0n;
 
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      {notStarted ? (
-        <Badge tone="jade">
-          Starts {formatRelative(net.safetyNetStart, now)}
-        </Badge>
+      {pending ? (
+        <Badge tone="jade">Not started</Badge>
       ) : (
         <Badge tone="green">Active</Badge>
       )}
       {details.isDecommissionable && (
         <Badge tone="warning">Decommissionable</Badge>
       )}
-      {!notStarted && details.isMember && details.duesRemaining > 0n && (
+      {!pending && details.isMember && details.duesRemaining > 0n && (
         <Badge tone="red">Dues due</Badge>
       )}
     </span>
@@ -43,6 +40,7 @@ export function NetStatusBadges({ details }: { details: SafetyNetDetails }) {
 /** Dashboard card for one Safety Net the user belongs to. */
 export function NetCard({ details }: { details: SafetyNetDetails }) {
   const net = details.safetyNet;
+  const pending = net.safetyNetStart === 0n;
   const { symbol, decimals } = useTokenInfo(
     net.owner === zeroAddress ? undefined : net.token,
   );
@@ -87,27 +85,39 @@ export function NetCard({ details }: { details: SafetyNetDetails }) {
             </p>
           </div>
           <div>
-            <Caption className="text-surface-grey-2">Members</Caption>
+            <Caption className="text-surface-grey-2">
+              {pending ? "Seats filled" : "Members"}
+            </Caption>
             <p className="text-text-standard font-breadDisplay mt-0.5 inline-flex items-center gap-1 font-bold">
               <UsersThree size={16} /> {details.memberCount.toString()}
+              {pending && ` of ${net.maximumMembers.toString()}`}
             </p>
           </div>
-          <div>
-            <Caption className="text-surface-grey-2">
-              Dues (epoch {details.currentEpochIndex.toString()})
-            </Caption>
-            <p
-              className={`font-breadDisplay mt-0.5 font-bold ${
-                details.duesRemaining > 0n
-                  ? "text-system-warning"
-                  : "text-system-green"
-              }`}
-            >
-              {details.duesRemaining > 0n
-                ? `${formatAmount(details.duesRemaining, decimals)} ${symbol} left`
-                : "Paid"}
-            </p>
-          </div>
+          {pending ? (
+            <div>
+              <Caption className="text-surface-grey-2">Dues</Caption>
+              <p className="text-surface-grey-2 font-breadDisplay mt-0.5 font-bold">
+                Not started
+              </p>
+            </div>
+          ) : (
+            <div>
+              <Caption className="text-surface-grey-2">
+                Dues (epoch {details.currentEpochIndex.toString()})
+              </Caption>
+              <p
+                className={`font-breadDisplay mt-0.5 font-bold ${
+                  details.duesRemaining > 0n
+                    ? "text-system-warning"
+                    : "text-system-green"
+                }`}
+              >
+                {details.duesRemaining > 0n
+                  ? `${formatAmount(details.duesRemaining, decimals)} ${symbol} left`
+                  : "Paid"}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="text-primary-jade mt-4 inline-flex items-center gap-1 text-sm font-bold">

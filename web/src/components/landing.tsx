@@ -32,11 +32,11 @@ const FEATURES = [
 const STEPS = [
   {
     title: "Create",
-    body: "Pick the token, deposits, and withdrawal rules; list your founding members.",
+    body: "Pick the token, deposits, and withdrawal rules — you start as the net's first member.",
   },
   {
     title: "Invite",
-    body: "Grow the group with single-use invite links signed by the owner — no gas needed.",
+    body: "Share the auto-generated single-use invite links, then start the net once your group has joined.",
   },
   {
     title: "Deposit",

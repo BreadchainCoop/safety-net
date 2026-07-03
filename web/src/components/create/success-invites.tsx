@@ -9,8 +9,9 @@ import { zeroAddress } from "viem";
 /**
  * Inline invite generation right in the create-success box (app-stacks
  * StackSuccessResultModal parity: it auto-creates one link per pending
- * member). Our founding members are members already, so this offers
- * single-use links for the remaining seats without leaving the page.
+ * member on mount). The owner is the sole member at creation, so this
+ * batch-signs maximumMembers − 1 single-use links — one per open seat —
+ * without leaving the page.
  */
 export function SuccessInvites({ id }: { id: bigint }) {
   const { address } = useAccount();
@@ -31,11 +32,12 @@ export function SuccessInvites({ id }: { id: bigint }) {
       <Body className="text-surface-grey-2 text-sm">
         Seats filled: {memberCount} of {max}.{" "}
         {max > memberCount
-          ? `Invite up to ${max - memberCount} more with single-use links — each
-             new member joins the moment they redeem theirs.`
+          ? `Share one single-use link per seat — each new member joins the
+             moment they redeem theirs, and you start the net once enough
+             have joined.`
           : "Your group is complete."}
       </Body>
-      <InviteLinksBody details={details} />
+      <InviteLinksBody details={details} autoGenerate />
     </div>
   );
 }

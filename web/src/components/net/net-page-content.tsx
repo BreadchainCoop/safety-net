@@ -17,6 +17,7 @@ import { DepositPanel } from "@/components/net/deposit-panel";
 import { WithdrawPanel } from "@/components/net/withdraw-panel";
 import { RequestsList } from "@/components/net/requests-list";
 import { InvitePanel } from "@/components/net/invite-panel";
+import { StartNetBanner } from "@/components/net/start-panel";
 import { DecommissionPanel } from "@/components/net/decommission-panel";
 import { useSafetyNetDetails } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
@@ -81,6 +82,12 @@ function NetDetail() {
       </EmptyState>
     );
 
+  // safetyNetStart == 0 means "pending": members join by invite until the
+  // owner calls start(). Deposits/withdrawals/requests would all revert, so
+  // the pending layout swaps them for an inert notice and puts the invite
+  // panel front-and-center instead.
+  const pending = details.safetyNet.safetyNetStart === 0n;
+
   return (
     <>
       <PageHeader
@@ -88,29 +95,55 @@ function NetDetail() {
         actions={<NetStatusBadges details={details} />}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <NetOverview details={details} />
-          <MembersList details={details} />
-          <RequestsList details={details} />
-        </div>
+      {pending ? (
+        <>
+          <StartNetBanner details={details} />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="flex flex-col gap-4 lg:col-span-2">
+              <InvitePanel details={details} />
+              <MembersList details={details} />
+              <NetOverview details={details} />
+            </div>
 
-        <div className="flex flex-col gap-4">
-          {details.isMember ? (
-            <>
-              <DepositPanel details={details} />
-              <WithdrawPanel details={details} />
-            </>
-          ) : (
-            <EmptyState>
-              You&apos;re not a member of this Safety Net. Ask the owner for an
-              invite link to join.
-            </EmptyState>
-          )}
-          <InvitePanel details={details} />
-          <DecommissionPanel details={details} />
+            <div className="flex flex-col gap-4">
+              {details.isMember ? (
+                <EmptyState>
+                  Deposits open once the owner starts the net — withdrawals
+                  and requests do too.
+                </EmptyState>
+              ) : (
+                <EmptyState>
+                  You&apos;re not a member of this Safety Net. Ask the owner
+                  for an invite link to join before it starts.
+                </EmptyState>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <NetOverview details={details} />
+            <MembersList details={details} />
+            <RequestsList details={details} />
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {details.isMember ? (
+              <>
+                <DepositPanel details={details} />
+                <WithdrawPanel details={details} />
+              </>
+            ) : (
+              <EmptyState>
+                You&apos;re not a member of this Safety Net — it has already
+                started, so joining is closed.
+              </EmptyState>
+            )}
+            <DecommissionPanel details={details} />
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

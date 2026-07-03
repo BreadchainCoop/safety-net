@@ -17,10 +17,18 @@ export const SAFETY_NET_ERRORS: Record<string, string> = {
     "The requested amount exceeds your withdrawable balance in this Safety Net.",
   DepositWindowClosed: "The deposit window for this epoch has closed.",
   SafetyNetExpired: "This Safety Net has expired.",
+  InvalidMembers:
+    "A new Safety Net starts with the owner as its only member — everyone else joins through invite links.",
+  AlreadyActive:
+    "This Safety Net has already started — joining is closed and it can't be started again.",
+  NotEnoughMembers:
+    "Not enough members yet — the group must reach its minimum size before the net can start.",
+  NotActive:
+    "This Safety Net hasn't started yet — the owner needs to start it first.",
   ExceedsDepositAmount:
     "This deposit couldn't be fully allocated — it exceeds your remaining dues plus the 12-epoch prepay window (some future epochs may already be prepaid).",
   DepositBeforeSafetyNetStart:
-    "Deposits open when the Safety Net starts — it hasn't started yet.",
+    "Deposits open once the owner starts the Safety Net — the net hasn't started yet.",
   TokenNotAllowed: "This token is not allowed for Safety Nets.",
   InvalidDepositAmount:
     "Invalid deposit amount. Your first deposit must be exactly the initial deposit, in a single payment.",

@@ -29,6 +29,22 @@ export function useCreateSafetyNet() {
   return { create, ...tx };
 }
 
+/**
+ * Owner-only: starts a pending Safety Net once at least minimumMembers have
+ * joined — membership locks and epoch 1 dues begin at the block timestamp.
+ */
+export function useStartSafetyNet() {
+  const tx = useTx();
+  const start = (id: bigint) =>
+    tx.run({
+      address: SAFETYNET_ADDRESS,
+      abi: safetyNetAbi,
+      functionName: "start",
+      args: [id],
+    });
+  return { start, ...tx };
+}
+
 export function useDeposit() {
   const tx = useTx();
   const deposit = (id: bigint, value: bigint) =>

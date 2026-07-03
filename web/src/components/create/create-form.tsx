@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAccount } from "wagmi";
 import { isAddress, parseEventLogs, type Address } from "viem";
 import { Body, Button, Caption, Heading4 } from "@breadcoop/ui";
-import { ArrowRight, CheckCircle, X } from "@phosphor-icons/react";
+import { ArrowRight, CheckCircle } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
-import { AddressDisplay } from "@/components/ui/address-display";
 import { useCreateSafetyNet } from "@/hooks/use-safety-net-writes";
 import { useIsTokenAllowed } from "@/hooks/use-safety-net";
 import { useTokenInfo } from "@/hooks/use-token";
@@ -83,14 +82,6 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-/** datetime-local string for "now" in the local timezone. */
-function nowLocalDateTime(): string {
-  const d = new Date();
-  d.setSeconds(0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function CreateForm() {
   const { address } = useAccount();
   const {
@@ -101,8 +92,6 @@ export function CreateForm() {
     error: txError,
     isBusy,
   } = useCreateSafetyNet();
-  const [memberInput, setMemberInput] = useState("");
-  const [memberInputError, setMemberInputError] = useState<string | null>(null);
   const fid = useId();
   const id = (name: string) => `${fid}-${name}`;
 
@@ -115,7 +104,7 @@ export function CreateForm() {
   } = useForm<CreateNetValues>({
     resolver: zodResolver(createNetSchema),
     defaultValues: {
-      members: [],
+      memberCount: 10,
       tokenChoice: "wxdai",
       customToken: "",
       initialDeposit: "",
@@ -126,25 +115,10 @@ export function CreateForm() {
       contestWindowDays: 3,
       epochDurationDays: 30,
       smallWithdrawsLimit: 3,
-      startTime: "",
       minimumMembers: 2,
-      maximumMembers: 10,
     },
   });
 
-  // Prefill: creator is a member; start time defaults to "now" (client-side
-  // to avoid a static-export hydration mismatch).
-  useEffect(() => {
-    if (address && watch("members").length === 0)
-      setValue("members", [address]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address]);
-  useEffect(() => {
-    if (!watch("startTime")) setValue("startTime", nowLocalDateTime());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const members = watch("members");
   const tokenChoice = watch("tokenChoice");
   const customToken = watch("customToken");
 
@@ -173,28 +147,6 @@ export function CreateForm() {
     }
   }, [receipt]);
 
-  const addMember = () => {
-    const candidate = memberInput.trim();
-    setMemberInputError(null);
-    if (!isAddress(candidate)) {
-      setMemberInputError("Not a valid address");
-      return;
-    }
-    if (members.some((m) => m.toLowerCase() === candidate.toLowerCase())) {
-      setMemberInputError("Already in the list");
-      return;
-    }
-    setValue("members", [...members, candidate], { shouldValidate: true });
-    setMemberInput("");
-  };
-
-  const removeMember = (m: string) =>
-    setValue(
-      "members",
-      members.filter((x) => x !== m),
-      { shouldValidate: true },
-    );
-
   const onSubmit = handleSubmit((v) => {
     if (!address || !token) return;
     const initialDeposit = parseAmount(v.initialDeposit, decimals);
@@ -211,11 +163,14 @@ export function CreateForm() {
       id: 0n, // assigned by the contract
       owner: address,
       minimumMembers: BigInt(v.minimumMembers),
-      maximumMembers: BigInt(v.maximumMembers),
+      maximumMembers: BigInt(v.memberCount),
       contestThreshold: BigInt(v.contestThreshold),
-      safetyNetStart: BigInt(Math.floor(Date.parse(v.startTime) / 1000)),
+      // The contract requires an empty member list and a zero start time:
+      // the owner becomes the sole member, everyone else joins by invite,
+      // and the clock only starts when the owner calls start().
+      safetyNetStart: 0n,
       token,
-      members: v.members as Address[],
+      members: [],
       initialDeposit,
       fixedDeposit,
       redeemRatio: BigInt(REDEEM_RATIO), // locked to 1 onchain in v1
@@ -231,99 +186,42 @@ export function CreateForm() {
       <Card className="flex flex-col gap-5">
         <SectionTitle>Members</SectionTitle>
         <Field
-          id={id("members")}
-          label="Founding members"
-          help="Everyone listed here is a member from day one — no invite needed. Anyone you leave out can join later through a single-use invite link you sign."
-          error={memberInputError ?? errors.members?.message}
+          id={id("member-count")}
+          label="How many members?"
+          help="You'll be the first member. Everyone else joins through invite links before you start the net."
+          error={errors.memberCount?.message}
         >
-          <div className="flex gap-2">
-            <input
-              {...fieldAria(
-                id("members"),
-                memberInputError ?? errors.members?.message,
-              )}
-              className={inputClass}
-              placeholder="0x… member address"
-              value={memberInput}
-              onChange={(e) => setMemberInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addMember();
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={addMember}
-              className="bg-primary-jade hover:bg-jade-2 shrink-0 rounded-xl px-4 font-bold text-white transition-colors"
-            >
-              Add
-            </button>
-          </div>
-          {members.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {members.map((m) => (
-                <span
-                  key={m}
-                  className="bg-paper-2 inline-flex items-center gap-1.5 rounded-full py-1 pr-2 pl-3"
-                >
-                  <AddressDisplay address={m as Address} />
-                  {m.toLowerCase() === address?.toLowerCase() && (
-                    <span className="text-surface-grey text-xs">(you)</span>
-                  )}
-                  <button
-                    type="button"
-                    aria-label={`Remove member ${m}`}
-                    onClick={() => removeMember(m)}
-                    className="text-surface-grey hover:text-system-red"
-                  >
-                    <X size={13} weight="bold" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+          <input
+            {...fieldAria(
+              id("member-count"),
+              errors.memberCount?.message,
+              "help",
+            )}
+            type="number"
+            min={2}
+            className={inputClass}
+            {...register("memberCount", { valueAsNumber: true })}
+          />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field
-            id={id("min-members")}
-            label="Minimum members"
-            help="Smallest group size for the net to make sense (contract minimum: 2)."
-            error={errors.minimumMembers?.message}
-          >
-            <input
-              {...fieldAria(
-                id("min-members"),
-                errors.minimumMembers?.message,
-                "help",
-              )}
-              type="number"
-              min={2}
-              className={inputClass}
-              {...register("minimumMembers", { valueAsNumber: true })}
-            />
-          </Field>
-          <Field
-            id={id("max-members")}
-            label="Maximum members"
-            help="Invites stop working once the group reaches this size."
-            error={errors.maximumMembers?.message}
-          >
-            <input
-              {...fieldAria(
-                id("max-members"),
-                errors.maximumMembers?.message,
-                "help",
-              )}
-              type="number"
-              min={2}
-              className={inputClass}
-              {...register("maximumMembers", { valueAsNumber: true })}
-            />
-          </Field>
-        </div>
+        <Field
+          id={id("min-members")}
+          label="Minimum members"
+          help="You can only start the net once this many members have joined (contract minimum: 2)."
+          error={errors.minimumMembers?.message}
+        >
+          <input
+            {...fieldAria(
+              id("min-members"),
+              errors.minimumMembers?.message,
+              "help",
+            )}
+            type="number"
+            min={2}
+            className={inputClass}
+            {...register("minimumMembers", { valueAsNumber: true })}
+          />
+        </Field>
 
         <SectionTitle>Money</SectionTitle>
         <Field
@@ -530,21 +428,6 @@ export function CreateForm() {
           </Field>
         </div>
 
-        <SectionTitle>Schedule</SectionTitle>
-        <Field
-          id={id("start-time")}
-          label="Start time"
-          help="Deposits open at this time; epochs are counted from it."
-          error={errors.startTime?.message}
-        >
-          <input
-            {...fieldAria(id("start-time"), errors.startTime?.message, "help")}
-            type="datetime-local"
-            className={inputClass}
-            {...register("startTime")}
-          />
-        </Field>
-
         <div className="mt-2">
           <ActionButton
             onClick={onSubmit}
@@ -571,8 +454,8 @@ export function CreateForm() {
               </Heading4>
               <Body className="text-surface-grey-2 mt-1 text-sm">
                 {createdId !== undefined
-                  ? "Everyone you listed as a founding member is in from day one. Bring in the rest of your group with invite links — right here, or later from the net page."
-                  : "Next step: open your new net and generate single-use invite links to bring in the rest of your group."}
+                  ? "You're the first member. Share the single-use invite links below — everyone else joins through them, and you start the net from its page once enough have joined."
+                  : "Next step: open your new net, share its invite links, and start it once enough members have joined."}
               </Body>
               {createdId !== undefined && <SuccessInvites id={createdId} />}
               <div className="mt-3">

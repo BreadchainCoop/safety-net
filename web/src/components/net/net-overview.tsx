@@ -5,12 +5,7 @@ import { AddressDisplay } from "@/components/ui/address-display";
 import { Card, InfoRow, ProgressBar, StatCard } from "@/components/ui/ui";
 import { useNow } from "@/hooks/use-now";
 import { useTokenInfo } from "@/hooks/use-token";
-import {
-  formatAmount,
-  formatDateTime,
-  formatDuration,
-  formatRelative,
-} from "@/lib/format";
+import { formatAmount, formatDateTime, formatDuration } from "@/lib/format";
 import type { SafetyNetDetails } from "@/lib/types";
 
 /** Headline stats + epoch progress + the net's configured rules. */
@@ -19,9 +14,11 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
   const net = details.safetyNet;
   const { symbol, decimals } = useTokenInfo(net.token);
 
+  // safetyNetStart is 0 until the owner calls start() (then it's stamped
+  // with the block timestamp), so a nonzero start means "running".
+  const started = net.safetyNetStart !== 0n;
   const start = Number(net.safetyNetStart);
   const epochDuration = Number(net.epochDuration);
-  const started = now >= start;
   const epochIndex = Number(details.currentEpochIndex);
   const epochStart = start + epochIndex * epochDuration;
   const epochProgress = started
@@ -50,13 +47,19 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
         <StatCard
           label="My dues this epoch"
           value={
-            details.isMember
-              ? details.duesRemaining > 0n
-                ? `${formatAmount(details.duesRemaining, decimals)} ${symbol}`
-                : "Paid ✓"
-              : "—"
+            !started
+              ? "Not started"
+              : details.isMember
+                ? details.duesRemaining > 0n
+                  ? `${formatAmount(details.duesRemaining, decimals)} ${symbol}`
+                  : "Paid ✓"
+                : "—"
           }
-          sub={`of ${formatAmount(net.fixedDeposit, decimals)} ${symbol} recurring`}
+          sub={
+            started
+              ? `of ${formatAmount(net.fixedDeposit, decimals)} ${symbol} recurring`
+              : `dues begin with epoch 1 (${formatAmount(net.fixedDeposit, decimals)} ${symbol} recurring)`
+          }
         />
       </div>
 
@@ -65,7 +68,7 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
           <Caption className="text-surface-grey-2">
             {started
               ? `Epoch ${epochIndex} — ends ${formatDuration(epochEndsIn)} from now`
-              : `Starts ${formatRelative(net.safetyNetStart, now)} (${formatDateTime(net.safetyNetStart)})`}
+              : "Not started — epochs begin when the owner starts the net"}
           </Caption>
           <Caption className="text-surface-grey">
             {formatDuration(epochDuration)} per epoch
@@ -118,7 +121,7 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
             {formatDuration(net.contestWindow)}
           </InfoRow>
           <InfoRow label="Started">
-            {formatDateTime(net.safetyNetStart)}
+            {started ? formatDateTime(net.safetyNetStart) : "Not started yet"}
           </InfoRow>
         </div>
       </Card>

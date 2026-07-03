@@ -9,8 +9,18 @@ with deadlines, aggregated frontend views.
 | Contract | Address |
 |----------|---------|
 | SafetyNet (proxy — use this address) | [`0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE`](https://gnosis.blockscout.com/address/0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE) |
-| SafetyNet (implementation) | [`0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed`](https://gnosis.blockscout.com/address/0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed) |
+| SafetyNet (implementation v2 — saving-circles membership model) | [`0x515D1cFec5B21a2648a504bc1B4A9e1977f14743`](https://gnosis.blockscout.com/address/0x515D1cFec5B21a2648a504bc1B4A9e1977f14743) |
+| SafetyNet (implementation v1) | [`0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed`](https://gnosis.blockscout.com/address/0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed) |
 | ProxyAdmin (auto-deployed by proxy) | [`0x1039CD43f31EC060F114B881264aD7799A24980A`](https://gnosis.blockscout.com/address/0x1039CD43f31EC060F114B881264aD7799A24980A) |
+
+Upgraded in place to v2 on 2026-07-03 via `ProxyAdmin.upgradeAndCall`
+([tx `0xab6fbdb0…f80584`](https://gnosis.blockscout.com/tx/0xab6fbdb079520e8e8b89ef6339f0e8a440d3fee32fa117f3d747b4e138f80584)),
+proving the fixed admin topology. v2 adopts the saving-circles membership model:
+`create()` takes no members (owner is the sole genesis member, start time must be 0),
+members join via owner-signed invites only before activation, and the owner-only
+`start()` stamps the start time and locks membership. Lifecycle smoke-tested live
+(net #1: create → invite join → start → deposit; pre-start deposit and post-start
+join reverted with the expected errors).
 
 - Owner / admin (also owns the ProxyAdmin, so the proxy is upgradeable): `0x6636A1CCBdf54485067304C1a590DE016DeaD9F0`
 - Allowed tokens: WXDAI (`0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d`), BREAD (`0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3`)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import {
   buildJoinLink,
@@ -63,6 +63,9 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
   const { address } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
   const [invites, setInvites] = useState<StoredInvite[]>([]);
+  // Whether the persisted invites for the current key have been loaded —
+  // auto-generation must wait for this so it never duplicates stored links.
+  const [isLoaded, setIsLoaded] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,43 +77,50 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
   // Load persisted invites client-side (no localStorage at static build time).
   useEffect(() => {
     setInvites(key ? loadInvites(key) : []);
+    setIsLoaded(key !== null);
   }, [key]);
 
   /** Signs `count` invites sequentially; keeps whatever was signed on abort. */
-  const generate = async (count: number) => {
-    if (!key || safetyNetId === undefined) return;
-    setError(null);
-    const generated: StoredInvite[] = [];
-    try {
-      for (let i = 0; i < count; i++) {
-        setProgress(`Signing invite ${i + 1} of ${count}…`);
-        const nonce = randomNonce();
-        const signature = await signTypedDataAsync({
-          domain: inviteDomain(),
-          types: inviteTypes,
-          primaryType: "Invite",
-          message: { safetyNetId, nonce },
-        });
-        generated.push({
-          nonce: nonce.toString(),
-          signature,
-          createdAt: Date.now(),
-        });
+  const generate = useCallback(
+    async (count: number) => {
+      if (!key || safetyNetId === undefined) return;
+      setError(null);
+      const generated: StoredInvite[] = [];
+      try {
+        for (let i = 0; i < count; i++) {
+          setProgress(`Creating invite ${i + 1} of ${count}…`);
+          const nonce = randomNonce();
+          const signature = await signTypedDataAsync({
+            domain: inviteDomain(),
+            types: inviteTypes,
+            primaryType: "Invite",
+            message: { safetyNetId, nonce },
+          });
+          generated.push({
+            nonce: nonce.toString(),
+            signature,
+            createdAt: Date.now(),
+          });
+        }
+      } catch (e) {
+        setError(parseContractError(e, "Signature failed."));
+      } finally {
+        setProgress(null);
+        if (generated.length > 0) {
+          setInvites((prev) => {
+            const next = [...prev, ...generated];
+            saveInvites(key, next);
+            return next;
+          });
+        }
       }
-    } catch (e) {
-      setError(parseContractError(e, "Signature failed."));
-    } finally {
-      setProgress(null);
-      if (generated.length > 0) {
-        const next = [...invites, ...generated];
-        saveInvites(key, next);
-        setInvites(next);
-      }
-    }
-  };
+    },
+    [key, safetyNetId, signTypedDataAsync],
+  );
 
   return {
     invites,
+    isLoaded,
     generate,
     progress,
     isGenerating: progress !== null,
