@@ -16,7 +16,7 @@ jobs:
     secrets: inherit
     with:
       package-manager: yarn
-      main-branch: dev
+      base-branch: dev
       deploy-on-pr: true
       deploy-script: 'script/Deploy.sol:Deploy'
       contract-paths: |
