@@ -96,7 +96,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     bool enoughBalance = (want <= beforeWithdrawable);
 
     vm.prank(actor);
-    try _safetyNet.withdraw(id, daysReq) {
+    try _safetyNet.withdraw(id, daysReq, '') {
       uint256 nowW = _safetyNet.memberWithdrawableBalance(id, actor);
       uint256 balNow = _token.balanceOf(actor);
       uint256 cntNow = _safetyNet.smallWithdrawsCount(id, epochIndex, actor);
@@ -129,7 +129,7 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 reqsBefore = _safetyNet.nextIdRequest();
 
     vm.prank(actor);
-    try _safetyNet.withdraw(id, daysReq) {
+    try _safetyNet.withdraw(id, daysReq, '') {
       uint256 reqsAfter = _safetyNet.nextIdRequest();
       if (want > config.autoThreshold) {
         if (want <= beforeWithdrawable && want > 0) {
@@ -230,18 +230,18 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
 
     for (uint256 i = 0; i < config.smallWithdrawsLimit; i++) {
       vm.prank(_member1);
-      _safetyNet.withdraw(id, daysRequested);
+      _safetyNet.withdraw(id, daysRequested, '');
     }
 
     for (uint256 j = 0; j < extraWithdraws; j++) {
       vm.prank(_member1);
       vm.expectRevert(ISafetyNet.ExceedsSmallWithdrawalLimit.selector);
-      _safetyNet.withdraw(id, daysRequested);
+      _safetyNet.withdraw(id, daysRequested, '');
     }
 
     // After advancing to new epoch, limit resets
     vm.warp(block.timestamp + config.epochDuration + 1);
     vm.prank(_member1);
-    _safetyNet.withdraw(id, daysRequested);
+    _safetyNet.withdraw(id, daysRequested, '');
   }
 }

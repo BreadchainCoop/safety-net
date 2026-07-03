@@ -62,7 +62,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice EIP-712 type hash for request authorization signatures
   bytes32 private constant _REQUEST_AUTHORIZATION_TYPEHASH =
-    keccak256('RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)');
+    keccak256('RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline,string reason)');
 
   /// @notice Hashed domain name for request authorization signatures
   bytes32 private constant _REQUEST_DOMAIN_NAME_HASH = keccak256(bytes(_REQUEST_SIGNING_DOMAIN));
@@ -72,6 +72,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Base denominator used for percentage calculations
   uint256 public constant PERCENTAGE_BASE = 100;
+
+  /// @notice Maximum byte length of a withdrawal request reason (~200 words; the UI enforces the word cap)
+  uint256 public constant MAX_REASON_BYTES = 2000;
 
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
@@ -127,6 +130,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Tracks used request authorization nonces per Safety Net and owner to prevent replay attacks
   mapping(uint256 safetyNetId => mapping(address owner => mapping(uint256 nonce => bool used))) public usedRequestNonces;
+
+  /// @notice Requester-supplied reason attached to each withdrawal request; empty string when none was provided
+  mapping(uint256 requestId => string reason) public requestReasons;
 
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
@@ -187,6 +193,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     emit SafetyNetCreated(
       _id,
+      _safetyNet.owner,
       _safetyNet.minimumMembers,
       _safetyNet.maximumMembers,
       _safetyNet.contestThreshold,
@@ -287,21 +294,26 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function withdraw(uint256 _id, uint256 _daysRequested) external override nonReentrant {
-    _withdraw(_id, msg.sender, _daysRequested);
+  function withdraw(uint256 _id, uint256 _daysRequested, string calldata _reason) external override nonReentrant {
+    if (bytes(_reason).length > MAX_REASON_BYTES) revert ReasonTooLong();
+    _withdraw(_id, msg.sender, _daysRequested, _reason);
   }
 
   /// @inheritdoc ISafetyNet
-  function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
+  function createRequest(
+    Request memory _request,
+    string calldata _reason
+  ) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
     if (safetyNets[_request.safetyNetId].safetyNetStart == 0) revert NotActive();
     if (_request.amount == 0) revert InvalidAmountZero();
+    if (bytes(_reason).length > MAX_REASON_BYTES) revert ReasonTooLong();
 
     _request.timestamp = block.timestamp;
     _request.contestCount = 0;
 
-    return _createRequest(_request);
+    return _createRequest(_request, _reason);
   }
 
   /// @inheritdoc ISafetyNet
@@ -309,6 +321,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     Request memory _request,
     uint256 _nonce,
     uint256 _deadline,
+    string calldata _reason,
     bytes calldata _signature
   ) external override returns (uint256) {
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
@@ -316,9 +329,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (!isMember[_request.safetyNetId][_request.owner]) revert NotMember();
     if (_request.amount == 0) revert InvalidAmountZero();
     if (block.timestamp > _deadline) revert AuthorizationExpired();
+    if (bytes(_reason).length > MAX_REASON_BYTES) revert ReasonTooLong();
     if (usedRequestNonces[_request.safetyNetId][_request.owner][_nonce]) revert RequestNonceAlreadyUsed();
 
-    bytes32 _digest = _hashRequestAuthorization(_request.safetyNetId, _request.amount, _nonce, _deadline);
+    bytes32 _digest = _hashRequestAuthorization(_request.safetyNetId, _request.amount, _nonce, _deadline, _reason);
     address _signer = ECDSA.recover(_digest, _signature);
 
     if (_signer != _request.owner) revert InvalidSigner();
@@ -328,7 +342,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _request.timestamp = block.timestamp;
     _request.contestCount = 0;
 
-    return _createRequest(_request);
+    return _createRequest(_request, _reason);
   }
 
   /// @inheritdoc ISafetyNet
@@ -642,9 +656,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /**
    * @notice Create a request for withdrawal
    * @param _request The request to be created
+   * @param _reason The requester-supplied reason; stored only when non-empty
    * @return _idRequest The ID of the created request
    */
-  function _createRequest(Request memory _request) internal returns (uint256) {
+  function _createRequest(Request memory _request, string memory _reason) internal returns (uint256) {
     uint256 _idRequest = nextIdRequest++;
 
     if (_request.owner == address(0)) revert InvalidAddressZero();
@@ -654,7 +669,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     requests[_idRequest] = _request;
     _safetyNetRequestIds[_request.safetyNetId].push(_idRequest);
 
-    emit RequestCreated(_idRequest, _request.owner, _request.timestamp, _request.amount);
+    if (bytes(_reason).length > 0) {
+      requestReasons[_idRequest] = _reason;
+    }
+
+    emit RequestCreated(_idRequest, _request.safetyNetId, _request.owner, _request.timestamp, _request.amount, _reason);
     return _idRequest;
   }
 
@@ -663,10 +682,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
    * @param _id The ID of the Safety Net
    * @param _member The address of the member making the withdrawal
    * @param _daysRequested The number of days for which the member is requesting a withdrawal
+   * @param _reason The requester-supplied reason; stored and emitted only when a request is created
    * @notice If the requested amount is small, it is transferred directly to the member
    *         If the requested amount is large, a request is created for approval
    */
-  function _withdraw(uint256 _id, address _member, uint256 _daysRequested) internal {
+  function _withdraw(uint256 _id, address _member, uint256 _daysRequested, string calldata _reason) internal {
     SafetyNet memory _safetyNet = safetyNets[_id];
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
@@ -692,7 +712,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     } else {
       Request memory _request =
         Request({owner: _member, safetyNetId: _id, timestamp: block.timestamp, contestCount: 0, amount: _withdrawAmount});
-      uint256 _idRequest = _createRequest(_request);
+      uint256 _idRequest = _createRequest(_request, _reason);
       emit WithdrawalPending(_idRequest, _member, _withdrawAmount);
     }
   }
@@ -751,7 +771,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       isVetoed: _vetoed,
       isExecuted: _executed,
       isContestable: _exists && _windowOpen && !_vetoed,
-      isExecutable: _exists && !_windowOpen && !_vetoed && !_executed && _commissioned && _fundsAvailable
+      isExecutable: _exists && !_windowOpen && !_vetoed && !_executed && _commissioned && _fundsAvailable,
+      reason: requestReasons[_requestId]
     });
   }
 
@@ -760,9 +781,12 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 _safetyNetId,
     uint256 _amount,
     uint256 _nonce,
-    uint256 _deadline
+    uint256 _deadline,
+    string calldata _reason
   ) private view returns (bytes32) {
-    bytes32 _structHash = keccak256(abi.encode(_REQUEST_AUTHORIZATION_TYPEHASH, _safetyNetId, _amount, _nonce, _deadline));
+    bytes32 _structHash = keccak256(
+      abi.encode(_REQUEST_AUTHORIZATION_TYPEHASH, _safetyNetId, _amount, _nonce, _deadline, keccak256(bytes(_reason)))
+    );
 
     bytes32 _domainSeparator =
       keccak256(abi.encode(_EIP712_DOMAIN_TYPEHASH, _REQUEST_DOMAIN_NAME_HASH, _REQUEST_DOMAIN_VERSION_HASH, block.chainid, address(this)));
