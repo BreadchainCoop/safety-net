@@ -53,7 +53,13 @@ export function useTx() {
       setSubmitError(null);
       try {
         return await writeContractAsync(
-          request as Parameters<typeof writeContractAsync>[0],
+          // Pin every write to Gnosis: the wagmi config also includes mainnet
+          // (ENS reads only), so a mainnet-connected wallet must be prompted to
+          // switch rather than send to the wrong chain.
+          {
+            chainId: CHAIN_ID,
+            ...request,
+          } as Parameters<typeof writeContractAsync>[0],
         );
       } catch (e) {
         setSubmitError(parseContractError(e));

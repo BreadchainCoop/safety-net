@@ -71,12 +71,12 @@ export function useDepositFor() {
 
 export function useWithdraw() {
   const tx = useTx();
-  const withdraw = (id: bigint, daysRequested: bigint) =>
+  const withdraw = (id: bigint, daysRequested: bigint, reason: string) =>
     tx.run({
       address: SAFETYNET_ADDRESS,
       abi: safetyNetAbi,
       functionName: "withdraw",
-      args: [id, daysRequested],
+      args: [id, daysRequested, reason],
     });
   return { withdraw, ...tx };
 }

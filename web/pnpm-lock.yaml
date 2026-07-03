@@ -29,6 +29,9 @@ dependencies:
   blo:
     specifier: ^1.1.1
     version: 1.2.0
+  canvas-confetti:
+    specifier: ^1.9.4
+    version: 1.9.4
   clsx:
     specifier: ^2.1.1
     version: 2.1.1
@@ -64,6 +67,9 @@ devDependencies:
   '@tailwindcss/postcss':
     specifier: ^4
     version: 4.3.2
+  '@types/canvas-confetti':
+    specifier: ^1.9.0
+    version: 1.9.0
   '@types/node':
     specifier: ^20
     version: 20.19.43
@@ -3814,6 +3820,10 @@ packages:
     dev: true
     optional: true
 
+  /@types/canvas-confetti@1.9.0:
+    resolution: {integrity: sha512-aBGj/dULrimR1XDZLtG9JwxX1b4HPRF6CX9Yfwh3NvstZEm1ZL7RBnel4keCPSqs1ANRu1u2Aoz9R+VmtjYuTg==}
+    dev: true
+
   /@types/debug@4.1.13:
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
     dependencies:
@@ -6304,6 +6314,10 @@ packages:
   /canonicalize@2.1.0:
     resolution: {integrity: sha512-F705O3xrsUtgt98j7leetNhTWPe+5S72rlL5O4jA1pKqBVQ/dT1O1D6PFxmSXvc0SUOinWS57DKx0I3CHrXJHQ==}
     hasBin: true
+    dev: false
+
+  /canvas-confetti@1.9.4:
+    resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
     dev: false
 
   /chalk@4.1.2:

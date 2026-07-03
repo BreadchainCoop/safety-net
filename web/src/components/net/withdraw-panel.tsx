@@ -15,6 +15,15 @@ import type { SafetyNetDetails } from "@/lib/types";
 const inputClass =
   "w-full rounded-xl border border-paper-2 bg-paper-main px-4 py-2.5 text-text-standard outline-none focus:border-primary-jade";
 
+// UI cap on reasons (the contract caps at MAX_REASON_BYTES = 2000 UTF-8 bytes).
+const MAX_REASON_WORDS = 200;
+const MAX_REASON_BYTES = 2000;
+
+const countWords = (s: string): number =>
+  s.trim() === "" ? 0 : s.trim().split(/\s+/).length;
+
+const byteLength = (s: string): number => new TextEncoder().encode(s).length;
+
 /**
  * Withdraw by "days of income": amount = (monthly contribution × redeem
  * ratio ÷ 30) × days. Small amounts (≤ auto threshold) pay out instantly;
@@ -25,7 +34,9 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   const { symbol, decimals } = useTokenInfo(net.token);
   const { withdraw, status, hash, error, isBusy } = useWithdraw();
   const [days, setDays] = useState("");
+  const [reason, setReason] = useState("");
   const daysId = useId();
+  const reasonId = useId();
   // Whether the submitted withdrawal was small (instant), captured at submit
   // time so the success message keeps describing the transaction that actually
   // ran even if the input changes afterwards.
@@ -45,6 +56,14 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   const exceedsBalance =
     amount !== null && amount > details.withdrawableBalance;
   const notOnboarded = details.monthlyContribute === 0n;
+
+  // A reason is only required/shown for LARGE withdrawals (those that open a
+  // request); small/instant withdrawals pass "".
+  const needsReason = amount !== null && !isSmall;
+  const reasonWords = countWords(reason);
+  const reasonBytes = byteLength(reason);
+  const reasonTooLong =
+    reasonWords > MAX_REASON_WORDS || reasonBytes > MAX_REASON_BYTES;
 
   return (
     <Card>
@@ -118,18 +137,62 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
           </p>
         )}
 
+        {needsReason && (
+          <div>
+            <div className="flex items-baseline justify-between gap-2">
+              <label htmlFor={reasonId}>
+                <Caption className="text-surface-grey-2">
+                  Why do you need this? (shown to all members)
+                </Caption>
+              </label>
+              <span
+                className={`text-xs font-medium ${
+                  reasonTooLong ? "text-system-red" : "text-surface-grey"
+                }`}
+              >
+                {reasonWords} / {MAX_REASON_WORDS} words
+              </span>
+            </div>
+            <textarea
+              id={reasonId}
+              rows={3}
+              placeholder="Explain your request so the group can decide whether to contest it…"
+              aria-invalid={reasonTooLong || undefined}
+              aria-describedby={`${reasonId}-help`}
+              className={`${inputClass} mt-1.5 resize-y`}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <p
+              id={`${reasonId}-help`}
+              className="text-surface-grey mt-1.5 text-xs"
+            >
+              This reason is stored on-chain and visible to everyone in the
+              group. Keep it under {MAX_REASON_WORDS} words.
+            </p>
+            {reasonTooLong && (
+              <p className="text-system-red mt-1 text-xs font-medium">
+                {reasonWords > MAX_REASON_WORDS
+                  ? `Too long — remove ${reasonWords - MAX_REASON_WORDS} word${reasonWords - MAX_REASON_WORDS === 1 ? "" : "s"}.`
+                  : "Too long — please shorten it (max 2000 bytes)."}
+              </p>
+            )}
+          </div>
+        )}
+
         <ActionButton
           onClick={() => {
             if (parsedDays === null) return;
             setSubmittedSmall(isSmall);
-            withdraw(net.id, parsedDays);
+            withdraw(net.id, parsedDays, needsReason ? reason.trim() : "");
           }}
           isLoading={isBusy}
           disabled={
             parsedDays === null ||
             exceedsBalance ||
             notOnboarded ||
-            amount === 0n
+            amount === 0n ||
+            (needsReason && reasonTooLong)
           }
         >
           {amount !== null && !isSmall ? "Request withdrawal" : "Withdraw"}

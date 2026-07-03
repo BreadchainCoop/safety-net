@@ -2,7 +2,7 @@
 
 import { erc20Abi, maxUint256, zeroAddress, type Address } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
-import { KNOWN_TOKENS, SAFETYNET_ADDRESS } from "@/lib/config";
+import { CHAIN_ID, KNOWN_TOKENS, SAFETYNET_ADDRESS } from "@/lib/config";
 import { useTx } from "@/hooks/use-tx";
 
 const REFETCH_MS = 12_000;
@@ -11,8 +11,8 @@ const REFETCH_MS = 12_000;
 export function useTokenInfo(token: Address | undefined) {
   const { data, isLoading } = useReadContracts({
     contracts: [
-      { address: token, abi: erc20Abi, functionName: "symbol" },
-      { address: token, abi: erc20Abi, functionName: "decimals" },
+      { address: token, abi: erc20Abi, functionName: "symbol", chainId: CHAIN_ID },
+      { address: token, abi: erc20Abi, functionName: "decimals", chainId: CHAIN_ID },
     ],
     query: { enabled: Boolean(token), staleTime: Infinity },
   });
@@ -36,6 +36,7 @@ export function useTokenBalance(
   return useReadContract({
     address: token,
     abi: erc20Abi,
+    chainId: CHAIN_ID,
     functionName: "balanceOf",
     args: [owner ?? zeroAddress],
     query: {
@@ -53,6 +54,7 @@ export function useAllowance(
   return useReadContract({
     address: token,
     abi: erc20Abi,
+    chainId: CHAIN_ID,
     functionName: "allowance",
     args: [owner ?? zeroAddress, SAFETYNET_ADDRESS],
     query: {

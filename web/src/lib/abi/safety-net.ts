@@ -47,6 +47,19 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_REASON_BYTES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MINIMUM_REDEEM_RATIO",
     "inputs": [],
     "outputs": [
@@ -252,6 +265,11 @@ export const safetyNetAbi = [
             "internalType": "uint256"
           }
         ]
+      },
+      {
+        "name": "_reason",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [
@@ -308,6 +326,11 @@ export const safetyNetAbi = [
         "name": "_deadline",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "_reason",
+        "type": "string",
+        "internalType": "string"
       },
       {
         "name": "_signature",
@@ -686,6 +709,11 @@ export const safetyNetAbi = [
                 "name": "isExecutable",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "reason",
+                "type": "string",
+                "internalType": "string"
               }
             ]
           }
@@ -1051,6 +1079,11 @@ export const safetyNetAbi = [
                 "name": "isExecutable",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "reason",
+                "type": "string",
+                "internalType": "string"
               }
             ]
           }
@@ -1150,6 +1183,11 @@ export const safetyNetAbi = [
             "name": "isExecutable",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       }
@@ -1544,6 +1582,25 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "requestReasons",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "requests",
     "inputs": [
       {
@@ -1847,6 +1904,11 @@ export const safetyNetAbi = [
         "name": "_daysRequested",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "_reason",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [],
@@ -1964,6 +2026,12 @@ export const safetyNetAbi = [
         "internalType": "uint256"
       },
       {
+        "name": "safetyNetId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
         "name": "owner",
         "type": "address",
         "indexed": false,
@@ -1980,6 +2048,12 @@ export const safetyNetAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
       }
     ],
     "anonymous": false
@@ -2018,6 +2092,12 @@ export const safetyNetAbi = [
         "type": "uint256",
         "indexed": true,
         "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "minimumMembers",
@@ -2502,6 +2582,11 @@ export const safetyNetAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "ReasonTooLong",
+    "inputs": []
   },
   {
     "type": "error",

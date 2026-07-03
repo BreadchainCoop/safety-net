@@ -1,5 +1,5 @@
 import { fallback, http, createConfig, type CreateConnectorFn } from "wagmi";
-import { gnosis } from "wagmi/chains";
+import { gnosis, mainnet } from "wagmi/chains";
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import {
   injectedWallet,
@@ -55,7 +55,11 @@ const connectors: CreateConnectorFn[] =
     : [...walletConnectors];
 
 export const wagmiConfig = createConfig({
-  chains: [gnosis],
+  // mainnet is present ONLY so ENS reads (useEnsName/useEnsAvatar in
+  // AddressDisplay) have a client — all contract reads/writes stay pinned to
+  // gnosis via explicit chainId. RainbowKit stays pinned to gnosis
+  // (initialChain in providers.tsx), so wallets are still prompted onto Gnosis.
+  chains: [gnosis, mainnet],
   connectors,
   // In verify mode, skip EIP-6963 discovery of browser-extension providers:
   // a discovered extension connector can stall wagmi's reconnect-on-mount,
@@ -68,6 +72,14 @@ export const wagmiConfig = createConfig({
       http(RPC_URL, { timeout: 7_000, retryCount: 1 }),
       http("https://1rpc.io/gnosis", { timeout: 7_000, retryCount: 1 }),
       http("https://gnosis-mainnet.public.blastapi.io", {
+        timeout: 7_000,
+        retryCount: 1,
+      }),
+    ]),
+    // ENS-only public fallback (no key). Reads never write, so no risk.
+    [mainnet.id]: fallback([
+      http("https://eth.merkle.io", { timeout: 7_000, retryCount: 1 }),
+      http("https://ethereum-rpc.publicnode.com", {
         timeout: 7_000,
         retryCount: 1,
       }),

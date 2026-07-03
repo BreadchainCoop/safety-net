@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { erc20Abi } from "viem";
+import { gnosis } from "wagmi/chains";
 import { BreadUIKitProvider, ConnectedUserProvider } from "@breadcoop/ui";
 import { wagmiConfig } from "@/lib/wagmi";
 import { BREAD_ADDRESS, CHAIN_ID } from "@/lib/config";
@@ -30,6 +31,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
+          // mainnet is in the wagmi config only for ENS reads; keep the wallet
+          // UX pinned to Gnosis so connect/switch prompts target the right chain.
+          initialChain={gnosis}
           theme={lightTheme({
             accentColor: "#286b63", // primary-jade
             accentColorForeground: "#f6f3eb", // paper-main

@@ -32,11 +32,15 @@ export const requestAuthorizationDomain = (
     verifyingContract,
   }) as const;
 
+// Mirrors the contract's typehash exactly (field order matters for EIP-712):
+// RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline,string reason)
 export const requestAuthorizationTypes = {
   RequestAuthorization: [
     { name: "safetyNetId", type: "uint256" },
     { name: "amount", type: "uint256" },
     { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+    { name: "reason", type: "string" },
   ],
 } as const;
 
