@@ -17,6 +17,9 @@ dependencies:
   '@privy-io/react-auth':
     specifier: ^3.13.1
     version: 3.32.2(@solana/kit@5.5.1)(@solana/sysvars@5.5.1)(@tanstack/react-query@5.101.2)(@types/react@19.2.17)(react-dom@19.1.0)(react@19.1.0)(typescript@5.9.3)(zod@4.4.3)
+  '@privy-io/wagmi':
+    specifier: ^4.0.1
+    version: 4.0.14(@privy-io/react-auth@3.32.2)(react@19.1.0)(viem@2.54.1)(wagmi@2.19.5)
   '@rainbow-me/rainbowkit':
     specifier: ^2.2.8
     version: 2.2.11(@tanstack/react-query@5.101.2)(@types/react@19.2.17)(react-dom@19.1.0)(react@19.1.0)(typescript@5.9.3)(viem@2.54.1)(wagmi@2.19.5)
@@ -1577,6 +1580,20 @@ packages:
 
   /@privy-io/urls@0.0.4:
     resolution: {integrity: sha512-YYLt3zD4GlMgVm+VkdMF8BnRYlUrfkcchF7fVTPwdP8ljPytCP295yxi26iOsbJfT/xy3+sLsvvrDthjpk6ERA==}
+    dev: false
+
+  /@privy-io/wagmi@4.0.14(@privy-io/react-auth@3.32.2)(react@19.1.0)(viem@2.54.1)(wagmi@2.19.5):
+    resolution: {integrity: sha512-mBrexUy45efCgZamu9tQG/xbgFM5Y9I7q4PE8zpiir7mWWw5HXRUWVcP2preTj9ATyr6N1k2mcofa6orO8bAEg==}
+    peerDependencies:
+      '@privy-io/react-auth': ^3
+      react: '>=18'
+      viem: 2.52.0
+      wagmi: '>=2'
+    dependencies:
+      '@privy-io/react-auth': 3.32.2(@solana/kit@5.5.1)(@solana/sysvars@5.5.1)(@tanstack/react-query@5.101.2)(@types/react@19.2.17)(react-dom@19.1.0)(react@19.1.0)(typescript@5.9.3)(zod@4.4.3)
+      react: 19.1.0
+      viem: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+      wagmi: 2.19.5(@tanstack/react-query@5.101.2)(@types/react@19.2.17)(react@19.1.0)(typescript@5.9.3)(viem@2.54.1)(zod@4.4.3)
     dev: false
 
   /@radix-ui/primitive@1.1.4:

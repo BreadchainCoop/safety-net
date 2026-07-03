@@ -43,9 +43,50 @@ absent vars fall back to working defaults with a console warning. See
 | `NEXT_PUBLIC_BASE_PATH`                | _(empty)_                                   | Optional subpath hosting.                                                  |
 | `NEXT_PUBLIC_VERIFY_MODE`              | `false`                                     | Enables verify mode — **`next dev` only**, see below.                      |
 | `NEXT_PUBLIC_VERIFY_PRIVATE_KEY`       | _(empty)_                                   | Dev-wallet key — **ignored outside development builds**, see below.        |
+| `NEXT_PUBLIC_PRIVY_APP_ID`             | _(empty)_                                   | Enables Privy embedded wallets when set — see below. Absent ⇒ RainbowKit.  |
+| `NEXT_PUBLIC_PRIVY_CLIENT_ID`          | _(empty)_                                   | Optional Privy client id (passed alongside the app id).                    |
 
 Known tokens: WXDAI `0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d` (default),
 BREAD `0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3` — see `src/lib/config.ts`.
+
+## Privy embedded wallets (optional)
+
+By default the app authenticates with RainbowKit (`authProvider="general"`):
+users connect an external wallet (MetaMask, WalletConnect, etc.). Setting
+`NEXT_PUBLIC_PRIVY_APP_ID` switches to **Privy embedded wallets** with
+dashboard-configured login (email/social), gas-sponsored transactions on
+Gnosis, and silent (popup-free) signing.
+
+**Enabling:**
+
+1. Create an app at [dashboard.privy.io](https://dashboard.privy.io).
+2. In the dashboard, configure:
+   - **Chain**: add/enable **Gnosis (chain id 100)** as a supported chain.
+   - **Embedded wallets**: turn on EVM embedded wallets (the app requests
+     `createOnLogin: "all-users"`, so every login provisions one).
+   - **Gas sponsorship / paymaster**: enable gas sponsorship for Gnosis. The
+     app opts in per transaction with `sponsor: true` on Gnosis; if
+     sponsorship is off in the dashboard the tx still works but the user pays
+     gas from the embedded wallet.
+   - **Login methods**: choose email/social/wallet — these are dashboard
+     settings, not code.
+3. Set `NEXT_PUBLIC_PRIVY_APP_ID` (and optionally `NEXT_PUBLIC_PRIVY_CLIENT_ID`)
+   in the build environment and rebuild.
+
+**Behavior / fallback:**
+
+- `PRIVY_ENABLED = NEXT_PUBLIC_PRIVY_APP_ID set && !VERIFY_MODE`
+  (`src/lib/config.ts`). Verify mode always wins, so E2E stays deterministic.
+- **App id absent (default):** the current RainbowKit tree and verify-mode dev
+  wallet are unchanged, and the Privy modules are code-split away — they never
+  load (`src/components/providers.tsx` dynamic-imports the Privy tree only when
+  enabled).
+- **App id present:** `LoginButton`/navbar route through Privy's modal and the
+  embedded wallet; writes go through `simulateContract → encodeFunctionData →
+  Privy sendTransaction({ sponsor, uiOptions: { showWalletUIs: false } })`
+  (`src/hooks/use-tx-sender-privy.ts`) feeding the existing
+  `useWaitForTransactionReceipt` flow; EIP-712 invite signing goes through
+  Privy's silent `useSignTypedData` (`src/hooks/use-typed-data-signer.ts`).
 
 ## Verify mode (E2E onchain testing)
 

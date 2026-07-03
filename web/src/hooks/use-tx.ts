@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useWaitForTransactionReceipt } from "wagmi";
 import type { Abi, Address } from "viem";
 import { CHAIN_ID } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
+import { useTxSender } from "@/hooks/use-tx-sender";
 
 export type TxStatus = "idle" | "signing" | "confirming" | "success" | "error";
 
@@ -25,12 +26,11 @@ export interface TxRequest {
  * in the app is invalidated so balances/lists refresh immediately.
  */
 export function useTx() {
-  const {
-    writeContractAsync,
-    data: hash,
-    isPending: isSigning,
-    reset: resetWrite,
-  } = useWriteContract();
+  // Sender is either wagmi `writeContract` (general/verify) or the Privy
+  // sponsored path — both resolve with the tx hash so the receipt/invalidation
+  // flow below is identical in either mode.
+  const { send, isSigning, reset: resetSender } = useTxSender();
+  const [hash, setHash] = useState<`0x${string}` | undefined>(undefined);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -51,28 +51,24 @@ export function useTx() {
   const run = useCallback(
     async (request: TxRequest): Promise<`0x${string}` | undefined> => {
       setSubmitError(null);
+      setHash(undefined);
       try {
-        return await writeContractAsync(
-          // Pin every write to Gnosis: the wagmi config also includes mainnet
-          // (ENS reads only), so a mainnet-connected wallet must be prompted to
-          // switch rather than send to the wrong chain.
-          {
-            chainId: CHAIN_ID,
-            ...request,
-          } as Parameters<typeof writeContractAsync>[0],
-        );
+        const txHash = await send(request);
+        setHash(txHash);
+        return txHash;
       } catch (e) {
         setSubmitError(parseContractError(e));
         return undefined;
       }
     },
-    [writeContractAsync],
+    [send],
   );
 
   const reset = useCallback(() => {
     setSubmitError(null);
-    resetWrite();
-  }, [resetWrite]);
+    setHash(undefined);
+    resetSender();
+  }, [resetSender]);
 
   const status: TxStatus = submitError
     ? "error"

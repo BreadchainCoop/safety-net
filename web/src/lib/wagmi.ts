@@ -24,7 +24,12 @@ import { devWalletConnector } from "@/lib/dev-wallet";
  * private-key-backed "Dev Wallet" connector is appended (connected via the
  * VERIFY MODE banner, outside the RainbowKit modal).
  */
-const walletConnectors = connectorsForWallets(
+/**
+ * RainbowKit connectors and multi-RPC transports, shared between the plain
+ * wagmi config (below) and the Privy variant in `wagmi-privy.ts`. Exported so
+ * the Privy path can reuse the exact same wallet/RPC wiring.
+ */
+export const walletConnectors = connectorsForWallets(
   [
     {
       groupName: "Popular",
@@ -54,36 +59,42 @@ const connectors: CreateConnectorFn[] =
       ]
     : [...walletConnectors];
 
+/**
+ * Shared chain + transport config. mainnet is present ONLY so ENS reads
+ * (useEnsName/useEnsAvatar in AddressDisplay) have a client — all contract
+ * reads/writes stay pinned to gnosis via explicit chainId. RainbowKit stays
+ * pinned to gnosis (initialChain in providers.tsx), so wallets are still
+ * prompted onto Gnosis. Multi-provider fallback (crowdstaking-v2 pattern): if
+ * the primary RPC hiccups, reads fail over instead of blanking the whole app.
+ */
+export const chains = [gnosis, mainnet] as const;
+
+export const transports = {
+  [gnosis.id]: fallback([
+    http(RPC_URL, { timeout: 7_000, retryCount: 1 }),
+    http("https://1rpc.io/gnosis", { timeout: 7_000, retryCount: 1 }),
+    http("https://gnosis-mainnet.public.blastapi.io", {
+      timeout: 7_000,
+      retryCount: 1,
+    }),
+  ]),
+  // ENS-only public fallback (no key). Reads never write, so no risk.
+  [mainnet.id]: fallback([
+    http("https://eth.merkle.io", { timeout: 7_000, retryCount: 1 }),
+    http("https://ethereum-rpc.publicnode.com", {
+      timeout: 7_000,
+      retryCount: 1,
+    }),
+  ]),
+} as const;
+
 export const wagmiConfig = createConfig({
-  // mainnet is present ONLY so ENS reads (useEnsName/useEnsAvatar in
-  // AddressDisplay) have a client — all contract reads/writes stay pinned to
-  // gnosis via explicit chainId. RainbowKit stays pinned to gnosis
-  // (initialChain in providers.tsx), so wallets are still prompted onto Gnosis.
-  chains: [gnosis, mainnet],
+  chains,
   connectors,
   // In verify mode, skip EIP-6963 discovery of browser-extension providers:
   // a discovered extension connector can stall wagmi's reconnect-on-mount,
   // leaving the app stuck in "connecting" and the dev wallet unusable.
   ...(VERIFY_MODE ? { multiInjectedProviderDiscovery: false } : {}),
-  // Multi-provider fallback (crowdstaking-v2 pattern): if the primary RPC
-  // hiccups, reads fail over instead of blanking the whole app.
-  transports: {
-    [gnosis.id]: fallback([
-      http(RPC_URL, { timeout: 7_000, retryCount: 1 }),
-      http("https://1rpc.io/gnosis", { timeout: 7_000, retryCount: 1 }),
-      http("https://gnosis-mainnet.public.blastapi.io", {
-        timeout: 7_000,
-        retryCount: 1,
-      }),
-    ]),
-    // ENS-only public fallback (no key). Reads never write, so no risk.
-    [mainnet.id]: fallback([
-      http("https://eth.merkle.io", { timeout: 7_000, retryCount: 1 }),
-      http("https://ethereum-rpc.publicnode.com", {
-        timeout: 7_000,
-        retryCount: 1,
-      }),
-    ]),
-  },
+  transports,
   ssr: true,
 });

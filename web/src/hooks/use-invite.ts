@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount } from "wagmi";
 import {
   buildJoinLink,
   inviteDomain,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/eip712";
 import { CHAIN_ID, SAFETYNET_ADDRESS } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
+import { useTypedDataSigner } from "@/hooks/use-typed-data-signer";
 
 /**
  * A generated invite persisted in this browser. app-stacks keeps its invite
@@ -61,7 +62,8 @@ export function inviteLink(safetyNetId: bigint, invite: StoredInvite): string {
  */
 export function useInviteLinks(safetyNetId: bigint | undefined) {
   const { address } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  // Privy mode signs silently (showWalletUIs:false); general/verify uses wagmi.
+  const signTypedData = useTypedDataSigner();
   const [invites, setInvites] = useState<StoredInvite[]>([]);
   // Whether the persisted invites for the current key have been loaded —
   // auto-generation must wait for this so it never duplicates stored links.
@@ -90,7 +92,7 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
         for (let i = 0; i < count; i++) {
           setProgress(`Creating invite ${i + 1} of ${count}…`);
           const nonce = randomNonce();
-          const signature = await signTypedDataAsync({
+          const signature = await signTypedData({
             domain: inviteDomain(),
             types: inviteTypes,
             primaryType: "Invite",
@@ -115,7 +117,7 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
         }
       }
     },
-    [key, safetyNetId, signTypedDataAsync],
+    [key, safetyNetId, signTypedData],
   );
 
   return {
