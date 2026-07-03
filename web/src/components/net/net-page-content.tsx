@@ -19,6 +19,7 @@ import { RequestsList } from "@/components/net/requests-list";
 import { InvitePanel } from "@/components/net/invite-panel";
 import { StartNetBanner } from "@/components/net/start-panel";
 import { DecommissionPanel } from "@/components/net/decommission-panel";
+import { ActivityFeed } from "@/components/net/activity-feed";
 import { useSafetyNetDetails } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
@@ -103,6 +104,7 @@ function NetDetail() {
               <InvitePanel details={details} />
               <MembersList details={details} />
               <NetOverview details={details} />
+              <ActivityFeed details={details} />
             </div>
 
             <div className="flex flex-col gap-4">
@@ -126,6 +128,7 @@ function NetDetail() {
             <NetOverview details={details} />
             <MembersList details={details} />
             <RequestsList details={details} />
+            <ActivityFeed details={details} />
           </div>
 
           <div className="flex flex-col gap-4">

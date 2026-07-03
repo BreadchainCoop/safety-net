@@ -80,7 +80,15 @@ function RequestRow({
         )}
       </div>
 
-      <div className="text-surface-grey mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      {view.reason.trim() !== "" ? (
+        <blockquote className="border-primary-jade/60 bg-paper-main text-text-standard mt-3 rounded-r-md border-l-2 px-3 py-2 text-sm italic">
+          &ldquo;{view.reason}&rdquo;
+        </blockquote>
+      ) : (
+        <p className="text-surface-grey mt-3 text-sm italic">No reason given</p>
+      )}
+
+      <div className="text-surface-grey mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span>
           Requested <TimeDisplay timestamp={view.request.timestamp} />
         </span>

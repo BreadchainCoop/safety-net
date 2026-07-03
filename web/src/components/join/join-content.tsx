@@ -1,13 +1,15 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { isHex, zeroAddress } from "viem";
+import { ConfettiIcon } from "@phosphor-icons/react";
 import { Caption } from "@breadcoop/ui";
 import { ActionButton } from "@/components/ui/action-button";
 import { AddressDisplay } from "@/components/ui/address-display";
+import { DepositPanel } from "@/components/net/deposit-panel";
 import { TxStatus } from "@/components/ui/tx-status";
 import {
   Badge,
@@ -60,6 +62,24 @@ function JoinInner() {
     invite?.nonce,
   );
   const redeemTx = useRedeemInvite();
+
+  // One-shot confetti burst on successful redeem (decorative; respects
+  // prefers-reduced-motion). canvas-confetti is imported dynamically so it
+  // stays out of the initial bundle and never runs during SSR.
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (!redeemTx.isSuccess || celebrated.current) return;
+    celebrated.current = true;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    void import("canvas-confetti").then(({ default: confetti }) => {
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    });
+  }, [redeemTx.isSuccess]);
+
   const net = details?.safetyNet;
   const { symbol, decimals } = useTokenInfo(
     net && net.owner !== zeroAddress ? net.token : undefined,
@@ -99,8 +119,26 @@ function JoinInner() {
   // reverts with AlreadyActive, so pre-check instead of letting it revert.
   const started = net.safetyNetStart !== 0n;
 
+  const joined = details.isMember || redeemTx.isSuccess;
+
   return (
     <Card>
+      {!joined && (
+        <div className="mb-5 flex flex-col items-center text-center">
+          <ConfettiIcon
+            className="text-primary-jade size-16"
+            weight="fill"
+            aria-hidden
+          />
+          <h2 className="font-breadDisplay text-text-standard mt-2 text-2xl font-bold">
+            You&apos;re invited!
+          </h2>
+          <p className="text-surface-grey-2 mt-1 text-sm">
+            Accept this invite to join the group&apos;s savings safety net.
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2">
         <Caption className="text-surface-grey-2">
           You&apos;ve been invited to
@@ -149,17 +187,37 @@ function JoinInner() {
       </div>
 
       <div className="mt-4">
-        {details.isMember || redeemTx.isSuccess ? (
-          <p className="text-system-green text-sm font-medium">
-            You&apos;re a member!{" "}
-            <Link
-              href={`/net/?id=${net.id}`}
-              className="text-primary-jade underline"
-            >
-              Open Safety Net #{net.id.toString()}
-            </Link>{" "}
-            to pay your initial deposit.
-          </p>
+        {joined ? (
+          <div className="flex flex-col gap-4">
+            <div className="border-system-green/40 bg-system-green/10 rounded-xl border p-3">
+              <p className="text-system-green text-sm font-medium">
+                Welcome aboard — you&apos;re member{" "}
+                {details.memberCount.toString()} of{" "}
+                {net.maximumMembers.toString()}. Pay your initial deposit below
+                to activate your membership.
+              </p>
+            </div>
+
+            {details.isMember ? (
+              <>
+                {/* Guided first deposit inline — DepositPanel's onboarding
+                    branch locks the amount to the initial deposit. Gated on the
+                    refetched details.isMember so it doesn't render mid-redeem
+                    while the cache still says non-member. */}
+                <DepositPanel details={details} />
+                <Link
+                  href={`/net/?id=${net.id}`}
+                  className="text-primary-jade text-sm font-medium underline"
+                >
+                  Open Safety Net #{net.id.toString()} →
+                </Link>
+              </>
+            ) : (
+              <p className="text-surface-grey text-sm">
+                Confirming membership…
+              </p>
+            )}
+          </div>
         ) : started ? (
           <p className="bg-paper-2 text-surface-grey-2 rounded-xl px-4 py-3 text-center text-sm font-medium">
             This Safety Net has already started — joining is closed.

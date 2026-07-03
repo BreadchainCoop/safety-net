@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { zeroAddress, type Address } from "viem";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
-import { isContractConfigured, SAFETYNET_ADDRESS } from "@/lib/config";
+import { CHAIN_ID, isContractConfigured, SAFETYNET_ADDRESS } from "@/lib/config";
 
 /**
  * Data layer for SafetyNet reads. The contract ships aggregate views
@@ -14,9 +14,13 @@ import { isContractConfigured, SAFETYNET_ADDRESS } from "@/lib/config";
  * it and every consumer updates automatically.
  */
 
+// chainId is pinned to Gnosis on every contract call: the wagmi config also
+// includes mainnet (for ENS reads only), so without this a wallet sitting on
+// mainnet could read the wrong chain.
 const safetyNetContract = {
   address: SAFETYNET_ADDRESS,
   abi: safetyNetAbi,
+  chainId: CHAIN_ID,
 } as const;
 
 const REFETCH_MS = 12_000;

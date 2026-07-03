@@ -63,7 +63,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
         address actor = members[seed % memberCount];
         uint256 daysReq = 1 + (seed % 3);
         vm.prank(actor);
-        try _safetyNet.withdraw(safetyNetId, daysReq) {} catch {}
+        try _safetyNet.withdraw(safetyNetId, daysReq, '') {} catch {}
       }
       vm.warp(block.timestamp + config.epochDuration + 1);
     }
@@ -96,7 +96,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
         address actor = members[seed % memberCount];
         uint256 daysReq = 40 + (seed % 40);
         vm.prank(actor);
-        try _safetyNet.withdraw(safetyNetId, daysReq) {} catch {}
+        try _safetyNet.withdraw(safetyNetId, daysReq, '') {} catch {}
       }
       vm.warp(block.timestamp + config.epochDuration + 1);
     }
@@ -131,7 +131,7 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
         // Create a large withdraw request occasionally.
         uint256 daysReq = 40 + (seed % 40);
         vm.prank(actor);
-        try _safetyNet.withdraw(safetyNetId, daysReq) {} catch {}
+        try _safetyNet.withdraw(safetyNetId, daysReq, '') {} catch {}
 
         // If a request exists, occasionally fast-forward past contest window and execute.
         if (_safetyNet.nextIdRequest() > 0 && (seed & 1) == 1) {

@@ -58,6 +58,8 @@ export const SAFETY_NET_ERRORS: Record<string, string> = {
   InvalidSigner: "This invite wasn't signed by the Safety Net owner.",
   AlreadyMember: "You are already a member of this Safety Net.",
   SafetyNetFull: "This Safety Net has reached its maximum number of members.",
+  ReasonTooLong:
+    "Your reason is too long — please shorten it (max 2000 bytes on-chain).",
   RequestNonceAlreadyUsed: "This signed request has already been submitted.",
   AuthorizationExpired:
     "This signed request has expired — ask for a new one.",

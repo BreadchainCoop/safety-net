@@ -1,6 +1,4 @@
-// Generated from out/SafetyNet.sol/SafetyNet.json — do not edit by hand.
-// Refresh: `forge build` at the repo root, then `pnpm generate:abi` here.
-export const safetyNetAbi = [
+[
   {
     "type": "constructor",
     "inputs": [],
@@ -2624,4 +2622,4 @@ export const safetyNetAbi = [
     "name": "TokenNotAllowed",
     "inputs": []
   }
-] as const;
+]

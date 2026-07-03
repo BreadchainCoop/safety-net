@@ -54,6 +54,7 @@ const SECTIONS: Section[] = [
     body: [
       'Withdrawals are measured in "days of income": one day is worth your monthly contribution ÷ 30 (the redeem ratio is ×1 in v1). Pick how many days you need and the app shows the exact amount.',
       "If the amount is at or below the net's instant threshold it's transferred immediately (up to a per-epoch limit of instant withdrawals). Anything larger creates a withdrawal request that your group can review first.",
+      "For a large withdrawal you add a short reason (up to 200 words) explaining why you need the funds. It's stored on-chain and shown to every member, so they have the context to decide whether to contest.",
     ],
   },
   {
@@ -61,7 +62,7 @@ const SECTIONS: Section[] = [
     gif: "contest",
     title: "5. Contest a request",
     body: [
-      "Every large withdrawal opens a contest window (set when the net was created). During that window any member can contest the request — think of it as a veto vote.",
+      "Every large withdrawal opens a contest window (set when the net was created). Each request shows the requester's reason, so you can weigh it before deciding. During that window any member can contest the request — think of it as a veto vote.",
       "If more than the contest threshold percentage of members contest, the request is vetoed and no funds move. Each member can contest a given request only once.",
     ],
   },
@@ -72,6 +73,7 @@ const SECTIONS: Section[] = [
     body: [
       "Once the contest window closes without a veto, the request becomes executable. Anyone can trigger execution — the requested amount is transferred to the requester and deducted from their withdrawable balance.",
       "The app shows a live countdown on each request and flags the ones that are executable now.",
+      "Every net page has an Activity feed showing its full history — creations, joins, deposits, withdrawals, requests, contests, vetoes and executions — each linking to the transaction on the block explorer.",
     ],
   },
   {

@@ -75,6 +75,7 @@ interface ISafetyNet {
   /// @param isExecuted Whether the request has been executed
   /// @param isContestable Whether the request can be contested now (exists, contest window open, not vetoed)
   /// @param isExecutable Whether the request can be executed now (window closed, not vetoed, not executed, net commissioned, owner balance sufficient)
+  /// @param reason The requester-supplied reason attached to the request; empty string when none was provided
   struct RequestView {
     uint256 id;
     Request request;
@@ -82,6 +83,7 @@ interface ISafetyNet {
     bool isExecuted;
     bool isContestable;
     bool isExecutable;
+    string reason;
   }
 
   /// @notice Aggregated Safety Net details for a given member, for frontend consumption
@@ -114,6 +116,7 @@ interface ISafetyNet {
 
   /// @notice Emitted when a new Safety Net is created
   /// @param id Unique identifier of the Safety Net
+  /// @param owner The creator of the Safety Net and its sole founding member
   /// @param minimumMembers Minimum number of members required
   /// @param maximumMembers Maximum number of members allowed
   /// @param contestThreshold Percentage threshold of members required to veto a request
@@ -127,6 +130,7 @@ interface ISafetyNet {
   /// @param smallWithdrawsLimit Maximum number of small withdrawals per epoch
   event SafetyNetCreated(
     uint256 indexed id,
+    address indexed owner,
     uint256 minimumMembers,
     uint256 maximumMembers,
     uint256 contestThreshold,
@@ -168,10 +172,12 @@ interface ISafetyNet {
 
   /// @notice Emitted when a new request is created
   /// @param id Unique identifier of the request
+  /// @param safetyNetId Unique identifier of the Safety Net the request belongs to
   /// @param owner The request initiator
   /// @param timestamp Creation time of the request
   /// @param amount Amount requested for withdrawal
-  event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
+  /// @param reason The requester-supplied reason for the withdrawal; empty string when none was provided
+  event RequestCreated(uint256 indexed id, uint256 indexed safetyNetId, address owner, uint256 timestamp, uint256 amount, string reason);
 
   /// @notice Emitted when a withdraw request is pending
   /// @param requestId Unique identifier of the request
@@ -348,6 +354,9 @@ interface ISafetyNet {
   /// @notice Thrown when withdrawing or creating a withdraw request on a Safety Net that has not been started via start()
   error NotActive();
 
+  /// @notice Thrown when a withdrawal request reason exceeds `MAX_REASON_BYTES` bytes
+  error ReasonTooLong();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -403,26 +412,37 @@ interface ISafetyNet {
   function redeemInvite(Invite calldata invite, bytes calldata signature) external;
 
   /// @notice Makes a withdrawal from a Safety Net
+  /// @dev The reason is validated against `MAX_REASON_BYTES` (the UI enforces roughly 200 words) and
+  ///      is stored/emitted only when the amount is large enough to create a withdrawal request;
+  ///      on the small/instant path it is ignored
   /// @param id The Safety Net ID
   /// @param daysRequested Number of days for calculating withdrawal amount
-  function withdraw(uint256 id, uint256 daysRequested) external;
+  /// @param reason Short human-readable reason for the withdrawal, shown to members deciding whether to contest
+  function withdraw(uint256 id, uint256 daysRequested, string calldata reason) external;
 
   /// @notice Creates a new request for withdraw from a Safety Net
+  /// @dev The reason is validated against `MAX_REASON_BYTES` (the UI enforces roughly 200 words)
   /// @param request The withdraw request details
+  /// @param reason Short human-readable reason for the withdrawal, shown to members deciding whether to contest
   /// @return id The request ID
-  function createRequest(Request memory request) external returns (uint256);
+  function createRequest(Request memory request, string calldata reason) external returns (uint256);
 
   /// @notice Creates a new withdraw request on behalf of the request owner using an EIP-712 signature
-  /// @dev The request owner signs `RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)`; anyone may submit
+  /// @dev The request owner signs
+  ///      `RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline,string reason)`;
+  ///      anyone may submit. The reason is covered by the signature so a relayer cannot attach words to
+  ///      someone else's request. Validated against `MAX_REASON_BYTES` (the UI enforces roughly 200 words)
   /// @param request The withdraw request details; `owner` must be the signer and a member of the Safety Net
   /// @param nonce Unique nonce chosen by the owner, tracked per (safetyNetId, owner) to prevent replay
   /// @param deadline Timestamp after which the authorization is no longer valid
+  /// @param reason Short human-readable reason for the withdrawal, covered by the owner's signature
   /// @param signature The owner's EIP-712 signature over the request authorization
   /// @return id The request ID
   function createRequestWithSignature(
     Request memory request,
     uint256 nonce,
     uint256 deadline,
+    string calldata reason,
     bytes calldata signature
   ) external returns (uint256);
 

@@ -41,7 +41,7 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     uint256 daysRequested = 1 + (uint256(extraDaysRaw) % 5);
 
     vm.prank(_member1);
-    _safetyNet.withdraw(safetyNetId, daysRequested);
+    _safetyNet.withdraw(safetyNetId, daysRequested, '');
     uint256 requestCount = _safetyNet.nextIdRequest();
     assertGt(requestCount, 0, 'expected a request');
     uint256 requestId = requestCount - 1;
@@ -103,7 +103,7 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     uint256 daysRequested = 1;
 
     vm.prank(members[0]);
-    _safetyNet.withdraw(safetyNetId, daysRequested);
+    _safetyNet.withdraw(safetyNetId, daysRequested, '');
     uint256 requestCount = _safetyNet.nextIdRequest();
     assertGt(requestCount, 0, 'expected a request');
     uint256 requestId = requestCount - 1;
@@ -169,7 +169,7 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     uint256 daysRequested = 1;
 
     vm.prank(_member1);
-    _safetyNet.withdraw(safetyNetId, daysRequested);
+    _safetyNet.withdraw(safetyNetId, daysRequested, '');
     uint256 requestCount = _safetyNet.nextIdRequest();
     assertGt(requestCount, 0, 'expected a request');
     uint256 requestId = requestCount - 1;
@@ -189,7 +189,7 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
 
     // New request that gets vetoed; verify it does not execute after its own timeout.
     vm.prank(_member1);
-    _safetyNet.withdraw(safetyNetId, daysRequested);
+    _safetyNet.withdraw(safetyNetId, daysRequested, '');
     uint256 n2 = _safetyNet.nextIdRequest();
     uint256 req2 = n2 - 1;
 

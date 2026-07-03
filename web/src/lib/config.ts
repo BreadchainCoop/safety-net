@@ -41,6 +41,16 @@ const clientEnvSchema = z.object({
     })
     .optional(),
   NEXT_PUBLIC_SITE_URL: z.url({ error: "must be a valid URL" }).optional(),
+  // Privy app id (cuid-like). When present (and not in verify mode) the app
+  // switches from RainbowKit "general" auth to Privy embedded wallets.
+  NEXT_PUBLIC_PRIVY_APP_ID: z
+    .string()
+    .regex(/^c[a-z0-9]{20,}$/i, {
+      message: "must be a Privy app id (cuid-like: c… 20+ chars)",
+    })
+    .optional(),
+  // Optional Privy client id (app-stacks passes it; optional in the SDK).
+  NEXT_PUBLIC_PRIVY_CLIENT_ID: z.string().min(1).optional(),
 });
 
 const parsedEnv = clientEnvSchema.safeParse({
@@ -52,6 +62,8 @@ const parsedEnv = clientEnvSchema.safeParse({
     process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
   ),
   NEXT_PUBLIC_SITE_URL: optional(process.env.NEXT_PUBLIC_SITE_URL),
+  NEXT_PUBLIC_PRIVY_APP_ID: optional(process.env.NEXT_PUBLIC_PRIVY_APP_ID),
+  NEXT_PUBLIC_PRIVY_CLIENT_ID: optional(process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID),
 });
 
 if (!parsedEnv.success) {
@@ -174,3 +186,24 @@ export const VERIFY_PRIVATE_KEY: `0x${string}` | undefined =
     : undefined;
 
 export const VERIFY_MODE = VERIFY_PRIVATE_KEY !== undefined;
+
+/*//////////////////////////////////////////////////////////////
+                          PRIVY MODE
+//////////////////////////////////////////////////////////////*/
+
+/**
+ * Privy embedded wallets are OPT-IN via NEXT_PUBLIC_PRIVY_APP_ID. When absent
+ * (today's default) the app keeps its RainbowKit "general" auth and the
+ * verify-mode dev wallet, and the Privy modules never load.
+ */
+export const PRIVY_APP_ID: string | undefined = env.NEXT_PUBLIC_PRIVY_APP_ID;
+export const PRIVY_CLIENT_ID: string | undefined =
+  env.NEXT_PUBLIC_PRIVY_CLIENT_ID;
+
+/**
+ * Verify mode always wins: the dev-wallet connector and
+ * `multiInjectedProviderDiscovery: false` in wagmi.ts conflict with the Privy
+ * connector, and E2E must stay deterministic. So Privy is enabled only when an
+ * app id is set AND we are not in verify mode.
+ */
+export const PRIVY_ENABLED = PRIVY_APP_ID !== undefined && !VERIFY_MODE;
