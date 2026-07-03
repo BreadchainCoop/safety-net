@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   cicd:
-    uses: BreadchainCoop/etherform/.github/workflows/_foundry-cicd.yml@main
+    uses: BreadchainCoop/etherform/.github/workflows/_foundry-cicd.yml@RonTuretzky/codebase-improvement-plan
     secrets: inherit
     with:
       package-manager: yarn

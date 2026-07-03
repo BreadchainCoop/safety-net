@@ -76,6 +76,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Maximum byte length of a withdrawal request reason (~200 words; the UI enforces the word cap)
   uint256 public constant MAX_REASON_BYTES = 2000;
 
+  /// @notice TEST-ONLY storage-layout violation to re-confirm upgrade-safety fires via the
+  /// @notice deprecated `main-branch` alias. Inserting a slot before existing storage bricks upgrades.
+  uint256 public injectedUpgradeViolation;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
