@@ -19,6 +19,7 @@ import { RequestsList } from "@/components/net/requests-list";
 import { InvitePanel } from "@/components/net/invite-panel";
 import { StartNetBanner } from "@/components/net/start-panel";
 import { DecommissionPanel } from "@/components/net/decommission-panel";
+import { DepositReminder } from "@/components/net/deposit-reminder";
 import { ActivityFeed } from "@/components/net/activity-feed";
 import { useSafetyNetDetails } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
@@ -135,6 +136,7 @@ function NetDetail() {
             {details.isMember ? (
               <>
                 <DepositPanel details={details} />
+                <DepositReminder details={details} />
                 <WithdrawPanel details={details} />
               </>
             ) : (

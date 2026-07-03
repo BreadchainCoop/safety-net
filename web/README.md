@@ -128,6 +128,7 @@ src/
 ├── components/
 │   ├── ui/           # Card/StatCard/Badge, ActionButton, TxStatus, AmountField,
 │   │                 # ConnectGate, AddressDisplay (copy), TimeDisplay (relative+abs)
+│   ├── funding/      # GetBreadModal — mint BREAD 1:1 from xDAI (Privy onramp buys xDAI)
 │   ├── net/          # NetCard, NetOverview, MembersList, Deposit/Withdraw panels,
 │   │                 # RequestsList (contest/execute), InvitePanel, DecommissionPanel
 │   └── create/       # create form (react-hook-form + zod)
