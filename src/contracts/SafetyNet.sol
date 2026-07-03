@@ -76,6 +76,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Maximum byte length of a withdrawal request reason (~200 words; the UI enforces the word cap)
   uint256 public constant MAX_REASON_BYTES = 2000;
 
+  /// @notice Maximum byte length of a Safety Net name
+  uint256 public constant MAX_NAME_BYTES = 128;
+
   /// @notice ID counter used to assign unique identifiers to each Safety Net
   uint256 public nextId;
 
@@ -134,6 +137,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Requester-supplied reason attached to each withdrawal request; empty string when none was provided
   mapping(uint256 requestId => string reason) public requestReasons;
 
+  /// @inheritdoc ISafetyNet
+  /// @dev Appended at the end of the storage layout to preserve the upgradeable proxy's byte layout.
+  ///      Stored only when a non-empty name is provided at creation; empty string otherwise
+  mapping(uint256 id => string name) public safetyNetNames;
+
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
     _onlyMemberOf(_safetyNetId);
@@ -162,7 +170,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
-  function create(SafetyNet memory _safetyNet) external override nonReentrant returns (uint256 _id) {
+  function create(string calldata _name, SafetyNet memory _safetyNet) external override nonReentrant returns (uint256 _id) {
+    if (bytes(_name).length > MAX_NAME_BYTES) revert NameTooLong();
+
     _id = nextId++;
 
     if (safetyNets[_id].owner != address(0)) revert AlreadyExists();
@@ -191,6 +201,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     _safetyNet.id = _id;
     safetyNets[_id] = _safetyNet;
 
+    // Store the name only when non-empty to save gas; the getter returns "" otherwise
+    if (bytes(_name).length > 0) {
+      safetyNetNames[_id] = _name;
+    }
+
     emit SafetyNetCreated(
       _id,
       _safetyNet.owner,
@@ -204,7 +219,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _safetyNet.redeemRatio,
       _safetyNet.autoThreshold,
       _safetyNet.epochDuration,
-      _safetyNet.smallWithdrawsLimit
+      _safetyNet.smallWithdrawsLimit,
+      _name
     );
     return _id;
   }

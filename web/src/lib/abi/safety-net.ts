@@ -34,6 +34,19 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_NAME_BYTES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_PREPAY_EPOCHS",
     "inputs": [],
     "outputs": [
@@ -138,6 +151,11 @@ export const safetyNetAbi = [
     "type": "function",
     "name": "create",
     "inputs": [
+      {
+        "name": "_name",
+        "type": "string",
+        "internalType": "string"
+      },
       {
         "name": "_safetyNet",
         "type": "tuple",
@@ -1683,6 +1701,25 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "safetyNetNames",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "name",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "safetyNets",
     "inputs": [
       {
@@ -2164,6 +2201,12 @@ export const safetyNetAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
       }
     ],
     "anonymous": false
@@ -2524,6 +2567,11 @@ export const safetyNetAbi = [
   {
     "type": "error",
     "name": "InviteAlreadyUsed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NameTooLong",
     "inputs": []
   },
   {

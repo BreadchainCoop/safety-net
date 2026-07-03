@@ -47,7 +47,7 @@ function nextLog(e: ethereum.Event): void {
   e.logIndex = bi(LOG_INDEX++)
 }
 
-function createSafetyNetCreatedEvent(id: i32): SafetyNetCreated {
+function createSafetyNetCreatedEvent(id: i32, name: string = ""): SafetyNetCreated {
   let e = changetype<SafetyNetCreated>(newMockEvent())
   e.parameters = new Array()
   e.parameters.push(
@@ -97,6 +97,9 @@ function createSafetyNetCreatedEvent(id: i32): SafetyNetCreated {
   )
   e.parameters.push(
     new ethereum.EventParam("smallWithdrawsLimit", ethereum.Value.fromUnsignedBigInt(bi(10)))
+  )
+  e.parameters.push(
+    new ethereum.EventParam("name", ethereum.Value.fromString(name))
   )
   nextLog(e)
   return e
@@ -277,8 +280,9 @@ describe("SafetyNet subgraph", () => {
   })
 
   test("created then started lifecycle", () => {
-    handleSafetyNetCreated(createSafetyNetCreatedEvent(1))
+    handleSafetyNetCreated(createSafetyNetCreatedEvent(1, "Carla's Art Collective"))
     assert.entityCount("SafetyNet", 1)
+    assert.fieldEquals("SafetyNet", "1", "name", "Carla's Art Collective")
     assert.fieldEquals("SafetyNet", "1", "decommissioned", "false")
     assert.fieldEquals("SafetyNet", "1", "memberCount", "1")
     assert.fieldEquals("SafetyNet", "1", "owner", OWNER)

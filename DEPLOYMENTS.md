@@ -9,6 +9,7 @@ with deadlines, aggregated frontend views.
 | Contract | Address |
 |----------|---------|
 | SafetyNet (proxy — use this address) | [`0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE`](https://gnosis.blockscout.com/address/0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE) |
+| SafetyNet (implementation v4 — named nets) | [`0xa1A489D6070d191079E30D912bfA76174A658408`](https://gnosis.blockscout.com/address/0xa1A489D6070d191079E30D912bfA76174A658408) |
 | SafetyNet (implementation v3 — onchain request reasons) | [`0x0b5E8239c113713d2f6429cAbC3Cf83D53E0B1AD`](https://gnosis.blockscout.com/address/0x0b5E8239c113713d2f6429cAbC3Cf83D53E0B1AD) |
 | SafetyNet (implementation v2 — saving-circles membership model) | [`0x515D1cFec5B21a2648a504bc1B4A9e1977f14743`](https://gnosis.blockscout.com/address/0x515D1cFec5B21a2648a504bc1B4A9e1977f14743) |
 | SafetyNet (implementation v1) | [`0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed`](https://gnosis.blockscout.com/address/0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed) |

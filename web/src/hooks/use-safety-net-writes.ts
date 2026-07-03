@@ -11,20 +11,23 @@ import { useTx } from "@/hooks/use-tx";
  * render inline lifecycle feedback.
  */
 
-type CreateInput = ContractFunctionArgs<
+// create(string _name, SafetyNet _safetyNet) — name is the first arg.
+type CreateArgs = ContractFunctionArgs<
   typeof safetyNetAbi,
   "nonpayable",
   "create"
->[0];
+>;
+type CreateName = CreateArgs[0];
+type CreateInput = CreateArgs[1];
 
 export function useCreateSafetyNet() {
   const tx = useTx();
-  const create = (safetyNet: CreateInput) =>
+  const create = (name: CreateName, safetyNet: CreateInput) =>
     tx.run({
       address: SAFETYNET_ADDRESS,
       abi: safetyNetAbi,
       functionName: "create",
-      args: [safetyNet],
+      args: [name, safetyNet],
     });
   return { create, ...tx };
 }

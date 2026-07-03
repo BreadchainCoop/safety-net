@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import type { Address } from "viem";
-import { useMemberDashboard } from "@/hooks/use-safety-net";
+import { useMemberDashboard, useSafetyNetNames } from "@/hooks/use-safety-net";
 import { requestStatus, type RequestStatus } from "@/lib/types";
 
 const STORAGE_KEY = "safetynet.dismissedNotifications";
@@ -12,6 +12,8 @@ export interface RequestNotification {
   /** Stable identity: requestId + the outcome it announces. */
   key: string;
   netId: bigint;
+  /** Human-readable net name, when set (else undefined → fall back to #id). */
+  netName?: string;
   requestId: bigint;
   status: Exclude<RequestStatus, "contestable">;
   amount: bigint;
@@ -37,6 +39,11 @@ function loadDismissed(): Set<string> {
 export function useRequestNotifications() {
   const { address } = useAccount();
   const { data: dashboard } = useMemberDashboard();
+  const ids = useMemo(
+    () => (dashboard ?? []).map((d) => d.safetyNet.id),
+    [dashboard],
+  );
+  const names = useSafetyNetNames(ids);
   const [dismissed, setDismissed] = useState<Set<string> | null>(null);
 
   // Read localStorage after mount (static export → no window at build time).
@@ -58,6 +65,7 @@ export function useRequestNotifications() {
         out.push({
           key,
           netId: details.safetyNet.id,
+          netName: names.get(details.safetyNet.id),
           requestId: view.id,
           status,
           amount: view.request.amount,
@@ -66,7 +74,7 @@ export function useRequestNotifications() {
       }
     }
     return out;
-  }, [address, dashboard, dismissed]);
+  }, [address, dashboard, dismissed, names]);
 
   const dismiss = useCallback((key: string) => {
     setDismissed((prev) => {

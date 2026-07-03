@@ -151,6 +151,41 @@ export function useMemberDepositInfo(
   };
 }
 
+/**
+ * The human-readable name of one Safety Net (safetyNetNames mapping). Names
+ * are a separate mapping — not part of getSafetyNetDetails/getMemberDashboard —
+ * so this is an extra read. May be "" when the owner left it blank.
+ */
+export function useSafetyNetName(id: bigint | undefined) {
+  return useReadContract({
+    ...safetyNetContract,
+    functionName: "safetyNetNames",
+    args: [id ?? 0n],
+    query: { enabled: isContractConfigured && id !== undefined },
+  });
+}
+
+/** Names for many Safety Nets at once (dashboard cards) — batched multicall. */
+export function useSafetyNetNames(ids: readonly bigint[]) {
+  const { data } = useReadContracts({
+    contracts: ids.map((id) => ({
+      ...safetyNetContract,
+      functionName: "safetyNetNames" as const,
+      args: [id] as const,
+    })),
+    query: { enabled: isContractConfigured && ids.length > 0 },
+  });
+
+  return useMemo(() => {
+    const map = new Map<bigint, string>();
+    ids.forEach((id, i) => {
+      const name = data?.[i]?.result;
+      if (typeof name === "string" && name.length > 0) map.set(id, name);
+    });
+    return map;
+  }, [data, ids]);
+}
+
 /** Whether the protocol allows the given ERC20 for Safety Nets. */
 export function useIsTokenAllowed(token: Address | undefined) {
   return useReadContract({

@@ -90,6 +90,7 @@ function ensureMember(
 export function handleSafetyNetCreated(event: SafetyNetCreatedEvent): void {
   let netId = event.params.id.toString()
   let net = new SafetyNet(netId)
+  net.name = event.params.name
   net.owner = event.params.owner
   net.token = event.params.token
   net.minimumMembers = event.params.minimumMembers

@@ -118,6 +118,7 @@ export function CreateForm() {
   const form = useForm<CreateNetValues>({
     resolver: zodResolver(createNetSchema),
     defaultValues: {
+      name: "",
       memberCount: DEFAULTS.memberCount,
       tokenChoice: "bread",
       customToken: "",
@@ -201,6 +202,22 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
 
   return (
     <Card className="flex flex-col gap-5">
+      <Field
+        id={id("name")}
+        label="Safety Net name"
+        help="A friendly name for your group (optional). Members see this everywhere instead of just an id."
+        error={errors.name?.message}
+      >
+        <input
+          {...fieldAria(id("name"), errors.name?.message, "help")}
+          type="text"
+          maxLength={128}
+          placeholder="e.g. Carla's Art Collective"
+          className={inputClass}
+          {...register("name")}
+        />
+      </Field>
+
       <Field
         label="Token"
         help="The ERC20 everyone saves in. BREAD is the default; pick Custom for another allowed token."
@@ -494,6 +511,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
   const { decimals } = useTokenInfo(token);
   const symbol = useNetSymbol(form);
 
+  const name = watch("name")?.trim();
   const members = watch("memberCount");
   const initial = watch("initialDeposit");
   const fixed = watch("fixedDeposit");
@@ -530,7 +548,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
     )
       return;
 
-    create({
+    create(v.name.trim(), {
       id: 0n, // assigned by the contract
       owner: address,
       minimumMembers: BigInt(v.minimumMembers),
@@ -561,7 +579,14 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
       </Heading4>
 
       <Body className="text-surface-grey-2 leading-relaxed">
-        A {symbol} saving circle of up to{" "}
+        {name ? (
+          <>
+            <strong className="text-text-standard">{name}</strong> — a {symbol}{" "}
+            saving circle of up to{" "}
+          </>
+        ) : (
+          <>A {symbol} saving circle of up to </>
+        )}
         <strong className="text-text-standard">{members || "—"}</strong> members.
         Everyone pays{" "}
         <strong className="text-text-standard">{amt(initial)}</strong> to join and{" "}
@@ -596,7 +621,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
                 weight="fill"
                 className="text-system-green shrink-0"
               />
-              Safety Net{" "}
+              {name ? `${name} ` : "Safety Net "}
               {createdId !== undefined ? `#${createdId.toString()} ` : ""}
               created
             </Heading4>
@@ -615,7 +640,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
                 href={createdId !== undefined ? `/net/?id=${createdId}` : "/"}
               >
                 {createdId !== undefined
-                  ? `Open Safety Net #${createdId.toString()}`
+                  ? `Open ${name || `Safety Net #${createdId.toString()}`}`
                   : "Go to your dashboard"}
               </Button>
             </div>

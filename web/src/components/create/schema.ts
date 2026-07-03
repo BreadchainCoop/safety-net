@@ -11,8 +11,17 @@ const amountString = z
     "Enter an amount greater than 0",
   );
 
+/** UTF-8 byte length — must match the contract's MAX_NAME_BYTES check. */
+const utf8Bytes = (v: string) => new TextEncoder().encode(v).length;
+
 export const createNetSchema = z
   .object({
+    // Optional human-readable name (contract MAX_NAME_BYTES = 128). Empty is
+    // allowed on-chain; we cap the byte length to match the NameTooLong revert.
+    name: z
+      .string()
+      .trim()
+      .refine((v) => utf8Bytes(v) <= 128, "Name is too long (max 128 bytes)"),
     // Group size cap (contract maximumMembers). The owner is the sole member
     // at creation — everyone else joins via invite links before start().
     memberCount: z
