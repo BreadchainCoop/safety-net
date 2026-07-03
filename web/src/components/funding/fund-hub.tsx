@@ -12,8 +12,17 @@ import { GAS_RESERVE_XDAI, useBreadFunding } from "@/hooks/use-bread-funding";
 import { useWatchFundedXdai } from "@/hooks/use-watch-funded-xdai";
 import { LiFiBridge } from "./lifi-bridge";
 import { ReceivePanel } from "./receive-panel";
+import { FundWithWallet } from "./fund-with-wallet";
+import { PeerOnramp } from "./peer-onramp";
 
-type RailId = "bridge" | "onramp" | "receive" | "mint";
+/**
+ * RAIL 2 (peer/zkp2p) is gated behind this build-time flag: hidden by default
+ * so `@zkp2p/sdk` never loads or errors unless an operator opts in. Config
+ * requirements are documented in web/README.md.
+ */
+const PEER_ONRAMP_ENABLED = process.env.NEXT_PUBLIC_ZKP2P_ENABLED === "true";
+
+type RailId = "bridge" | "wallet" | "onramp" | "peer" | "receive" | "mint";
 
 interface Rail {
   id: RailId;
@@ -47,12 +56,34 @@ export function FundHub({ onClose }: { onClose: () => void }) {
           "Bridge or swap tokens from Ethereum, Arbitrum, Base and more into xDAI on Gnosis. Best if you already hold crypto elsewhere.",
       },
     ];
+    // RAIL 1 — fund the embedded wallet from a linked external injected wallet.
+    // Meaningless outside Privy (the connected wallet IS the active account), so
+    // gate on PRIVY_ENABLED — the Receive + Mint rails cover that case.
+    if (PRIVY_ENABLED) {
+      base.push({
+        id: "wallet",
+        label: "From my wallet",
+        heading: "Fund from a connected wallet",
+        blurb:
+          "Move xDAI (or mint BREAD directly) from a browser wallet like MetaMask or Rabby into your app wallet. Best if you already hold xDAI on Gnosis elsewhere.",
+      });
+    }
     if (showOnramp) {
       base.push({
         id: "onramp",
         label: "Buy with card",
         heading: "Buy xDAI with card",
         blurb: "Top up your wallet with a card or bank transfer via Privy. Best if you're starting from fiat.",
+      });
+    }
+    // RAIL 2 — peer (zkp2p) fiat onramp; hidden unless explicitly enabled.
+    if (PEER_ONRAMP_ENABLED) {
+      base.push({
+        id: "peer",
+        label: "Peer onramp",
+        heading: "Buy xDAI peer-to-peer",
+        blurb:
+          "Buy xDAI from a peer via ZKP2P — no KYC, straight to your wallet on Gnosis. Requires the ZKP2P browser extension.",
       });
     }
     base.push(
@@ -71,6 +102,8 @@ export function FundHub({ onClose }: { onClose: () => void }) {
     );
     return base;
   }, [showOnramp]);
+  // PRIVY_ENABLED and PEER_ONRAMP_ENABLED are build-time constants, so the rail
+  // set is stable per build — no need to list them as deps.
 
   const [rail, setRail] = useState<RailId>("bridge");
   const active = rails.find((r) => r.id === rail) ?? rails[0];
@@ -95,7 +128,12 @@ export function FundHub({ onClose }: { onClose: () => void }) {
   // offer to mint it into BREAD (one prompt per arrival). Users on the "mint"
   // rail are already minting manually, so we don't watch there.
   const [pendingMint, setPendingMint] = useState<bigint | null>(null);
-  const watchEnabled = rail === "bridge" || rail === "receive" || rail === "onramp";
+  const watchEnabled =
+    rail === "bridge" ||
+    rail === "receive" ||
+    rail === "onramp" ||
+    rail === "wallet" ||
+    rail === "peer";
 
   const onFunded = useCallback((delta: bigint) => {
     setPendingMint((cur) => (cur ?? 0n) + delta);
@@ -195,6 +233,17 @@ export function FundHub({ onClose }: { onClose: () => void }) {
         <div className="mt-3">
           {rail === "bridge" && (
             <LiFiBridge address={address as Address | undefined} onXdaiRouted={() => refetchXdaiBalance()} />
+          )}
+
+          {rail === "wallet" && PRIVY_ENABLED && (
+            <FundWithWallet
+              embeddedAddress={address as Address | undefined}
+              onFunded={() => refetchXdaiBalance()}
+            />
+          )}
+
+          {rail === "peer" && PEER_ONRAMP_ENABLED && (
+            <PeerOnramp address={address as Address | undefined} />
           )}
 
           {rail === "onramp" && showOnramp && (
