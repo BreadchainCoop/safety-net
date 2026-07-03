@@ -45,9 +45,53 @@ absent vars fall back to working defaults with a console warning. See
 | `NEXT_PUBLIC_VERIFY_PRIVATE_KEY`       | _(empty)_                                   | Dev-wallet key — **ignored outside development builds**, see below.        |
 | `NEXT_PUBLIC_PRIVY_APP_ID`             | _(empty)_                                   | Enables Privy embedded wallets when set — see below. Absent ⇒ RainbowKit.  |
 | `NEXT_PUBLIC_PRIVY_CLIENT_ID`          | _(empty)_                                   | Optional Privy client id (passed alongside the app id).                    |
+| `NEXT_PUBLIC_ZKP2P_ENABLED`            | _(empty)_                                   | `"true"` shows the **Peer onramp** (ZKP2P) funding rail — see below.       |
 
 Known tokens: WXDAI `0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d` (default),
 BREAD `0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3` — see `src/lib/config.ts`.
+
+## Add-funds hub (funding rails)
+
+The **Add funds** modal (`src/components/funding/`) offers several ways to fund a
+wallet and mint BREAD. Balances refresh live and, after xDAI arrives on any rail,
+the hub offers a one-tap BREAD mint (`use-watch-funded-xdai`).
+
+- **Transfer crypto** — LiFi bridge/swap from any chain into xDAI on Gnosis.
+- **From my wallet** _(Privy only)_ — fund the embedded (Privy) wallet from a
+  separately-linked **injected** browser wallet (MetaMask / Rabby / …). Reads the
+  external wallet's xDAI balance and offers "Send xDAI" (plain transfer) or "Mint
+  BREAD" (`mint(embeddedAddress){ value }`) straight to the app wallet, signed by
+  the external wallet over `window.ethereum`. Hidden when Privy is disabled (the
+  connected wallet is then the active account, so this would be a self-transfer —
+  the Receive + Mint rails cover it).
+- **Buy with card** _(Privy only)_ — Privy fiat onramp for xDAI.
+- **Peer onramp** _(gated)_ — see below.
+- **Receive** — show the wallet address to receive xDAI/BREAD on Gnosis.
+- **Mint BREAD** — convert existing xDAI to BREAD 1:1.
+
+### Peer onramp (ZKP2P) — opt-in
+
+Hidden by default. Set **`NEXT_PUBLIC_ZKP2P_ENABLED=true`** to show the **Peer
+onramp** rail. It uses [`@zkp2p/sdk`](https://www.npmjs.com/package/@zkp2p/sdk),
+isolated in a `next/dynamic({ ssr: false })` client component
+(`peer-onramp-inner.tsx`) so it never loads during `output: "export"` static
+generation.
+
+Requirements / caveats:
+
+- **No API key or relayer is needed for the rail as shipped** — the published SDK
+  (0.7.2) is a bridge to the **ZKP2P browser extension**. The rail detects the
+  extension (`isAvailable`/`getState`), lets the user connect to it
+  (`requestConnection`), and links to the install page (`openInstallPage`) if it's
+  missing. The end user must have the ZKP2P extension installed.
+- The full in-page fiat→xDAI `onramp()` + `onIntentFulfilled()` flow that
+  app-stacks sketched is **not present** in the published SDK version (it is WIP
+  and commented out upstream), so the rail hands off to the extension for the
+  actual purchase rather than driving it in-app. Once xDAI lands in the wallet the
+  hub's post-arrival watcher offers the BREAD mint like the other rails.
+- If a future SDK version exposes the in-page onramp API (and any relayer/config
+  it needs), extend `peer-onramp-inner.tsx`; the gate and static-export isolation
+  already in place mean no other wiring changes.
 
 ## Privy embedded wallets (optional)
 
