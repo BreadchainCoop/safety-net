@@ -23,6 +23,7 @@ import {
 import {
   useInviteNonceUsed,
   useSafetyNetDetails,
+  useSafetyNetName,
 } from "@/hooks/use-safety-net";
 import { useRedeemInvite } from "@/hooks/use-safety-net-writes";
 import { useTokenInfo } from "@/hooks/use-token";
@@ -61,6 +62,7 @@ function JoinInner() {
     invite?.safetyNetId,
     invite?.nonce,
   );
+  const { data: name } = useSafetyNetName(invite?.safetyNetId);
   const redeemTx = useRedeemInvite();
 
   // One-shot confetti burst on successful redeem (decorative; respects
@@ -150,8 +152,11 @@ function JoinInner() {
         {full && <Badge tone="warning">Group is full</Badge>}
       </div>
       <h3 className="font-breadDisplay text-text-standard mt-1 text-2xl font-bold">
-        Safety Net #{net.id.toString()}
+        {name || `Safety Net #${net.id.toString()}`}
       </h3>
+      {name && (
+        <Caption className="text-surface-grey">#{net.id.toString()}</Caption>
+      )}
 
       <div className="mt-4">
         <InfoRow label="Owner">
@@ -209,7 +214,7 @@ function JoinInner() {
                   href={`/net/?id=${net.id}`}
                   className="text-primary-jade text-sm font-medium underline"
                 >
-                  Open Safety Net #{net.id.toString()} →
+                  Open {name || `Safety Net #${net.id.toString()}`} →
                 </Link>
               </>
             ) : (

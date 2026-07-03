@@ -40,7 +40,7 @@ dataSources:
       # are not indexed. We index from startBlock 47000324 (current proxy) with
       # the current signatures only; pre-upgrade test events are skipped.
       eventHandlers:
-        - event: SafetyNetCreated(indexed uint256,indexed address,uint256,uint256,uint256,address[],address,uint256,uint256,uint256,uint256,uint256,uint256)
+        - event: SafetyNetCreated(indexed uint256,indexed address,uint256,uint256,uint256,address[],address,uint256,uint256,uint256,uint256,uint256,uint256,string)
           handler: handleSafetyNetCreated
         - event: SafetyNetStarted(indexed uint256,uint256)
           handler: handleSafetyNetStarted

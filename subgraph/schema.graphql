@@ -22,6 +22,7 @@ enum RequestStatus {
 
 type SafetyNet @entity(immutable: false) {
   id: ID! # net id
+  name: String # human-readable name (may be empty/null)
   owner: Bytes!
   token: Bytes!
   minimumMembers: BigInt!

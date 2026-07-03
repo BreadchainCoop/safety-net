@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { zeroAddress } from "viem";
@@ -21,7 +21,7 @@ import { StartNetBanner } from "@/components/net/start-panel";
 import { DecommissionPanel } from "@/components/net/decommission-panel";
 import { DepositReminder } from "@/components/net/deposit-reminder";
 import { ActivityFeed } from "@/components/net/activity-feed";
-import { useSafetyNetDetails } from "@/hooks/use-safety-net";
+import { useSafetyNetDetails, useSafetyNetName } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
 
@@ -44,6 +44,14 @@ function NetDetail() {
   }, [rawId]);
 
   const { data: details, isLoading, error, refetch } = useSafetyNetDetails(id);
+  const { data: name } = useSafetyNetName(id);
+
+  // Static export builds a single generic <title> for /net; reflect the net's
+  // name (or id) in the document title client-side once it's known.
+  useEffect(() => {
+    if (id === undefined) return;
+    document.title = `${name || `Safety Net #${id.toString()}`} · Safety Net`;
+  }, [id, name]);
 
   if (!isContractConfigured)
     return (
@@ -93,7 +101,8 @@ function NetDetail() {
   return (
     <>
       <PageHeader
-        title={`Safety Net #${id.toString()}`}
+        title={name || `Safety Net #${id.toString()}`}
+        subtitle={name ? `Safety Net #${id.toString()}` : undefined}
         actions={<NetStatusBadges details={details} />}
       />
 

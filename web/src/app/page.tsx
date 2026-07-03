@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { Button } from "@breadcoop/ui";
@@ -14,12 +14,18 @@ import {
   PageHeader,
 } from "@/components/ui/ui";
 import { NetCard } from "@/components/net/net-card";
-import { useMemberDashboard } from "@/hooks/use-safety-net";
+import { useMemberDashboard, useSafetyNetNames } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
 
 function Dashboard() {
   const { data: dashboard, isLoading, error, refetch } = useMemberDashboard();
+
+  const ids = useMemo(
+    () => (dashboard ?? []).map((d) => d.safetyNet.id),
+    [dashboard],
+  );
+  const names = useSafetyNetNames(ids);
 
   if (!isContractConfigured)
     return (
@@ -55,7 +61,11 @@ function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       {dashboard.map((details, i) => (
-        <NetCard key={`${details.safetyNet.id}-${i}`} details={details} />
+        <NetCard
+          key={`${details.safetyNet.id}-${i}`}
+          details={details}
+          name={names.get(details.safetyNet.id)}
+        />
       ))}
     </div>
   );

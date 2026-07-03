@@ -37,8 +37,28 @@ export function NetStatusBadges({ details }: { details: SafetyNetDetails }) {
   );
 }
 
+/** Title block: the name (or "Safety Net #N") with "#N" kept as a subtitle. */
+function NetCardTitle({ id, name }: { id: bigint; name?: string }) {
+  return (
+    <div className="min-w-0">
+      <Heading4 className="text-text-standard truncate">
+        {name || `Safety Net #${id.toString()}`}
+      </Heading4>
+      {name && (
+        <Caption className="text-surface-grey">#{id.toString()}</Caption>
+      )}
+    </div>
+  );
+}
+
 /** Dashboard card for one Safety Net the user belongs to. */
-export function NetCard({ details }: { details: SafetyNetDetails }) {
+export function NetCard({
+  details,
+  name,
+}: {
+  details: SafetyNetDetails;
+  name?: string;
+}) {
   const net = details.safetyNet;
   const pending = net.safetyNetStart === 0n;
   const { symbol, decimals } = useTokenInfo(
@@ -49,9 +69,7 @@ export function NetCard({ details }: { details: SafetyNetDetails }) {
     return (
       <Card className="opacity-70">
         <div className="flex items-center justify-between gap-3">
-          <Heading4 className="text-text-standard">
-            Safety Net #{net.id.toString()}
-          </Heading4>
+          <NetCardTitle id={net.id} name={name} />
           <NetStatusBadges details={details} />
         </div>
         <Body className="text-surface-grey-2 mt-2">
@@ -65,9 +83,7 @@ export function NetCard({ details }: { details: SafetyNetDetails }) {
     <Link href={`/net/?id=${net.id}`} className="group block">
       <Card className="hover:border-primary-jade/50 transition-colors">
         <div className="flex items-center justify-between gap-3">
-          <Heading4 className="text-text-standard">
-            Safety Net #{net.id.toString()}
-          </Heading4>
+          <NetCardTitle id={net.id} name={name} />
           <NetStatusBadges details={details} />
         </div>
 

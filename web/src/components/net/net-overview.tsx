@@ -5,6 +5,7 @@ import { AddressDisplay } from "@/components/ui/address-display";
 import { Card, InfoRow, ProgressBar, StatCard } from "@/components/ui/ui";
 import { useNow } from "@/hooks/use-now";
 import { useTokenInfo } from "@/hooks/use-token";
+import { useSafetyNetName } from "@/hooks/use-safety-net";
 import { formatAmount, formatDateTime, formatDuration } from "@/lib/format";
 import type { SafetyNetDetails } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
   const now = useNow();
   const net = details.safetyNet;
   const { symbol, decimals } = useTokenInfo(net.token);
+  const { data: name } = useSafetyNetName(net.id);
 
   // safetyNetStart is 0 until the owner calls start() (then it's stamped
   // with the block timestamp), so a nonzero start means "running".
@@ -82,6 +84,7 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
       <Card>
         <Caption className="text-surface-grey-2">Rules</Caption>
         <div className="mt-2">
+          {name && <InfoRow label="Name">{name}</InfoRow>}
           <InfoRow label="Token">
             {symbol} <AddressDisplay address={net.token} />
           </InfoRow>

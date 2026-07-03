@@ -42,7 +42,7 @@ function NotificationRow({
             href={`/net/?id=${notification.netId}`}
             className="underline underline-offset-2"
           >
-            View Safety Net #{notification.netId.toString()}
+            View {notification.netName || `Safety Net #${notification.netId.toString()}`}
           </Link>
         </span>
       </span>

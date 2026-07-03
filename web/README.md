@@ -128,7 +128,7 @@ src/
 ├── components/
 │   ├── ui/           # Card/StatCard/Badge, ActionButton, TxStatus, AmountField,
 │   │                 # ConnectGate, AddressDisplay (copy), TimeDisplay (relative+abs)
-│   ├── funding/      # GetBreadModal — mint BREAD 1:1 from xDAI (Privy onramp buys xDAI)
+│   ├── funding/      # "Add funds" hub — see below
 │   ├── net/          # NetCard, NetOverview, MembersList, Deposit/Withdraw panels,
 │   │                 # RequestsList (contest/execute), InvitePanel, DecommissionPanel
 │   └── create/       # create form (react-hook-form + zod)
@@ -155,6 +155,37 @@ Notes:
 - Reads poll every 12 s and are invalidated after every confirmed tx.
 - Invite links: owner signs `Invite(uint256 safetyNetId,uint256 nonce)` under
   domain `SafetyNetInvite` v1 → `/join/?net=…&nonce=…&sig=…` (single-use).
+
+## Add-funds hub (`components/funding/`)
+
+`GetBreadModal({ open, onClose })` (same API as before) is now a shell around
+`FundHub`, a tabbed hub replicating app-stacks' fund-wallet modal. Top of the
+hub shows live BREAD + xDAI balances that refresh after any funding action.
+Rails:
+
+1. **Transfer crypto (LiFi bridge/swap)** — `lifi-bridge.tsx` loads the
+   `@lifi/widget` v4 runtime (`lifi-widget-inner.tsx`) **only** via
+   `next/dynamic(import(...), { ssr: false })`, so it never executes during the
+   `output: "export"` static build. It's themed jade and locked to Gnosis (100)
+   → native xDAI (`lifi-config.ts`). **The embedded widget builds and static
+   exports cleanly** (verified). A `WidgetErrorBoundary` falls back to a
+   `jumper.exchange` link-out (prefilled toChain=100, toAddress) if the widget
+   ever fails at runtime, and the link-out is also used when no wallet is
+   connected.
+2. **Auto-mint after routing** — `use-watch-funded-xdai.ts` watches the wallet's
+   native xDAI via `publicClient.watchBlocks` and fires once per **increase**
+   (ports app-stacks `use-watch-funded-xdai`). Instead of auto-sponsoring a mint
+   (no sponsored-tx path here), the hub surfaces an "N xDAI arrived — mint into
+   BREAD?" offer that routes through the normal `useBreadFunding().mintBread`
+   (wagmi or Privy). The watcher only runs on the bridge/receive/onramp tabs.
+3. **Buy with card (fiat onramp)** — existing Privy onramp, shown only when
+   `PRIVY_ENABLED`.
+4. **Receive** — `receive-panel.tsx` shows the connected address (ENS + copy +
+   explorer via `AddressDisplay`) with "send xDAI/BREAD on Gnosis here" copy.
+5. **Mint BREAD** — the existing direct `mint(receiver)` path with the
+   gas-reserve-on-MAX guard, for users already holding xDAI.
+
+The modal shell owns a11y (labelled dialog, focus, Escape, click-outside).
 
 ## Refreshing the contract ABI
 
