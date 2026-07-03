@@ -19,7 +19,7 @@ export const createNetSchema = z
       .number({ error: "Enter a whole number" })
       .int("Whole numbers only")
       .min(2, "At least 2 members are required"),
-    tokenChoice: z.enum(["wxdai", "bread", "custom"]),
+    tokenChoice: z.enum(["bread", "custom"]),
     customToken: z.string().trim(),
     initialDeposit: amountString,
     fixedDeposit: amountString,

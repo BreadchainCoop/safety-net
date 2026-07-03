@@ -134,12 +134,11 @@ export const BREAD_ADDRESS: Address =
   "0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3";
 
 export const KNOWN_TOKENS: { label: string; address: Address }[] = [
-  { label: "WXDAI", address: WXDAI_ADDRESS },
   { label: "BREAD", address: BREAD_ADDRESS },
 ];
 
 /** Default token for new Safety Nets. */
-export const DEFAULT_TOKEN = WXDAI_ADDRESS;
+export const DEFAULT_TOKEN = BREAD_ADDRESS;
 
 export const BLOCK_EXPLORER = "https://gnosisscan.io";
 export const txUrl = (hash: string) => `${BLOCK_EXPLORER}/tx/${hash}`;
