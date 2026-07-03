@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAccount } from "wagmi";
 import { Navbar as KitNavbar } from "@breadcoop/ui";
+import { GetBreadModal } from "@/components/funding/get-bread-modal";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -49,11 +52,26 @@ function NavLinks() {
  * pass a second disconnect button via `actionItems`.
  */
 export function Navbar() {
+  const { isConnected } = useAccount();
+  const [getBreadOpen, setGetBreadOpen] = useState(false);
+
   return (
     <header className="border-paper-2 bg-paper-main/80 sticky top-0 z-50 border-b backdrop-blur">
       <KitNavbar app="net" Link={Link} className="section-container">
-        <NavLinks />
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+          <NavLinks />
+          {isConnected && (
+            <button
+              type="button"
+              onClick={() => setGetBreadOpen(true)}
+              className="border-primary-jade text-primary-jade hover:bg-primary-jade/10 rounded-lg border px-3 py-1.5 text-sm font-bold whitespace-nowrap transition-colors md:mr-4"
+            >
+              Get BREAD
+            </button>
+          )}
+        </div>
       </KitNavbar>
+      <GetBreadModal open={getBreadOpen} onClose={() => setGetBreadOpen(false)} />
     </header>
   );
 }

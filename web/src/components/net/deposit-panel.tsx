@@ -8,6 +8,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { AmountField } from "@/components/ui/amount-field";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
+import { GetBreadModal } from "@/components/funding/get-bread-modal";
 import { useMemberDepositInfo } from "@/hooks/use-safety-net";
 import { useDeposit, useDepositFor } from "@/hooks/use-safety-net-writes";
 import {
@@ -16,7 +17,7 @@ import {
   useTokenBalance,
   useTokenInfo,
 } from "@/hooks/use-token";
-import { MAX_PREPAY_EPOCHS } from "@/lib/config";
+import { BREAD_ADDRESS, MAX_PREPAY_EPOCHS } from "@/lib/config";
 import { formatAmount, parseAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SafetyNetDetails } from "@/lib/types";
@@ -82,6 +83,7 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
   const [mode, setMode] = useState<"self" | "other">("self");
   const [otherMember, setOtherMember] = useState("");
   const [amount, setAmount] = useState("");
+  const [getBreadOpen, setGetBreadOpen] = useState(false);
   // Approve unlimited once (reference default) vs the exact amount each time.
   // Remembered per browser in localStorage.
   const [approveUnlimited, setApproveUnlimited] = useState(true);
@@ -149,6 +151,12 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
     parsed !== null && parsed > 0n && (allowance ?? 0n) < parsed;
   const insufficientBalance =
     parsed !== null && balance !== undefined && balance < parsed;
+  // The user can only top themselves up. Offer "Get BREAD" when they're short
+  // on a BREAD-denominated net and depositing for themselves.
+  const isBreadNet =
+    net.token.toLowerCase() === BREAD_ADDRESS.toLowerCase();
+  const canGetBread =
+    mode === "self" && isBreadNet && insufficientBalance === true;
   // Upper bound on what the prepay window can absorb: this epoch's remaining
   // dues + MAX_PREPAY_EPOCHS full epochs. (Future-epoch fills can't be read
   // cheaply, so a deposit inside this bound can still revert with
@@ -321,6 +329,15 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
             {formatAmount(balance, decimals)}) doesn&apos;t cover this deposit.
           </p>
         )}
+        {canGetBread && (
+          <button
+            type="button"
+            onClick={() => setGetBreadOpen(true)}
+            className="border-primary-jade text-primary-jade hover:bg-primary-jade/10 self-start rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors"
+          >
+            Not enough BREAD — Get BREAD
+          </button>
+        )}
         {exceedsCapacity && (
           <p className="text-system-red text-xs font-medium">
             That&apos;s more than this epoch&apos;s dues plus{" "}
@@ -369,6 +386,10 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
           }
         />
       </div>
+      <GetBreadModal
+        open={getBreadOpen}
+        onClose={() => setGetBreadOpen(false)}
+      />
     </Card>
   );
 }

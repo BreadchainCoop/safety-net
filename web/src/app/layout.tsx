@@ -6,6 +6,7 @@ import { VerifyBanner } from "@/components/verify-banner";
 import { NotificationBanner } from "@/components/notification-banner";
 import { ConfigWarning } from "@/components/config-warning";
 import { SiteFooter } from "@/components/site-footer";
+import { OnboardingGate } from "@/components/onboarding/onboarding-gate";
 import { buildMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = buildMetadata();
@@ -29,6 +30,7 @@ export default function RootLayout({
           <NotificationBanner />
           <main className="section-container flex-1 py-8">{children}</main>
           <SiteFooter />
+          <OnboardingGate />
         </Providers>
       </body>
     </html>
