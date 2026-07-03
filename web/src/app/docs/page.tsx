@@ -73,6 +73,7 @@ const SECTIONS: Section[] = [
     body: [
       "Once the contest window closes without a veto, the request becomes executable. Anyone can trigger execution — the requested amount is transferred to the requester and deducted from their withdrawable balance.",
       "The app shows a live countdown on each request and flags the ones that are executable now.",
+      "Every net page has an Activity feed showing its full history — creations, joins, deposits, withdrawals, requests, contests, vetoes and executions — each linking to the transaction on the block explorer.",
     ],
   },
   {
