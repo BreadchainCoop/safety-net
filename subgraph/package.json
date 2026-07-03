@@ -5,10 +5,10 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ safety-net-gnosis",
-    "create-local": "graph create --node http://localhost:8020/ safety-net-gnosis",
-    "remove-local": "graph remove --node http://localhost:8020/ safety-net-gnosis",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 safety-net-gnosis",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ safety-net",
+    "create-local": "graph create --node http://localhost:8020/ safety-net",
+    "remove-local": "graph remove --node http://localhost:8020/ safety-net",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 safety-net",
     "test": "graph test"
   },
   "dependencies": {
