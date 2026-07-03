@@ -15,12 +15,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
 
     address[] memory members = _makeMembers(memberCount);
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
-    config.safetyNetStart = block.timestamp;
     config.redeemRatio = 1;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, members);
 
     for (uint256 i = 0; i < memberCount; i++) {
       _mintApprove(members[i], 1e24, address(_safetyNet));
@@ -48,12 +46,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
 
     address[] memory members = _makeMembers(memberCount);
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
-    config.safetyNetStart = block.timestamp;
     config.redeemRatio = 1;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, members);
 
     for (uint256 i = 0; i < memberCount; i++) {
       _mintApprove(members[i], 1e24, address(_safetyNet));
@@ -83,12 +79,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
 
     address[] memory members = _makeMembers(memberCount);
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
-    config.safetyNetStart = block.timestamp;
     config.redeemRatio = 1;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, members);
 
     for (uint256 i = 0; i < memberCount; i++) {
       _mintApprove(members[i], 1e24, address(_safetyNet));
@@ -118,12 +112,10 @@ contract SafetyNetFuzz_VariableMembers is SafetyNetFuzzBase {
 
     address[] memory members = _makeMembers(memberCount);
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
-    config.safetyNetStart = block.timestamp;
     config.redeemRatio = 1;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, members);
 
     for (uint256 i = 0; i < memberCount; i++) {
       _mintApprove(members[i], 1e24, address(_safetyNet));

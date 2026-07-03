@@ -15,13 +15,13 @@ interface ISafetyNet {
 
   /// @notice Struct defining a Safety Net group
   /// @param id Unique identifier for the Safety Net
-  /// @param owner The creator of the Safety Net
-  /// @param minimumMembers Minimum number of members required to create a Safety Net
-  /// @param maximumMembers Maximum number of members allowed in the Safety Net
+  /// @param owner The creator of the Safety Net; registered as the sole founding member at creation
+  /// @param minimumMembers Minimum number of members required to start a Safety Net; enforced by start()
+  /// @param maximumMembers Maximum number of members allowed in the Safety Net; the seat target the UI sizes invites against. Enforced at invite redemption, though the finite number of owner-signed invites is the effective cap in the normal flow
   /// @param contestThreshold Percentage threshold of members; a withdrawal request is vetoed/cancelled only if the share of contesting members exceeds this percentage
-  /// @param safetyNetStart Timestamp when the Safety Net becomes active
+  /// @param safetyNetStart Activation timestamp stamped by start(); 0 means the Safety Net has not started yet. Must be 0 at creation
   /// @param token The ERC20 token used for deposits and withdrawals
-  /// @param members List of member addresses
+  /// @param members List of joined member addresses; must be empty at creation (the owner is pushed as the sole member) and grows via redeemInvite()
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
   /// @param redeemRatio Ratio of deposit to withdrawal; must be exactly 1 in v1 (leverage is disabled), field retained for forward-compatibility
@@ -140,6 +140,11 @@ interface ISafetyNet {
     uint256 smallWithdrawsLimit
   );
 
+  /// @notice Emitted when a Safety Net is started by its owner
+  /// @param id Unique identifier of the Safety Net
+  /// @param startTime Timestamp at which the Safety Net became active
+  event SafetyNetStarted(uint256 indexed id, uint256 startTime);
+
   /// @notice Emitted when a Safety Net is decommissioned
   /// @param id Unique identifier of the Safety Net
   event SafetyNetDecommissioned(uint256 indexed id);
@@ -246,7 +251,7 @@ interface ISafetyNet {
   /// @notice Thrown when the deposit exceeds allowed limits
   error ExceedsDepositAmount();
 
-  /// @notice Thrown if attempting to deposit before the fund starts
+  /// @notice Thrown if attempting to deposit into a Safety Net that has not been started via start()
   error DepositBeforeSafetyNetStart();
 
   /// @notice Thrown if the specified token is not whitelisted
@@ -255,7 +260,7 @@ interface ISafetyNet {
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
 
-  /// @notice Thrown for an invalid Safety Net start time
+  /// @notice Thrown when a nonzero start time is passed at creation; the start time is stamped by start()
   error InvalidSafetyNetStartTime();
 
   /// @notice Thrown when indexing fails
@@ -331,6 +336,18 @@ interface ISafetyNet {
   /// @notice Thrown when a request authorization is submitted after its deadline
   error AuthorizationExpired();
 
+  /// @notice Thrown when a nonempty members array is passed at creation; the owner is the sole founding member and everyone else joins via invites
+  error InvalidMembers();
+
+  /// @notice Thrown when starting an already-started Safety Net or redeeming an invite after start
+  error AlreadyActive();
+
+  /// @notice Thrown when starting a Safety Net with fewer joined members than `minimumMembers`
+  error NotEnoughMembers();
+
+  /// @notice Thrown when withdrawing or creating a withdraw request on a Safety Net that has not been started via start()
+  error NotActive();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -344,10 +361,19 @@ interface ISafetyNet {
   /// @param allowed Whether the token is allowed or not
   function setTokenAllowed(address token, bool allowed) external;
 
-  /// @notice Creates a new Safety Net
+  /// @notice Creates a new Safety Net with the configured owner as its sole founding member
+  /// @dev `members` must be empty and `safetyNetStart` must be 0; further members join via
+  ///      {redeemInvite} and the start time is stamped by {start}. `owner` is taken from the
+  ///      struct and is not required to equal msg.sender (relayed creation is allowed)
   /// @param safetyNet The Safety Net configuration
   /// @return id The unique ID of the newly created Safety Net
   function create(SafetyNet memory safetyNet) external returns (uint256);
+
+  /// @notice Starts a Safety Net, stamping its activation timestamp and opening the deposit/withdraw lifecycle
+  /// @dev Only the Safety Net owner may call; requires at least `minimumMembers` joined members.
+  ///      After start, invites can no longer be redeemed and epochs count from this timestamp
+  /// @param id ID of the Safety Net to start
+  function start(uint256 id) external;
 
   /// @notice Decommissions an existing Safety Net
   /// @param id ID of the Safety Net to decommission
@@ -370,7 +396,8 @@ interface ISafetyNet {
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
 
-  /// @notice Redeems an invite signed by the Safety Net owner
+  /// @notice Redeems an invite signed by the Safety Net owner, joining the caller as a member
+  /// @dev Only possible between creation and start(); reverts with {AlreadyActive} once started
   /// @param invite The invite data containing the Safety Net ID and nonce
   /// @param signature The owner's EIP-712 signature
   function redeemInvite(Invite calldata invite, bytes calldata signature) external;
@@ -438,6 +465,7 @@ interface ISafetyNet {
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
 
   /// @notice Returns the list of members in a Safety Net who still owe dues in the current epoch.
+  /// @dev Returns an empty array for decommissioned or not-yet-started Safety Nets (no dues before start()).
   /// @param _id Safety Net ID.
   /// @return _membersNeedingDeposit Array of member addresses that need to deposit for the current epoch.
   function getMembersNeedingDeposit(uint256 _id) external view returns (address[] memory _membersNeedingDeposit);
@@ -448,11 +476,13 @@ interface ISafetyNet {
   function isTokenAllowed(address token) external view returns (bool);
 
   /// @notice Gets the current epoch index for a Safety Net (calculated from time)
+  /// @dev Returns 0 while the Safety Net has not been started (safetyNetStart == 0)
   /// @param safetyNetId The Safety Net ID
   /// @return epochIndex The current epoch index based on time elapsed
   function getCurrentEpochIndex(uint256 safetyNetId) external view returns (uint256);
 
   /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
+  /// @dev Returns 0 while the Safety Net has not been started (there are no dues before start())
   /// @param id Safety Net ID
   /// @param member Member address
   /// @return remaining Amount left to reach the fixed deposit in the current epoch

@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {ProxyAdmin} from '@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol';
 import {TransparentUpgradeableProxy} from '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import {stdError} from 'forge-std/StdError.sol';
 import {Test} from 'forge-std/Test.sol';
 
 import {InviteGenerator} from 'script/InviteGenerator.sol';
@@ -47,15 +46,21 @@ abstract contract SafetyNetUnitBase is Test {
   uint256 internal _impostorKey;
   address internal _requester;
   uint256 internal _requesterKey;
-  address internal _alice = makeAddr('alice');
+  address internal _alice;
+  uint256 internal _aliceKey;
   address internal _bob = makeAddr('bob');
   address internal _carol = makeAddr('carol');
   address internal _dave = makeAddr('dave');
+
+  /// @dev Monotonic nonce used by the invite helpers to avoid collisions across joins
+  uint256 internal _inviteNonce;
 
   function setUp() public {
     (_owner, _ownerKey) = makeAddrAndKey('owner');
     (_impostor, _impostorKey) = makeAddrAndKey('impostor');
     (_requester, _requesterKey) = makeAddrAndKey('requester');
+    // Alice owns the Safety Nets under test, so she needs a key to sign invites
+    (_alice, _aliceKey) = makeAddrAndKey('alice');
     // Deploy upgradeable proxy and initialize owner to match tests
     address impl = address(new SafetyNet());
     address admin = address(new ProxyAdmin(_owner));
@@ -83,19 +88,17 @@ abstract contract SafetyNetUnitBase is Test {
   }
 
   // ---------- helpers ----------
+  /// @dev Creation config: members must be empty and start must be 0 (stamped later by start())
   function _defaultSafetyNet(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
-    address[] memory members = new address[](2);
-    members[0] = _alice;
-    members[1] = _bob;
     _safetyNet = ISafetyNet.SafetyNet({
       id: 0,
-      owner: _owner,
+      owner: _alice,
       minimumMembers: 2,
       maximumMembers: 5,
       contestThreshold: 33,
-      safetyNetStart: block.timestamp,
+      safetyNetStart: 0,
       token: _tokenAddr,
-      members: members,
+      members: new address[](0),
       initialDeposit: 100 ether,
       fixedDeposit: 10 ether,
       redeemRatio: 1,
@@ -107,31 +110,51 @@ abstract contract SafetyNetUnitBase is Test {
   }
 
   function _fullSafetyNet(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
-    address[] memory members = new address[](2);
-    members[0] = _alice;
-    members[1] = _bob;
-    _safetyNet = ISafetyNet.SafetyNet({
-      id: 0,
-      owner: _owner,
-      minimumMembers: 2,
-      maximumMembers: 2,
-      contestThreshold: 33,
-      safetyNetStart: block.timestamp,
-      token: _tokenAddr,
-      members: members,
-      initialDeposit: 100 ether,
-      fixedDeposit: 10 ether,
-      redeemRatio: 1,
-      autoThreshold: 50 ether,
-      contestWindow: 3 days,
-      epochDuration: 30 days,
-      smallWithdrawsLimit: 3
-    });
+    _safetyNet = _defaultSafetyNet(_tokenAddr);
+    _safetyNet.minimumMembers = 2;
+    _safetyNet.maximumMembers = 2;
   }
 
   function _allowToken(address tkn) internal {
     vm.prank(_owner);
     _sn.setTokenAllowed(tkn, true);
+  }
+
+  /// @dev Joins `who` to net `id` by redeeming an invite signed with `signerKey`
+  function _redeemInviteAs(uint256 id, address who, uint256 signerKey) internal {
+    uint256 nonce = ++_inviteNonce;
+    bytes memory signature = _inviteGenerator.generateInvite(signerKey, id, nonce, address(_sn));
+    vm.prank(who);
+    _sn.redeemInvite(ISafetyNet.Invite(id, nonce), signature);
+  }
+
+  /// @dev create → invite each joiner (owner-signed) → start(); `cfg.owner` must be `_alice`
+  function _createStartedWith(ISafetyNet.SafetyNet memory cfg, address[] memory joiners) internal returns (uint256 id) {
+    id = _sn.create(cfg);
+    for (uint256 i = 0; i < joiners.length; i++) {
+      _redeemInviteAs(id, joiners[i], _aliceKey);
+    }
+    vm.prank(cfg.owner);
+    _sn.start(id);
+  }
+
+  /// @dev Started default net with members [_alice (owner), _bob]
+  function _createDefaultStarted(ISafetyNet.SafetyNet memory cfg) internal returns (uint256 id) {
+    address[] memory joiners = new address[](1);
+    joiners[0] = _bob;
+    id = _createStartedWith(cfg, joiners);
+  }
+
+  /// @dev Started net with members [_alice (owner), _bob, _requester]
+  function _createRequesterStarted(ISafetyNet.SafetyNet memory cfg) internal returns (uint256 id) {
+    address[] memory joiners = new address[](2);
+    joiners[0] = _bob;
+    joiners[1] = _requester;
+    id = _createStartedWith(cfg, joiners);
+  }
+
+  function _storedStart(uint256 id) internal view returns (uint256) {
+    return _sn.getSafetyNet(id).safetyNetStart;
   }
 
   function _payInitial(uint256 id, address who) internal {
@@ -151,7 +174,7 @@ abstract contract SafetyNetUnitBase is Test {
 
     // Ensure withdraw goes through request path
     _safetyNet.autoThreshold = 1;
-    id = _sn.create(_safetyNet);
+    id = _createDefaultStarted(_safetyNet);
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
 
@@ -183,15 +206,6 @@ abstract contract SafetyNetUnitBase is Test {
     bytes32 digest = keccak256(abi.encodePacked('\x19\x01', domainSeparator, structHash));
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, digest);
     return abi.encodePacked(r, s, v);
-  }
-
-  function _safetyNetWithRequester(address _tokenAddr) internal view returns (ISafetyNet.SafetyNet memory _safetyNet) {
-    _safetyNet = _defaultSafetyNet(_tokenAddr);
-    address[] memory members = new address[](3);
-    members[0] = _alice;
-    members[1] = _bob;
-    members[2] = _requester;
-    _safetyNet.members = members;
   }
 
   function _requestFor(uint256 _safetyNetId, address _reqOwner, uint256 _amount) internal pure returns (ISafetyNet.Request memory) {
@@ -262,11 +276,33 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _sn.create(_safetyNet);
   }
 
-  function test_CreateWhenSafetyNetStartTimeIsZero() external {
+  function test_CreateWhenSafetyNetStartTimeIsNonzero() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.safetyNetStart = 0;
+
+    // The start time is stamped by start(); passing one at creation is invalid
+    _safetyNet.safetyNetStart = block.timestamp;
     vm.expectRevert(ISafetyNet.InvalidSafetyNetStartTime.selector);
+    _sn.create(_safetyNet);
+  }
+
+  function test_CreateWhenMembersArrayIsNonEmpty() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // Creation no longer takes founding members; everyone joins via invites
+    address[] memory members = new address[](2);
+    members[0] = _alice;
+    members[1] = _bob;
+    _safetyNet.members = members;
+    vm.expectRevert(ISafetyNet.InvalidMembers.selector);
+    _sn.create(_safetyNet);
+
+    // Even a single (or zero-address) entry is rejected
+    address[] memory single = new address[](1);
+    single[0] = address(0);
+    _safetyNet.members = single;
+    vm.expectRevert(ISafetyNet.InvalidMembers.selector);
     _sn.create(_safetyNet);
   }
 
@@ -377,35 +413,6 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     assertEq(_sn.getSafetyNet(id).redeemRatio, 1);
   }
 
-  function test_CreateWhenMembersArrayIsEmpty() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.members = new address[](0);
-    uint256 id = _sn.create(_safetyNet);
-    assertEq(id, 0);
-    (address[] memory members,) = _sn.getMemberBalances(id);
-    assertEq(members.length, 0);
-  }
-
-  function test_CreateWhenAnyMemberAddressIsZeroAddress() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.members[1] = address(0);
-    vm.expectRevert(ISafetyNet.InvalidMemberAddress.selector);
-    _sn.create(_safetyNet);
-  }
-
-  function test_CreateWhenMembersArrayContainsDuplicates() external {
-    _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-
-    // Duplicate
-    _safetyNet.members[1] = _alice;
-
-    vm.expectRevert(ISafetyNet.DuplicateMember.selector);
-    _sn.create(_safetyNet);
-  }
-
   function test_CreateWhenContestThresholdIsZero() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
@@ -422,16 +429,38 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     assertEq(id, 0);
   }
 
+  function test_CreateRegistersOwnerAsSoleMember() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    address[] memory members = _sn.getMembers(id);
+    assertEq(members.length, 1);
+    assertEq(members[0], _alice);
+    assertTrue(_sn.isMember(id, _alice));
+    assertFalse(_sn.isMember(id, _bob));
+
+    uint256[] memory aIds = _sn.getMemberSafetyNets(_alice);
+    assertEq(aIds.length, 1);
+    assertEq(aIds[0], id);
+
+    // The net is created unstarted
+    assertEq(_sn.getSafetyNet(id).safetyNetStart, 0);
+  }
+
   function test_CreateWhenAllParametersAreValid() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+
+    // The emitted members array contains the owner as sole founding member
+    address[] memory expectedMembers = new address[](1);
+    expectedMembers[0] = _alice;
     vm.expectEmit(true, false, false, true);
     emit ISafetyNet.SafetyNetCreated(
       0,
       _safetyNet.minimumMembers,
       _safetyNet.maximumMembers,
       _safetyNet.contestThreshold,
-      _safetyNet.members,
+      expectedMembers,
       _safetyNet.token,
       _safetyNet.initialDeposit,
       _safetyNet.fixedDeposit,
@@ -449,23 +478,101 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     // Stored struct
     ISafetyNet.SafetyNet memory stored = _sn.getSafetyNet(id);
     assertEq(stored.owner, _safetyNet.owner);
+    assertEq(stored.safetyNetStart, 0);
+    assertEq(stored.members.length, 1);
+    assertEq(stored.members[0], _alice);
 
-    // Members mapping and reverse index
+    // Members mapping and reverse index: only the owner is registered
     assertTrue(_sn.isMember(id, _alice));
-    assertTrue(_sn.isMember(id, _bob));
+    assertFalse(_sn.isMember(id, _bob));
     uint256[] memory aIds = _sn.getMemberSafetyNets(_alice);
-    uint256[] memory bIds = _sn.getMemberSafetyNets(_bob);
     assertEq(aIds.length, 1);
-    assertEq(bIds.length, 1);
     assertEq(aIds[0], id);
-    assertEq(bIds[0], id);
+    assertEq(_sn.getMemberSafetyNets(_bob).length, 0);
+  }
+
+  // ---------- start ----------
+  function test_StartWhenSafetyNetDoesNotExist() external {
+    vm.expectRevert(ISafetyNet.NotCommissioned.selector);
+    vm.prank(_alice);
+    _sn.start(999);
+  }
+
+  function test_StartWhenCallerIsNotOwner() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
+
+    vm.expectRevert(ISafetyNet.InvalidOwner.selector);
+    vm.prank(_bob);
+    _sn.start(id);
+  }
+
+  function test_StartWhenNotEnoughMembers() external {
+    _allowToken(address(_token));
+
+    // Only the owner has joined; minimumMembers is 2
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    vm.expectRevert(ISafetyNet.NotEnoughMembers.selector);
+    vm.prank(_alice);
+    _sn.start(id);
+  }
+
+  function test_StartWhenAlreadyStarted() external {
+    _allowToken(address(_token));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+
+    vm.expectRevert(ISafetyNet.AlreadyActive.selector);
+    vm.prank(_alice);
+    _sn.start(id);
+
+    // AlreadyActive is checked before the owner check (mirrors the reference contract)
+    vm.expectRevert(ISafetyNet.AlreadyActive.selector);
+    vm.prank(_impostor);
+    _sn.start(id);
+  }
+
+  function test_StartWhenParametersAreValid() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
+
+    // Deposits are impossible until started
+    vm.expectRevert(ISafetyNet.DepositBeforeSafetyNetStart.selector);
+    vm.prank(_alice);
+    _sn.deposit(id, 1 ether);
+
+    vm.warp(block.timestamp + 2 days);
+    vm.expectEmit(true, false, false, true, address(_sn));
+    emit ISafetyNet.SafetyNetStarted(id, block.timestamp);
+    vm.prank(_alice);
+    _sn.start(id);
+
+    // The activation timestamp is stamped
+    assertEq(_sn.getSafetyNet(id).safetyNetStart, block.timestamp);
+
+    // The lifecycle is now open
+    vm.prank(_alice);
+    _sn.deposit(id, 100 ether);
+    assertEq(_sn.safetyNetBalance(id), 100 ether);
   }
 
   // ---------- decommission ----------
   function test_DecommissionWhenSafetyNetIsNotDecommissionable() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+    vm.expectRevert(ISafetyNet.NotDecommissionable.selector);
+    _sn.decommission(id);
+  }
+
+  function test_DecommissionWhenSafetyNetIsCommissionedButNotStarted() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
+
+    // With no start the epoch index stays 0 forever, so the missed-payment loop never runs
+    vm.warp(block.timestamp + 365 days);
+    assertFalse(_sn.isDecommissionable(id));
     vm.expectRevert(ISafetyNet.NotDecommissionable.selector);
     _sn.decommission(id);
   }
@@ -474,7 +581,8 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DecommissionWhenSafetyNetIsDecommissionable() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
 
     // epoch 0: onboarding
     vm.prank(_alice);
@@ -483,10 +591,10 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _sn.deposit(id, _safetyNet.initialDeposit);
 
     // epoch 1: deliberately miss deposits
-    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
+    vm.warp(start + _safetyNet.epochDuration);
 
     // Seed balances
-    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    vm.warp(start + 2 * _safetyNet.epochDuration + 1);
     vm.prank(_alice);
     _sn.deposit(id, 5 ether);
     vm.prank(_bob);
@@ -516,7 +624,8 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DecommissionWhenMemberHasPrepaidFutureEpochs() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
 
     // epoch 0: both members onboard
     _payInitial(id, _alice);
@@ -528,7 +637,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     assertEq(_sn.memberWithdrawableBalance(id, _alice), _safetyNet.initialDeposit + 3 * _safetyNet.fixedDeposit);
 
     // Bob misses epoch 1, so the net becomes decommissionable in epoch 2
-    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    vm.warp(start + 2 * _safetyNet.epochDuration + 1);
     assertTrue(_sn.isDecommissionable(id));
 
     uint256 preAlice = _token.balanceOf(_alice);
@@ -550,8 +659,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_DepositWhenCallerIsNotInIsMemberMapping() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.NotMember.selector);
     vm.prank(_carol);
     _sn.deposit(id, 1 ether);
@@ -559,17 +667,17 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_DepositWhenDepositValueIsZero() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.InvalidDepositAmount.selector);
     vm.prank(_alice);
     _sn.deposit(id, 0);
   }
 
-  function test_DepositWhenCurrentTimeIsBeforeSafetyNetStartTime() external {
+  function test_DepositWhenSafetyNetIsNotStarted() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.safetyNetStart = block.timestamp + 1 days;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    // The owner is a member from creation, but deposits require a started net
     vm.expectRevert(ISafetyNet.DepositBeforeSafetyNetStart.selector);
     vm.prank(_alice);
     _sn.deposit(id, 1 ether);
@@ -578,9 +686,10 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenCurrentTimeEqualsSafetyNetStartTime() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
-    vm.warp(_safetyNet.safetyNetStart);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
+    // start() stamped safetyNetStart = block.timestamp; depositing at that exact time works
+    assertEq(_storedStart(id), block.timestamp);
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
 
@@ -589,7 +698,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_DepositWhenMemberAlreadyDepositedInCurrentEpoch() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     _payInitial(id, _alice);
     _nextEpoch(id);
 
@@ -615,7 +724,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenPayingExactDuesForTheEpoch() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
     _nextEpoch(id);
 
@@ -634,7 +743,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     _safetyNet.fixedDeposit = 20 ether;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
     _nextEpoch(id);
     uint256 epoch = _sn.getCurrentEpochIndex(id);
@@ -672,7 +781,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenPrepayingExactlyMaxPrepayEpochsAhead() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
 
     // Epoch 0 dues are covered by the initial deposit; 12 * fixedDeposit fills epochs 1..12 exactly
@@ -695,7 +804,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenPrepayingBeyondMaxPrepayEpochsReverts() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
 
     // One wei more than epochs 1..12 can absorb extends beyond the prepay window
@@ -708,7 +817,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenTokenTransferFromFails() external {
     _allowToken(address(_failToken));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(_failToken)));
     vm.prank(_alice);
@@ -718,7 +827,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenMakingFirstDeposit() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     uint256 expectedTotal = _safetyNet.initialDeposit;
     vm.expectEmit(true, true, false, true);
@@ -739,7 +848,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositWhenMakingSubsequentDeposits() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
     _nextEpoch(id);
 
@@ -763,7 +872,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_DepositForWhenTargetMemberIsNotInIsMemberMapping() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.NotMember.selector);
     vm.prank(_alice);
     _sn.depositFor(id, 1 ether, _carol);
@@ -772,7 +881,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositForWhenSenderIsNotAMember() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     vm.prank(_carol);
     _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
     assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
@@ -780,17 +889,15 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_DepositForWhenDepositValueIsZero() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.InvalidDepositAmount.selector);
     vm.prank(_alice);
     _sn.depositFor(id, 0, _alice);
   }
 
-  function test_DepositForWhenCurrentTimeIsBeforeSafetyNetStartTime() external {
+  function test_DepositForWhenSafetyNetIsNotStarted() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.safetyNetStart = block.timestamp + 1 days;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.DepositBeforeSafetyNetStart.selector);
     vm.prank(_alice);
     _sn.depositFor(id, 1 ether, _alice);
@@ -799,12 +906,13 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositForWhenTargetMemberAlreadyDepositedInCurrentEpoch() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
 
     vm.prank(_alice);
     _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
 
-    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration + 1);
+    vm.warp(start + _safetyNet.epochDuration + 1);
 
     vm.prank(_alice);
     _sn.depositFor(id, 6 ether, _alice);
@@ -822,7 +930,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositForWhenTokenTransferFromFailsFromSender() external {
     _allowToken(address(_failToken));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_failToken));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(_failToken)));
     vm.prank(_alice);
@@ -832,7 +940,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_DepositForWhenMakingFirstDepositForTargetMember() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     vm.prank(_bob);
     _sn.depositFor(id, _safetyNet.initialDeposit, _alice);
     assertEq(_sn.safetyNetMemberContribute(id, _alice), _safetyNet.fixedDeposit);
@@ -840,24 +948,34 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   // ---------- withdraw ----------
   function test_WithdrawWhenSafetyNetOwnerIsZeroAddress() external {
-    // With direct call on non-existent id, contract panics due to division by zero before NotCommissioned
-    vm.expectRevert(stdError.divisionError);
+    // Nonexistent nets have no epochs (index 0), so the commissioned check reverts cleanly
+    vm.expectRevert(ISafetyNet.NotCommissioned.selector);
     vm.prank(_alice);
     _sn.withdraw(999, 1);
   }
 
   function test_WithdrawWhenCallerIsNotInIsMemberMapping() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     vm.expectRevert(ISafetyNet.NotMember.selector);
     vm.prank(_carol);
+    _sn.withdraw(id, 1);
+  }
+
+  function test_WithdrawWhenSafetyNetIsNotStarted() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    // The owner is a member from creation, but withdrawals require a started net
+    vm.expectRevert(ISafetyNet.NotActive.selector);
+    vm.prank(_alice);
     _sn.withdraw(id, 1);
   }
 
   function test_WithdrawWhenDaysRequestedIsZero() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
@@ -874,7 +992,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_WithdrawWhenRequestedWithdrawalAmountExceedsMemberWithdrawableBalance() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
@@ -891,7 +1009,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
     // Small path
     _safetyNet.autoThreshold = 100 ether;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
 
@@ -907,16 +1025,27 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
     // Any withdraw > 1 wei goes to request path
     _safetyNet.autoThreshold = 1;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
 
     vm.prank(_alice);
     _sn.withdraw(id, 1);
     assertEq(_sn.nextIdRequest(), 1);
-    (address reqOwner, uint256 reqSafetyNetId,,, uint256 rqAmount) = _sn.requests(0);
+    (address reqOwner, uint256 reqSafetyNetId,,,) = _sn.requests(0);
     assertEq(reqOwner, _alice);
     assertEq(reqSafetyNetId, id);
+  }
+
+  // ---------- requests before start ----------
+  function test_CreateRequestWhenSafetyNetIsNotStarted() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+
+    // The owner is a member from creation, but requests require a started net
+    vm.expectRevert(ISafetyNet.NotActive.selector);
+    vm.prank(_alice);
+    _sn.createRequest(_requestFor(id, _alice, 1 ether));
   }
 
   // ---------- CONTEST MECHANISM TESTS ----------
@@ -951,31 +1080,16 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _allowToken(address(_token));
 
     // Create a SafetyNet with 5 members to prevent immediate veto on first contest
-    address[] memory members = new address[](5);
-    members[0] = _alice;
-    members[1] = _bob;
-    members[2] = _carol;
-    members[3] = _dave;
-    members[4] = makeAddr('eve');
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.maximumMembers = 10;
+    _safetyNet.autoThreshold = 1;
 
-    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
-      id: 0,
-      owner: _owner,
-      minimumMembers: 2,
-      maximumMembers: 10,
-      contestThreshold: 33,
-      safetyNetStart: block.timestamp,
-      token: address(_token),
-      members: members,
-      initialDeposit: 100 ether,
-      fixedDeposit: 10 ether,
-      redeemRatio: 1,
-      autoThreshold: 1,
-      contestWindow: 3 days,
-      epochDuration: 30 days,
-      smallWithdrawsLimit: 3
-    });
-    uint256 id = _sn.create(_safetyNet);
+    address[] memory joiners = new address[](4);
+    joiners[0] = _bob;
+    joiners[1] = _carol;
+    joiners[2] = _dave;
+    joiners[3] = makeAddr('eve');
+    uint256 id = _createStartedWith(_safetyNet, joiners);
 
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
@@ -999,30 +1113,15 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
     // Create a SafetyNet with 4 members to test the math properly!
     // Threshold: (4 * 33) / 100 = 1. So it takes 2 contests to > 1.
-    address[] memory members = new address[](4);
-    members[0] = _alice;
-    members[1] = _bob;
-    members[2] = _carol;
-    members[3] = _dave;
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.contestThreshold = 33; // 33% threshold
+    _safetyNet.autoThreshold = 1;
 
-    ISafetyNet.SafetyNet memory _safetyNet = ISafetyNet.SafetyNet({
-      id: 0,
-      owner: _owner,
-      minimumMembers: 2,
-      maximumMembers: 5,
-      contestThreshold: 33, // 33% threshold
-      safetyNetStart: block.timestamp,
-      token: address(_token),
-      members: members,
-      initialDeposit: 100 ether,
-      fixedDeposit: 10 ether,
-      redeemRatio: 1,
-      autoThreshold: 1,
-      contestWindow: 3 days,
-      epochDuration: 30 days,
-      smallWithdrawsLimit: 3
-    });
-    uint256 id = _sn.create(_safetyNet);
+    address[] memory joiners = new address[](3);
+    joiners[0] = _bob;
+    joiners[1] = _carol;
+    joiners[2] = _dave;
+    uint256 id = _createStartedWith(_safetyNet, joiners);
 
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
@@ -1126,7 +1225,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     ids[2] = 1000;
     ISafetyNet.SafetyNet[] memory arr = _sn.getSafetyNets(ids);
     assertEq(arr.length, 3);
-    assertEq(arr[0].owner, _owner);
+    assertEq(arr[0].owner, _alice);
     assertEq(arr[1].owner, address(0));
   }
 
@@ -1151,6 +1250,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_GetMemberBalancesWhenSafetyNetExistsAndIsCommissioned() external {
     _allowToken(address(_token));
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
     (address[] memory members, uint256[] memory balances) = _sn.getMemberBalances(id);
     assertEq(members.length, 2);
     assertEq(balances.length, 2);
@@ -1161,7 +1261,7 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_HasMemberDepositedInEpochWhenEpochMemberDepositsIsTrue() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
 
     vm.prank(_alice);
     _sn.deposit(id, _safetyNet.initialDeposit);
@@ -1175,24 +1275,30 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_GetCurrentEpochIndexWhenCurrentTimeEdgeCases() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    _safetyNet.safetyNetStart = block.timestamp + 1 days;
     uint256 id = _sn.create(_safetyNet);
+    _redeemInviteAs(id, _bob, _aliceKey);
 
-    // Before start
+    // Before start() the epoch index is pinned to 0
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(_safetyNet.safetyNetStart);
+    vm.warp(block.timestamp + 1 days);
+    assertEq(_sn.getCurrentEpochIndex(id), 0);
+
+    vm.prank(_alice);
+    _sn.start(id);
+    uint256 start = _storedStart(id);
+    assertEq(start, block.timestamp);
 
     // At start
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(_safetyNet.safetyNetStart + 1);
+    vm.warp(start + 1);
 
     // Just after start
     assertEq(_sn.getCurrentEpochIndex(id), 0);
-    vm.warp(_safetyNet.safetyNetStart + _safetyNet.epochDuration);
+    vm.warp(start + _safetyNet.epochDuration);
 
     // Exactly one epoch
     assertEq(_sn.getCurrentEpochIndex(id), 1);
-    vm.warp(_safetyNet.safetyNetStart + 5 * _safetyNet.epochDuration + 10);
+    vm.warp(start + 5 * _safetyNet.epochDuration + 10);
     assertEq(_sn.getCurrentEpochIndex(id), 5);
   }
 
@@ -1206,14 +1312,15 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
   function test_IsDecommissionableWhenCurrentEpochIndexIs0() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     assertFalse(_sn.isDecommissionable(id));
   }
 
   function test_IsDecommissionableWhenAllMembersPrepaidFutureEpochs() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
     _payInitial(id, _alice);
     _payInitial(id, _bob);
 
@@ -1225,19 +1332,19 @@ contract SafetyNetUnit is SafetyNetUnitBase {
 
     // Warping through the prepaid epochs never makes the net decommissionable
     for (uint256 k = 1; k <= 4; k++) {
-      vm.warp(_safetyNet.safetyNetStart + k * _safetyNet.epochDuration + 1);
+      vm.warp(start + k * _safetyNet.epochDuration + 1);
       assertFalse(_sn.isDecommissionable(id));
     }
 
     // Epoch 4 was never paid, so from epoch 5 the net is decommissionable
-    vm.warp(_safetyNet.safetyNetStart + 5 * _safetyNet.epochDuration + 1);
+    vm.warp(start + 5 * _safetyNet.epochDuration + 1);
     assertTrue(_sn.isDecommissionable(id));
   }
 
   function test_GetMembersNeedingDepositWhenMemberPrepaidNextEpoch() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
     _payInitial(id, _bob);
 
@@ -1254,29 +1361,66 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     assertEq(_sn.duesRemainingThisEpoch(id, _bob), _safetyNet.fixedDeposit);
   }
 
+  // ---------- views before start ----------
+  function test_ViewsAreSafeBeforeStart() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
+
+    // No epochs, no dues, not decommissionable while commissioned + unstarted
+    assertEq(_sn.getCurrentEpochIndex(id), 0);
+    assertEq(_sn.duesRemainingThisEpoch(id, _alice), 0);
+    assertEq(_sn.duesRemainingThisEpoch(id, _bob), 0);
+    assertEq(_sn.getMembersNeedingDeposit(id).length, 0);
+    assertFalse(_sn.isDecommissionable(id));
+
+    // Aggregated views must not revert for unstarted nets
+    ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _alice);
+    assertEq(details.safetyNet.safetyNetStart, 0);
+    assertEq(details.memberCount, 2);
+    assertTrue(details.isMember);
+    assertEq(details.duesRemaining, 0);
+    assertEq(details.currentEpochIndex, 0);
+    assertFalse(details.isDecommissionable);
+    assertEq(details.requests.length, 0);
+
+    ISafetyNet.SafetyNetDetails[] memory dashboard = _sn.getMemberDashboard(_bob);
+    assertEq(dashboard.length, 1);
+    assertEq(dashboard[0].safetyNet.id, id);
+    assertEq(dashboard[0].duesRemaining, 0);
+    assertEq(dashboard[0].currentEpochIndex, 0);
+  }
+
   // ---------- invite  ----------
   function test_shouldRedeemInvite() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = _sn.create(_safetyNet);
     ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
-    vm.prank(_owner);
-    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_alice);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
 
     vm.prank(_carol);
     vm.expectEmit(true, true, false, true, address(_sn));
     emit ISafetyNet.InviteRedeemed(invite.safetyNetId, _carol);
     _sn.redeemInvite(invite, signature);
+
+    // Carol is appended after the founding owner
+    assertTrue(_sn.isMember(safetyNetId, _carol));
+    address[] memory members = _sn.getMembers(safetyNetId);
+    assertEq(members.length, 2);
+    assertEq(members[0], _alice);
+    assertEq(members[1], _carol);
   }
 
   function test_rejectInvalidSigner() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = _sn.create(_safetyNet);
     ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
@@ -1291,12 +1435,12 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = _sn.create(_safetyNet);
     ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
-    vm.prank(_owner);
-    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_alice);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
 
     vm.prank(_carol);
     _sn.redeemInvite(invite, signature);
@@ -1310,13 +1454,14 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = _sn.create(_safetyNet);
     ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
-    vm.prank(_owner);
-    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_alice);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
 
+    // The owner is already a member from creation
     vm.prank(_alice);
     vm.expectRevert(ISafetyNet.AlreadyMember.selector);
     _sn.redeemInvite(invite, signature);
@@ -1326,12 +1471,15 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _fullSafetyNet(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = _sn.create(_safetyNet);
-    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
-    vm.prank(_owner);
-    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+    // Fill the net to maximumMembers (2): owner + bob
+    _redeemInviteAs(safetyNetId, _bob, _aliceKey);
+
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    vm.prank(_alice);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
 
     vm.prank(_carol);
     vm.expectRevert(ISafetyNet.SafetyNetFull.selector);
@@ -1341,16 +1489,136 @@ contract SafetyNetUnit is SafetyNetUnitBase {
   function test_rejectIfSafetyNetDoesNotExist() external {
     vm.chainId(_CHAIN_ID);
     _allowToken(address(_token));
-    uint256 nonce = 1;
+    uint256 nonce = 777;
     uint256 safetyNetId = 999;
     ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
 
-    vm.prank(_owner);
-    bytes memory signature = _inviteGenerator.generateInvite(_ownerKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_alice);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
 
     vm.prank(_carol);
     vm.expectRevert(ISafetyNet.NotCommissioned.selector);
     _sn.redeemInvite(invite, signature);
+  }
+
+  function test_rejectWhenSafetyNetAlreadyStarted() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    uint256 safetyNetId = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+
+    // Joining is only possible between create() and start()
+    uint256 nonce = 777;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
+
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.AlreadyActive.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_RedeemInviteCheckOrderUsedNonceBeatsAlreadyActive() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    uint256 safetyNetId = _sn.create(_defaultSafetyNet(address(_token)));
+
+    // Carol redeems nonce 777 before start
+    uint256 nonce = 777;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_carol);
+    _sn.redeemInvite(invite, signature);
+
+    vm.prank(_alice);
+    _sn.start(safetyNetId);
+
+    // The nonce check (2) fires before the started check (4)
+    vm.prank(_dave);
+    vm.expectRevert(ISafetyNet.InviteAlreadyUsed.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_RedeemInviteCheckOrderAlreadyMemberBeatsAlreadyActive() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    uint256 safetyNetId = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+
+    // Bob is a member and the net has started: the member check (3) fires before the started check (4)
+    uint256 nonce = 777;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_bob);
+    vm.expectRevert(ISafetyNet.AlreadyMember.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_RedeemInviteCheckOrderAlreadyActiveBeatsSafetyNetFull() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+
+    // Full (2/2 members) AND started: the started check (4) fires before the capacity check (5)
+    uint256 safetyNetId = _createDefaultStarted(_fullSafetyNet(address(_token)));
+
+    uint256 nonce = 777;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    bytes memory signature = _inviteGenerator.generateInvite(_aliceKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.AlreadyActive.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  function test_RedeemInviteCheckOrderAlreadyActiveBeatsInvalidSigner() external {
+    vm.chainId(_CHAIN_ID);
+    _allowToken(address(_token));
+    uint256 safetyNetId = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+
+    // Even with a bad signature, the started check (4) fires before recovery (6)
+    uint256 nonce = 777;
+    ISafetyNet.Invite memory invite = ISafetyNet.Invite(safetyNetId, nonce);
+    bytes memory signature = _inviteGenerator.generateInvite(_impostorKey, safetyNetId, nonce, address(_sn));
+    vm.prank(_carol);
+    vm.expectRevert(ISafetyNet.AlreadyActive.selector);
+    _sn.redeemInvite(invite, signature);
+  }
+
+  // ---------- full lifecycle ----------
+  function test_FullLifecycleCreateInviteStartDepositWithdraw() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory cfg = _defaultSafetyNet(address(_token));
+
+    // create: owner is the sole member
+    uint256 id = _sn.create(cfg);
+    assertEq(_sn.getMembers(id).length, 1);
+
+    // invite x2
+    _redeemInviteAs(id, _bob, _aliceKey);
+    _redeemInviteAs(id, _carol, _aliceKey);
+    address[] memory members = _sn.getMembers(id);
+    assertEq(members.length, 3);
+    assertEq(members[0], _alice);
+    assertEq(members[1], _bob);
+    assertEq(members[2], _carol);
+
+    // start
+    vm.prank(_alice);
+    _sn.start(id);
+    assertEq(_storedStart(id), block.timestamp);
+
+    // deposits: all three onboard
+    vm.prank(_alice);
+    _sn.deposit(id, cfg.initialDeposit);
+    vm.prank(_bob);
+    _sn.deposit(id, cfg.initialDeposit);
+    vm.prank(_carol);
+    _sn.deposit(id, cfg.initialDeposit);
+    assertEq(_sn.safetyNetBalance(id), 3 * cfg.initialDeposit);
+
+    // small withdraw pays out immediately
+    uint256 balanceBefore = _token.balanceOf(_alice);
+    uint256 expected = (cfg.fixedDeposit / 30) * 3;
+    vm.prank(_alice);
+    _sn.withdraw(id, 3);
+    assertEq(_token.balanceOf(_alice), balanceBefore + expected);
+    assertEq(_sn.memberWithdrawableBalance(id, _alice), cfg.initialDeposit - expected);
   }
 }
 
@@ -1358,7 +1626,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
   // ---------- createRequestWithSignature ----------
   function test_CreateRequestWithSignatureWhenSignatureIsValid() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1394,9 +1662,26 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
     assertEq(requestIds[0], reqId);
   }
 
+  function test_CreateRequestWithSignatureWhenSafetyNetIsNotStarted() external {
+    _allowToken(address(_token));
+    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _requester, _aliceKey);
+    uint256 amount = 60 ether;
+    uint256 nonce = 1;
+
+    ISafetyNet.Request memory request = _requestFor(id, _requester, amount);
+    uint256 deadline = block.timestamp + 1 days;
+    bytes memory signature = _signRequestAuthorization(_requesterKey, id, amount, nonce, deadline);
+
+    // Requests require a started net
+    vm.expectRevert(ISafetyNet.NotActive.selector);
+    vm.prank(_carol);
+    _sn.createRequestWithSignature(request, nonce, deadline, signature);
+  }
+
   function test_CreateRequestWithSignatureWhenSignerIsNotRequestOwner() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1411,7 +1696,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenSignatureCoversDifferentParameters() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 nonce = 1;
 
     // Signature authorizes 60 ether but the submitted request asks for more
@@ -1426,7 +1711,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenNonceIsReplayed() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1444,8 +1729,8 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenSameNonceIsUsedOnDifferentSafetyNets() external {
     _allowToken(address(_token));
-    uint256 idA = _sn.create(_safetyNetWithRequester(address(_token)));
-    uint256 idB = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 idA = _createRequesterStarted(_defaultSafetyNet(address(_token)));
+    uint256 idB = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1466,7 +1751,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenRequestOwnerIsNotAMember() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1482,7 +1767,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenAmountIsZero() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 nonce = 1;
 
     ISafetyNet.Request memory request = _requestFor(id, _requester, 0);
@@ -1509,7 +1794,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenDeadlineHasPassed() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1526,7 +1811,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenSubmittedExactlyAtDeadline() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1543,7 +1828,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CreateRequestWithSignatureWhenDeadlineDiffersFromSignedDeadline() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1559,7 +1844,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
   // ---------- cancelRequestNonce ----------
   function test_CancelRequestNonceWhenNonceIsUnused() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1583,7 +1868,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CancelRequestNonceWhenNonceIsAlreadyUsed() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 nonce = 1;
 
     vm.prank(_requester);
@@ -1596,7 +1881,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_CancelRequestNonceWhenCallerOnlyAffectsOwnNonceSpace() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_safetyNetWithRequester(address(_token)));
+    uint256 id = _createRequesterStarted(_defaultSafetyNet(address(_token)));
     uint256 amount = 60 ether;
     uint256 nonce = 1;
 
@@ -1615,6 +1900,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
   function test_GetMembersWhenSafetyNetExists() external {
     _allowToken(address(_token));
     uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    _redeemInviteAs(id, _bob, _aliceKey);
 
     address[] memory members = _sn.getMembers(id);
     assertEq(members.length, 2);
@@ -1629,18 +1915,18 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_GetSafetyNetRequestIdsWhenNoRequestsExist() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
     assertEq(_sn.getSafetyNetRequestIds(id).length, 0);
     assertEq(_sn.getSafetyNetRequests(id).length, 0);
   }
 
   function test_GetSafetyNetRequestIdsWhenRequestsAreCreatedThroughAllPaths() external {
     _allowToken(address(_token));
-    ISafetyNet.SafetyNet memory _safetyNet = _safetyNetWithRequester(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
 
     // Force the withdraw path to create requests
     _safetyNet.autoThreshold = 1;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createRequesterStarted(_safetyNet);
     _payInitial(id, _alice);
 
     // Request 0 via withdraw
@@ -1717,7 +2003,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
   function test_GetSafetyNetRequestsWhenOwnerBalanceIsInsufficient() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
 
     // Request more than Alice's withdrawable balance (100 ether at redeemRatio 1)
@@ -1739,14 +2025,15 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
     // Force the withdraw path to create a request
     _safetyNet.autoThreshold = 1;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
     _payInitial(id, _alice);
     _payInitial(id, _bob);
     vm.prank(_alice);
     _sn.withdraw(id, 2);
 
     // Skip an epoch so the Safety Net becomes decommissionable, then decommission it
-    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    vm.warp(start + 2 * _safetyNet.epochDuration + 1);
     _sn.decommission(id);
 
     // The request survives in storage but must not be flagged executable on a decommissioned net
@@ -1762,14 +2049,14 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
     // Force the withdraw path to create a request
     _safetyNet.autoThreshold = 1;
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
     _payInitial(id, _alice);
     vm.prank(_alice);
     _sn.withdraw(id, 2);
 
     ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _alice);
     assertEq(details.safetyNet.id, id);
-    assertEq(details.safetyNet.owner, _owner);
+    assertEq(details.safetyNet.owner, _alice);
     assertEq(details.totalBalance, _safetyNet.initialDeposit);
     assertEq(details.memberCount, 2);
     assertTrue(details.isMember);
@@ -1792,7 +2079,7 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_GetSafetyNetDetailsWhenQueriedAddressIsNotAMember() external {
     _allowToken(address(_token));
-    uint256 id = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 id = _createDefaultStarted(_defaultSafetyNet(address(_token)));
 
     ISafetyNet.SafetyNetDetails memory details = _sn.getSafetyNetDetails(id, _carol);
     assertFalse(details.isMember);
@@ -1803,12 +2090,13 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
   function test_GetSafetyNetDetailsWhenSafetyNetIsDecommissioned() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-    uint256 id = _sn.create(_safetyNet);
+    uint256 id = _createDefaultStarted(_safetyNet);
+    uint256 start = _storedStart(id);
     _payInitial(id, _alice);
     _payInitial(id, _bob);
 
     // Skip an epoch to make the Safety Net decommissionable, then decommission
-    vm.warp(_safetyNet.safetyNetStart + 2 * _safetyNet.epochDuration + 1);
+    vm.warp(start + 2 * _safetyNet.epochDuration + 1);
     _sn.decommission(id);
 
     // Must not revert nor panic for decommissioned Safety Nets
@@ -1828,8 +2116,8 @@ contract SafetyNetSignatureAndViewsUnit is SafetyNetUnitBase {
 
   function test_GetMemberDashboardWhenMemberHasMultipleSafetyNets() external {
     _allowToken(address(_token));
-    uint256 idA = _sn.create(_defaultSafetyNet(address(_token)));
-    uint256 idB = _sn.create(_defaultSafetyNet(address(_token)));
+    uint256 idA = _createDefaultStarted(_defaultSafetyNet(address(_token)));
+    uint256 idB = _createDefaultStarted(_defaultSafetyNet(address(_token)));
 
     _payInitial(idA, _alice);
 

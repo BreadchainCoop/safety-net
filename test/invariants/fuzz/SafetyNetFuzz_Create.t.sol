@@ -14,33 +14,43 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
 
     for (uint256 i = 0; i < safetyNetCount; i++) {
       ISafetyNet.SafetyNet memory config = _safeCfg;
-      config.safetyNetStart = block.timestamp + 1;
       config.contestThreshold = uint256((contestBasePercentage + i) % 100);
       if (config.contestThreshold < 1) config.contestThreshold = 1;
       config.autoThreshold = _SAFE_AUTO_THRESHOLD + i * 1e15;
-      config.members = _threeMembers();
 
       uint256 safetyNetId = _safetyNet.create(config);
       assertEq(safetyNetId, successfulCreations, 'safetyNetId matches successes so far');
+
+      // The owner is registered as the sole founding member of every new net
+      address[] memory members = _safetyNet.getMembers(safetyNetId);
+      assertEq(members.length, 1, 'owner is the sole member after create');
+      assertEq(members[0], _member1, 'sole member is the owner');
       successfulCreations++;
     }
 
     assertEq(_safetyNet.nextId(), successfulCreations, 'nextId equals the number of successful creations');
   }
 
-  function test_Create_RevertsOnZeroAddressMember() public {
+  function test_Create_RevertsOnNonEmptyMembers() public {
+    // Founding members can no longer be passed at creation; everyone joins via invites
+    ISafetyNet.SafetyNet memory config = _safeCfg;
+    config.members = _threeMembers();
+
+    vm.expectRevert(ISafetyNet.InvalidMembers.selector);
+    _safetyNet.create(config);
+  }
+
+  function test_Create_RevertsOnNonZeroStartTime() public {
+    // The start time is stamped by start(); passing one at creation is invalid
     ISafetyNet.SafetyNet memory config = _safeCfg;
     config.safetyNetStart = block.timestamp + 1;
-    config.members = _threeMembers();
-    config.members[0] = address(0);
 
-    vm.expectRevert(ISafetyNet.InvalidMemberAddress.selector);
+    vm.expectRevert(ISafetyNet.InvalidSafetyNetStartTime.selector);
     _safetyNet.create(config);
   }
 
   function test_Create_RevertsOnDisallowedToken_then_SucceedsWhenAllowed() public {
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.safetyNetStart = block.timestamp + 1;
 
     MockERC20 temporaryToken = new MockERC20('Tmp', 'TMP');
     config.token = address(temporaryToken);

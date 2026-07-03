@@ -10,10 +10,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 40);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.safetyNetStart = block.timestamp;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
-    uint256 id = _safetyNet.create(config);
+    uint256 id = _createStarted(config, _defaultMembers);
 
     _mintApprove(_member1, 1e24, address(_safetyNet));
     _mintApprove(_member2, 1e24, address(_safetyNet));
@@ -175,10 +173,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   /// Small-withdraw limit fuzzing
   function testFuzz_SmallWithdrawsRespectLimit(uint8 daysReqRaw, uint8 extraWithdrawsRaw) public {
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
-    config.safetyNetStart = block.timestamp;
-    uint256 id = _safetyNet.create(config);
+    uint256 id = _createStarted(config, _defaultMembers);
 
     uint256 daysRequested = bound(uint256(daysReqRaw), 1, 3);
     uint256 extraWithdraws = bound(uint256(extraWithdrawsRaw), 0, 2);

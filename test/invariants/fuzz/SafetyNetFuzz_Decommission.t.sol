@@ -29,10 +29,8 @@ contract SafetyNetFuzz_Decommission is SafetyNetFuzzBase {
     uint256 skipEpochs = bound(uint256(skipEpochsRaw), 1, 4);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.safetyNetStart = block.timestamp;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, _defaultMembers);
 
     // Pre-fund with enough allowance for multiple deposits.
     _mintApprove(

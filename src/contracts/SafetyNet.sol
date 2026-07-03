@@ -161,8 +161,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (safetyNets[_id].owner != address(0)) revert AlreadyExists();
     if (!allowedTokens[_safetyNet.token]) revert TokenNotAllowed();
-    if (_safetyNet.safetyNetStart == 0) revert InvalidSafetyNetStartTime();
+    if (_safetyNet.safetyNetStart != 0) revert InvalidSafetyNetStartTime();
     if (_safetyNet.owner == address(0)) revert InvalidOwner();
+    if (_safetyNet.members.length != 0) revert InvalidMembers();
     if (_safetyNet.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_safetyNet.fixedDeposit <= 0) revert InvalidFixedDeposit();
     if (_safetyNet.autoThreshold <= 0) revert InvalidThreshold();
@@ -173,23 +174,13 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.redeemRatio < MINIMUM_REDEEM_RATIO) revert InvalidRatio();
     if (_safetyNet.redeemRatio > MAXIMUM_REDEEM_RATIO) revert InvalidRatio();
 
-    uint256 _safetyNetMembersLength = _safetyNet.members.length;
+    // The owner is the sole founding member; everyone else joins via invites before start()
+    address[] memory _foundingMembers = new address[](1);
+    _foundingMembers[0] = _safetyNet.owner;
+    _safetyNet.members = _foundingMembers;
 
-    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
-      address _member = _safetyNet.members[i];
-      if (_member == address(0)) revert InvalidMemberAddress();
-      for (uint256 j = 0; j < i; j++) {
-        if (_safetyNet.members[j] == _member) {
-          revert DuplicateMember();
-        }
-      }
-    }
-
-    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
-      address _member = _safetyNet.members[i];
-      isMember[_id][_member] = true;
-      memberSafetyNets[_member].push(_id);
-    }
+    isMember[_id][_safetyNet.owner] = true;
+    memberSafetyNets[_safetyNet.owner].push(_id);
 
     _safetyNet.id = _id;
     safetyNets[_id] = _safetyNet;
@@ -209,6 +200,20 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _safetyNet.smallWithdrawsLimit
     );
     return _id;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function start(uint256 _id) external override nonReentrant {
+    SafetyNet storage _safetyNet = safetyNets[_id];
+
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.safetyNetStart != 0) revert AlreadyActive();
+    if (msg.sender != _safetyNet.owner) revert InvalidOwner();
+    if (_safetyNet.members.length < _safetyNet.minimumMembers) revert NotEnoughMembers();
+
+    _safetyNet.safetyNetStart = block.timestamp;
+
+    emit SafetyNetStarted(_id, block.timestamp);
   }
 
   /// @inheritdoc ISafetyNet
@@ -264,6 +269,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (usedNonces[_invite.safetyNetId][_invite.nonce]) revert InviteAlreadyUsed();
     if (isMember[_invite.safetyNetId][msg.sender]) revert AlreadyMember();
+    // Joining is only possible between creation and start()
+    if (_safetyNet.safetyNetStart != 0) revert AlreadyActive();
     if (_safetyNet.members.length >= _safetyNet.maximumMembers) revert SafetyNetFull();
 
     bytes32 _digest = _hashInvite(_invite);
@@ -288,6 +295,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].safetyNetStart == 0) revert NotActive();
     if (_request.amount == 0) revert InvalidAmountZero();
 
     _request.timestamp = block.timestamp;
@@ -304,6 +312,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     bytes calldata _signature
   ) external override returns (uint256) {
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].safetyNetStart == 0) revert NotActive();
     if (!isMember[_request.safetyNetId][_request.owner]) revert NotMember();
     if (_request.amount == 0) revert InvalidAmountZero();
     if (block.timestamp > _deadline) revert AuthorizationExpired();
@@ -425,7 +434,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc ISafetyNet
   function getMembersNeedingDeposit(uint256 _id) external view override returns (address[] memory) {
     SafetyNet memory safetyNet = safetyNets[_id];
-    if (_isDecommissioned(safetyNet)) {
+    // No dues exist for decommissioned or not-yet-started Safety Nets
+    if (_isDecommissioned(safetyNet) || safetyNet.safetyNetStart == 0) {
       return new address[](0);
     }
 
@@ -462,6 +472,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @inheritdoc ISafetyNet
   function duesRemainingThisEpoch(uint256 _id, address _member) external view override returns (uint256) {
+    // There are no dues before the Safety Net is started
+    if (safetyNets[_id].safetyNetStart == 0) {
+      return 0;
+    }
+
     uint256 epochIndex = getCurrentEpochIndex(_id);
     uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
     uint256 target = safetyNets[_id].fixedDeposit;
@@ -472,7 +487,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function getCurrentEpochIndex(uint256 _safetyNetId) public view override returns (uint256) {
     SafetyNet memory safetyNet = safetyNets[_safetyNetId];
 
-    if (block.timestamp < safetyNet.safetyNetStart) {
+    // Not-yet-started Safety Nets (safetyNetStart == 0) have no epochs; this also avoids a
+    // division-by-zero panic for nonexistent Safety Nets whose epochDuration is unset
+    if (safetyNet.safetyNetStart == 0 || block.timestamp < safetyNet.safetyNetStart) {
       return 0;
     }
 
@@ -525,6 +542,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function getSafetyNetDetails(uint256 _id, address _member) public view override returns (SafetyNetDetails memory _details) {
     SafetyNet memory _safetyNet = safetyNets[_id];
     bool _commissioned = !_isDecommissioned(_safetyNet);
+    // Dues only accrue on commissioned Safety Nets that have been started
+    bool _accruingDues = _commissioned && _safetyNet.safetyNetStart != 0;
 
     uint256 _currentEpochIndex = _commissioned ? getCurrentEpochIndex(_id) : 0;
     uint256 _paid = epochMemberDepositedAmount[_id][_currentEpochIndex][_member];
@@ -537,7 +556,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       isMember: isMember[_id][_member],
       withdrawableBalance: memberWithdrawableBalance[_id][_member],
       monthlyContribute: safetyNetMemberContribute[_id][_member],
-      duesRemaining: (_commissioned && _paid < _target) ? _target - _paid : 0,
+      duesRemaining: (_accruingDues && _paid < _target) ? _target - _paid : 0,
       currentEpochIndex: _currentEpochIndex,
       isDecommissionable: isDecommissionable(_id),
       requests: getSafetyNetRequests(_id)
@@ -571,7 +590,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    // Deposits require a started Safety Net; the time comparison is kept as a defensive
+    // guard even though start() always stamps a past-or-current timestamp
+    if (_safetyNet.safetyNetStart == 0 || block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
     if (_value == 0) revert InvalidDepositAmount();
 
     uint256 epoch = getCurrentEpochIndex(_id);
@@ -650,6 +671,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
+    if (_safetyNet.safetyNetStart == 0) revert NotActive();
 
     uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.redeemRatio);
 
