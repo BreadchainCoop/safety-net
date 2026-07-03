@@ -42,7 +42,7 @@ jobs:
     # Pinned to a commit SHA per subgraphform's README recommendation.
     uses: BreadchainCoop/subgraphform/.github/workflows/_subgraph-cicd.yml@b9c8ff3510380fad98b610bd8c0f855d1b9f331c
     with:
-      subgraph-name: safety-net-gnosis
+      subgraph-name: safety-net
       working-directory: subgraph
       deploy-on-main: true
       deploy-on-pr: false

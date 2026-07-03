@@ -7,7 +7,7 @@ plus members / deposits / withdrawals / requests / contests for the web app.
 - **Proxy (source):** `0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE`
 - **Network:** `gnosis`
 - **Start block:** `47000324`
-- **Studio slug:** `safety-net-gnosis`
+- **Studio slug:** `safety-net`
 
 Built on Breadchain's [subgraphform](https://github.com/BreadchainCoop/subgraphform)
 reusable CI/CD workflow (standard graph-cli layout, deploys to The Graph Studio).
@@ -60,7 +60,7 @@ the `main` branch once the deploy key exists. To deploy manually or set up CI:
 
 1. **Create the Studio subgraph.** Sign in at
    https://thegraph.com/studio with the deployer wallet and create a subgraph
-   with the slug **`safety-net-gnosis`** on network **Gnosis**.
+   with the slug **`safety-net`** on network **Gnosis**.
 2. **Get the deploy key.** Copy the "Deploy Key" shown in Studio.
 3. **CI:** add it as a repo secret named **`GRAPH_DEPLOY_KEY`** (Settings →
    Secrets and variables → Actions). CI deploys on push to `main`.
@@ -68,7 +68,7 @@ the `main` branch once the deploy key exists. To deploy manually or set up CI:
    ```bash
    yarn graph auth <DEPLOY_KEY>
    yarn codegen && yarn build
-   yarn graph deploy --version-label v0.0.1 safety-net-gnosis
+   yarn graph deploy --version-label v0.0.1 safety-net
    ```
 
 ### Deploy branch note
@@ -83,7 +83,7 @@ branch. See the comments in `.github/workflows/subgraph.yml`.
 Once deployed, the free Studio dev query endpoint (no API key, rate-limited) is:
 
 ```
-https://api.studio.thegraph.com/query/<studio-id>/safety-net-gnosis/<version>
+https://api.studio.thegraph.com/query/<studio-id>/safety-net/<version>
 ```
 
 The web app reads this from the env var **`NEXT_PUBLIC_SUBGRAPH_URL`**. Set it

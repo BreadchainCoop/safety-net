@@ -43,6 +43,11 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /safety-net
           NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ vars.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
           NEXT_PUBLIC_SAFETYNET_ADDRESS: ${{ vars.NEXT_PUBLIC_SAFETYNET_ADDRESS }}
+          # Privy embedded wallets go live when this repo variable is set. Leave
+          # it UNSET to keep the RainbowKit path; the app is byte-identical then.
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          # Activity feed reads the subgraph when set, else falls back to logs.
+          NEXT_PUBLIC_SUBGRAPH_URL: ${{ vars.NEXT_PUBLIC_SUBGRAPH_URL }}
         run: pnpm build
 
       - uses: actions/upload-pages-artifact@v3
