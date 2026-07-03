@@ -17,11 +17,9 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     uint256 depositValue = bound(depositValueRaw, 5e18, 1e22);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
     config.autoThreshold = 1;
-    config.safetyNetStart = block.timestamp;
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, _defaultMembers);
 
     uint256 due = _safetyNet.duesRemainingThisEpoch(safetyNetId, _member1);
     if (due == 0) {
@@ -75,15 +73,13 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     address[] memory members = _makeMembers(memberCount);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = members;
     config.minimumMembers = 2;
     config.maximumMembers = memberCount;
     config.contestThreshold = threshold;
     config.autoThreshold = 1;
-    config.safetyNetStart = block.timestamp;
     config.contestWindow = 7 days;
 
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, members);
 
     // Single (larger) deposit for members[0] so we can make a large request
     uint256 due0 = _safetyNet.duesRemainingThisEpoch(safetyNetId, members[0]);
@@ -145,14 +141,12 @@ contract SafetyNetFuzz_RequestsContesting is SafetyNetFuzzBase {
     uint256 contestWin = bound(uint256(contestSecsRaw), 1 hours, 3 days);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = _defaultMembers;
-    config.safetyNetStart = block.timestamp;
     config.contestWindow = contestWin;
     config.redeemRatio = 1;
     config.autoThreshold = 1;
     config.contestThreshold = 34;
 
-    uint256 safetyNetId = _safetyNet.create(config);
+    uint256 safetyNetId = _createStarted(config, _defaultMembers);
 
     // Fund _member1 and create a "large" request.
     uint256 depositValue = 2e18;

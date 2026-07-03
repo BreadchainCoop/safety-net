@@ -8,6 +8,13 @@
 
 <div align="center">Forked by Breadchain</div>
 
+## Repository Layout
+
+- `src/` — the SafetyNet Solidity contracts (Foundry, upgradeable via TransparentProxy)
+- `web/` — the Safety Net web app (Next.js + wagmi + [@breadcoop/ui](https://github.com/BreadchainCoop/bread-ui-kit)); see [`web/README.md`](web/README.md)
+- `script/` — deploy scripts; live addresses in [`DEPLOYMENTS.md`](DEPLOYMENTS.md) (Gnosis chain)
+- CI/CD runs through [etherform](https://github.com/BreadchainCoop/etherform) (`.github/workflows/cicd.yml`): build, tests, fmt, upgrade-safety validation, and PR deployments to Gnosis with Blockscout verification
+
 ## Breadchain Developers
 
 <dl>

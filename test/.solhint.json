@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "func-name-mixedcase": "off",
+    "contract-name-capwords": "off",
+    "var-name-mixedcase": "off",
+    "one-contract-per-file": "off",
+    "no-console": "off",
+    "reason-string": "off",
+    "no-empty-blocks": "off",
+    "use-natspec": "off"
+  }
+}

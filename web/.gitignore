@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# env files
+.env
+.env*.local
+# verify-mode key (dev-only, never commit)
+.env.verify
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# parallel dev/build dirs (NEXT_DIST_DIR)
+.next-*/

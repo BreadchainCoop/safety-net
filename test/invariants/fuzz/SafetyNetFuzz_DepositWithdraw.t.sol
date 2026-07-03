@@ -10,10 +10,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 ops = bound(uint256(opsRaw), 5, 40);
 
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.safetyNetStart = block.timestamp;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
-    uint256 id = _safetyNet.create(config);
+    uint256 id = _createStarted(config, _defaultMembers);
 
     _mintApprove(_member1, 1e24, address(_safetyNet));
     _mintApprove(_member2, 1e24, address(_safetyNet));
@@ -44,10 +42,11 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
     uint256 duesRemainingBefore = _safetyNet.duesRemainingThisEpoch(id, actor);
 
     if (duesRemainingBefore == 0) {
-      // already fully paid this epoch → any extra should exceed cap
+      // already fully paid this epoch → any extra carries forward as prepayment of a future epoch
       vm.prank(actor);
-      vm.expectRevert(ISafetyNet.ExceedsDepositAmount.selector);
-      try _safetyNet.deposit(id, 1) {} catch {}
+      _safetyNet.deposit(id, 1);
+      assertEq(_safetyNet.duesRemainingThisEpoch(id, actor), 0, 'current epoch stays fully paid');
+      assertEq(_safetyNet.memberWithdrawableBalance(id, actor), beforeWithdrawable + 1, 'prepay credited to withdrawable');
       return;
     }
 
@@ -174,10 +173,8 @@ contract SafetyNetFuzz_DepositWithdraw is SafetyNetFuzzBase {
   /// Small-withdraw limit fuzzing
   function testFuzz_SmallWithdrawsRespectLimit(uint8 daysReqRaw, uint8 extraWithdrawsRaw) public {
     ISafetyNet.SafetyNet memory config = _safeCfg;
-    config.members = _defaultMembers;
     config.redeemRatio = 1;
-    config.safetyNetStart = block.timestamp;
-    uint256 id = _safetyNet.create(config);
+    uint256 id = _createStarted(config, _defaultMembers);
 
     uint256 daysRequested = bound(uint256(daysReqRaw), 1, 3);
     uint256 extraWithdraws = bound(uint256(extraWithdrawsRaw), 0, 2);

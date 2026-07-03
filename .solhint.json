@@ -28,7 +28,15 @@
     "avoid-tx-origin": "error",
     "no-inline-assembly": "error",
     "payable-fallback": "error",
-    "max-state-counts": "off",
+    "max-states-count": "off",
+    "function-max-lines": "off",
+    "import-path-check": "off",
+    "gas-calldata-parameters": "off",
+    "gas-increment-by-one": "off",
+    "gas-indexed-events": "off",
+    "gas-small-strings": "off",
+    "gas-strict-inequalities": "off",
+    "gas-struct-packing": "off",
     "quotes": "off"
   }
 }

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/* Breadchain design system: tokens, Pogaca @font-face, component classes. */
+@import "@breadcoop/ui/theme";
+
+/* Keep @breadcoop/ui's prebuilt classes from being purged. */
+@source "../../node_modules/@breadcoop/ui";
+
+/* Light app — force the paper background (unlayered so it beats the design
+   system's dark default / prefers-color-scheme), and offset anchor jumps
+   so section headings don't hide under the sticky nav. */
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+html,
+body {
+  background-color: #f6f3eb; /* paper-main */
+}
+:target {
+  scroll-margin-top: 5rem;
+}
+
+/* Visible keyboard-focus ring (a11y): jade outline on every focusable
+   element, only for keyboard navigation (:focus-visible). */
+:focus-visible {
+  outline: 2px solid var(--color-primary-jade, #286b63);
+  outline-offset: 2px;
+}
+
+@layer base {
+  body {
+    @apply text-text-standard font-breadBody antialiased;
+  }
+}
+
+@layer components {
+  /* Constrained, centered page gutter used across pages. */
+  .section-container {
+    @apply mx-auto w-full max-w-6xl px-6;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Account dropdown (@breadcoop/ui Navbar) fit-up for our LIGHT navbar.
+   The kit's account widget is styled for the reference apps' dark navbar, so
+   its <Body> text (which only inherits color) renders near-invisible on our
+   cream paper. Force the standard near-black ink on the trigger and panel.
+   The panel wrapper carries the stable `.nav-account-menu` class; the trigger
+   carries `border-surface-ink`.
+   -------------------------------------------------------------------------- */
+.nav-account-menu,
+.nav-account-menu p,
+.nav-account-menu a,
+[class~="border-surface-ink"] {
+  color: var(--color-text-standard);
+}
+
+/* The kit points the chain icon at a root-absolute `/gnosis_icon.svg`, which
+   404s under our GitHub Pages base path and renders a broken-image glyph. Drop
+   it — the "Gnosis" network label alongside it is enough. (alt="" is unique to
+   this icon; the BREAD balance mark is an inline SVG, not an <img>.) */
+.nav-account-menu img[alt=""] {
+  display: none;
+}

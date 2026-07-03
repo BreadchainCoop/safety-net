@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
+import {ReentrancyGuard} from './utils/ReentrancyGuard.sol';
 
 /// @title SafetyNet
 /// @notice Simple implementation of a Broodfond for ERC20 tokens
@@ -22,10 +22,18 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
   /// @notice Minimum redeem ratio
+  /// @dev Together with {MAXIMUM_REDEEM_RATIO} this locks `redeemRatio` to exactly 1 in v1
   uint256 public constant MINIMUM_REDEEM_RATIO = 1;
 
   /// @notice Maximum redeem ratio
-  uint256 public constant MAXIMUM_REDEEM_RATIO = 22;
+  /// @dev Locked to 1 in v1: with a ratio > 1, member withdrawable balances (deposits x ratio) would
+  ///      exceed the actual pool funds — insolvency by design — and decommission() would underflow
+  ///      when refunding. Leverage (ratio > 1) is deferred to v2 research.
+  uint256 public constant MAXIMUM_REDEEM_RATIO = 1;
+
+  /// @notice Maximum number of future epochs a member can prepay beyond the current epoch
+  /// @dev Bounds the deposit allocation loop in {_deposit}; roughly one year of monthly epochs
+  uint256 public constant MAX_PREPAY_EPOCHS = 12;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
   string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
@@ -45,6 +53,22 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @notice Hashed version for invite signatures
   bytes32 private constant _INVITE_DOMAIN_VERSION_HASH = keccak256(bytes(_INVITE_SIGNATURE_VERSION));
+
+  /// @notice Request signing domain name used for EIP-712 signatures
+  string private constant _REQUEST_SIGNING_DOMAIN = 'SafetyNetRequest';
+
+  /// @notice Request signing version used for EIP-712 signatures
+  string private constant _REQUEST_SIGNATURE_VERSION = '1';
+
+  /// @notice EIP-712 type hash for request authorization signatures
+  bytes32 private constant _REQUEST_AUTHORIZATION_TYPEHASH =
+    keccak256('RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)');
+
+  /// @notice Hashed domain name for request authorization signatures
+  bytes32 private constant _REQUEST_DOMAIN_NAME_HASH = keccak256(bytes(_REQUEST_SIGNING_DOMAIN));
+
+  /// @notice Hashed version for request authorization signatures
+  bytes32 private constant _REQUEST_DOMAIN_VERSION_HASH = keccak256(bytes(_REQUEST_SIGNATURE_VERSION));
 
   /// @notice Base denominator used for percentage calculations
   uint256 public constant PERCENTAGE_BASE = 100;
@@ -98,12 +122,23 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Tracks used nonces for invites to prevent replay attacks
   mapping(uint256 safetyNetId => mapping(uint256 nonce => bool used)) public usedNonces;
 
+  /// @notice Lists all request IDs created for a given Safety Net
+  mapping(uint256 safetyNetId => uint256[] requestIds) internal _safetyNetRequestIds;
+
+  /// @notice Tracks used request authorization nonces per Safety Net and owner to prevent replay attacks
+  mapping(uint256 safetyNetId => mapping(address owner => mapping(uint256 nonce => bool used))) public usedRequestNonces;
+
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
     _onlyMemberOf(_safetyNetId);
     _;
   }
 
+  /// @dev The inherited plain (non-upgradeable) ReentrancyGuard is kept intentionally: its constructor
+  ///      only presets the guard slot to 1 as a gas optimization, and behind a proxy the slot simply
+  ///      starts at 0, which is functionally equivalent and safe. It is vendored under
+  ///      `src/contracts/utils/` so its constructor can carry its own unsafe-allow annotation, since
+  ///      upgrades-core cannot suppress constructor findings on parents inside node_modules.
   /// @custom:oz-upgrades-unsafe-allow constructor
   constructor() {
     _disableInitializers();
@@ -126,8 +161,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     if (safetyNets[_id].owner != address(0)) revert AlreadyExists();
     if (!allowedTokens[_safetyNet.token]) revert TokenNotAllowed();
-    if (_safetyNet.safetyNetStart == 0) revert InvalidSafetyNetStartTime();
+    if (_safetyNet.safetyNetStart != 0) revert InvalidSafetyNetStartTime();
     if (_safetyNet.owner == address(0)) revert InvalidOwner();
+    if (_safetyNet.members.length != 0) revert InvalidMembers();
     if (_safetyNet.initialDeposit <= 0) revert InvalidInitialDeposit();
     if (_safetyNet.fixedDeposit <= 0) revert InvalidFixedDeposit();
     if (_safetyNet.autoThreshold <= 0) revert InvalidThreshold();
@@ -138,23 +174,13 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.redeemRatio < MINIMUM_REDEEM_RATIO) revert InvalidRatio();
     if (_safetyNet.redeemRatio > MAXIMUM_REDEEM_RATIO) revert InvalidRatio();
 
-    uint256 _safetyNetMembersLength = _safetyNet.members.length;
+    // The owner is the sole founding member; everyone else joins via invites before start()
+    address[] memory _foundingMembers = new address[](1);
+    _foundingMembers[0] = _safetyNet.owner;
+    _safetyNet.members = _foundingMembers;
 
-    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
-      address _member = _safetyNet.members[i];
-      if (_member == address(0)) revert InvalidMemberAddress();
-      for (uint256 j = 0; j < i; j++) {
-        if (_safetyNet.members[j] == _member) {
-          revert DuplicateMember();
-        }
-      }
-    }
-
-    for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
-      address _member = _safetyNet.members[i];
-      isMember[_id][_member] = true;
-      memberSafetyNets[_member].push(_id);
-    }
+    isMember[_id][_safetyNet.owner] = true;
+    memberSafetyNets[_safetyNet.owner].push(_id);
 
     _safetyNet.id = _id;
     safetyNets[_id] = _safetyNet;
@@ -174,6 +200,20 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       _safetyNet.smallWithdrawsLimit
     );
     return _id;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function start(uint256 _id) external override nonReentrant {
+    SafetyNet storage _safetyNet = safetyNets[_id];
+
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.safetyNetStart != 0) revert AlreadyActive();
+    if (msg.sender != _safetyNet.owner) revert InvalidOwner();
+    if (_safetyNet.members.length < _safetyNet.minimumMembers) revert NotEnoughMembers();
+
+    _safetyNet.safetyNetStart = block.timestamp;
+
+    emit SafetyNetStarted(_id, block.timestamp);
   }
 
   /// @inheritdoc ISafetyNet
@@ -229,6 +269,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (usedNonces[_invite.safetyNetId][_invite.nonce]) revert InviteAlreadyUsed();
     if (isMember[_invite.safetyNetId][msg.sender]) revert AlreadyMember();
+    // Joining is only possible between creation and start()
+    if (_safetyNet.safetyNetStart != 0) revert AlreadyActive();
     if (_safetyNet.members.length >= _safetyNet.maximumMembers) revert SafetyNetFull();
 
     bytes32 _digest = _hashInvite(_invite);
@@ -253,12 +295,49 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function createRequest(Request memory _request) external override onlyMemberOf(_request.safetyNetId) returns (uint256) {
     if (_request.owner != msg.sender) revert InvalidOwner();
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].safetyNetStart == 0) revert NotActive();
     if (_request.amount == 0) revert InvalidAmountZero();
 
     _request.timestamp = block.timestamp;
     _request.contestCount = 0;
 
     return _createRequest(_request);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function createRequestWithSignature(
+    Request memory _request,
+    uint256 _nonce,
+    uint256 _deadline,
+    bytes calldata _signature
+  ) external override returns (uint256) {
+    if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
+    if (safetyNets[_request.safetyNetId].safetyNetStart == 0) revert NotActive();
+    if (!isMember[_request.safetyNetId][_request.owner]) revert NotMember();
+    if (_request.amount == 0) revert InvalidAmountZero();
+    if (block.timestamp > _deadline) revert AuthorizationExpired();
+    if (usedRequestNonces[_request.safetyNetId][_request.owner][_nonce]) revert RequestNonceAlreadyUsed();
+
+    bytes32 _digest = _hashRequestAuthorization(_request.safetyNetId, _request.amount, _nonce, _deadline);
+    address _signer = ECDSA.recover(_digest, _signature);
+
+    if (_signer != _request.owner) revert InvalidSigner();
+
+    usedRequestNonces[_request.safetyNetId][_request.owner][_nonce] = true;
+
+    _request.timestamp = block.timestamp;
+    _request.contestCount = 0;
+
+    return _createRequest(_request);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function cancelRequestNonce(uint256 _safetyNetId, uint256 _nonce) external override {
+    if (usedRequestNonces[_safetyNetId][msg.sender][_nonce]) revert RequestNonceAlreadyUsed();
+
+    usedRequestNonces[_safetyNetId][msg.sender][_nonce] = true;
+
+    emit RequestNonceCancelled(_safetyNetId, msg.sender, _nonce);
   }
 
   /// @inheritdoc ISafetyNet
@@ -355,7 +434,8 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @inheritdoc ISafetyNet
   function getMembersNeedingDeposit(uint256 _id) external view override returns (address[] memory) {
     SafetyNet memory safetyNet = safetyNets[_id];
-    if (_isDecommissioned(safetyNet)) {
+    // No dues exist for decommissioned or not-yet-started Safety Nets
+    if (_isDecommissioned(safetyNet) || safetyNet.safetyNetStart == 0) {
       return new address[](0);
     }
 
@@ -392,6 +472,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
   /// @inheritdoc ISafetyNet
   function duesRemainingThisEpoch(uint256 _id, address _member) external view override returns (uint256) {
+    // There are no dues before the Safety Net is started
+    if (safetyNets[_id].safetyNetStart == 0) {
+      return 0;
+    }
+
     uint256 epochIndex = getCurrentEpochIndex(_id);
     uint256 paid = epochMemberDepositedAmount[_id][epochIndex][_member];
     uint256 target = safetyNets[_id].fixedDeposit;
@@ -402,7 +487,9 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function getCurrentEpochIndex(uint256 _safetyNetId) public view override returns (uint256) {
     SafetyNet memory safetyNet = safetyNets[_safetyNetId];
 
-    if (block.timestamp < safetyNet.safetyNetStart) {
+    // Not-yet-started Safety Nets (safetyNetStart == 0) have no epochs; this also avoids a
+    // division-by-zero panic for nonexistent Safety Nets whose epochDuration is unset
+    if (safetyNet.safetyNetStart == 0 || block.timestamp < safetyNet.safetyNetStart) {
       return 0;
     }
 
@@ -431,18 +518,81 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     return false;
   }
 
+  /// @inheritdoc ISafetyNet
+  function getMembers(uint256 _id) external view override returns (address[] memory _members) {
+    return safetyNets[_id].members;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetRequestIds(uint256 _id) external view override returns (uint256[] memory _requestIds) {
+    return _safetyNetRequestIds[_id];
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetRequests(uint256 _id) public view override returns (RequestView[] memory _requestViews) {
+    uint256[] memory _requestIds = _safetyNetRequestIds[_id];
+    _requestViews = new RequestView[](_requestIds.length);
+
+    for (uint256 i = 0; i < _requestIds.length; i++) {
+      _requestViews[i] = _buildRequestView(_requestIds[i]);
+    }
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getSafetyNetDetails(uint256 _id, address _member) public view override returns (SafetyNetDetails memory _details) {
+    SafetyNet memory _safetyNet = safetyNets[_id];
+    bool _commissioned = !_isDecommissioned(_safetyNet);
+    // Dues only accrue on commissioned Safety Nets that have been started
+    bool _accruingDues = _commissioned && _safetyNet.safetyNetStart != 0;
+
+    uint256 _currentEpochIndex = _commissioned ? getCurrentEpochIndex(_id) : 0;
+    uint256 _paid = epochMemberDepositedAmount[_id][_currentEpochIndex][_member];
+    uint256 _target = _safetyNet.fixedDeposit;
+
+    _details = SafetyNetDetails({
+      safetyNet: _safetyNet,
+      totalBalance: safetyNetBalance[_id],
+      memberCount: _safetyNet.members.length,
+      isMember: isMember[_id][_member],
+      withdrawableBalance: memberWithdrawableBalance[_id][_member],
+      monthlyContribute: safetyNetMemberContribute[_id][_member],
+      duesRemaining: (_accruingDues && _paid < _target) ? _target - _paid : 0,
+      currentEpochIndex: _currentEpochIndex,
+      isDecommissionable: isDecommissionable(_id),
+      requests: getSafetyNetRequests(_id)
+    });
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getMemberDashboard(address _member) external view override returns (SafetyNetDetails[] memory _dashboard) {
+    uint256[] memory _ids = memberSafetyNets[_member];
+    _dashboard = new SafetyNetDetails[](_ids.length);
+
+    for (uint256 i = 0; i < _ids.length; i++) {
+      _dashboard[i] = getSafetyNetDetails(_ids[i], _member);
+    }
+  }
+
   /**
    * @dev Make a deposit for monthly contribute
    *      If it's the first deposit, initialDeposit is the total amount
-   *      Each epoch after initial deposit, a member must pay exactly `fixedDeposit`.
-   *      Partial deposits are allowed until the epoch sum == fixedDeposit.
+   *      After onboarding, partial deposits are allowed until the epoch sum == fixedDeposit,
+   *      and any excess carries forward into future epochs (prepay): the current epoch's
+   *      remaining dues are filled first, then the next epoch, and so on, up to
+   *      `MAX_PREPAY_EPOCHS` epochs beyond the current one. Reverts with
+   *      {ExceedsDepositAmount} if the value cannot be fully allocated within that window.
+   *      The full value is credited to `safetyNetBalance` and `memberWithdrawableBalance`
+   *      immediately (redeemRatio is 1, so deposits are fully backed; prepaid funds return
+   *      through the normal withdrawable-balance refund on decommission).
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     SafetyNet storage _safetyNet = safetyNets[_id];
 
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
-    if (block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
+    // Deposits require a started Safety Net; the time comparison is kept as a defensive
+    // guard even though start() always stamps a past-or-current timestamp
+    if (_safetyNet.safetyNetStart == 0 || block.timestamp < _safetyNet.safetyNetStart) revert DepositBeforeSafetyNetStart();
     if (_value == 0) revert InvalidDepositAmount();
 
     uint256 epoch = getCurrentEpochIndex(_id);
@@ -458,16 +608,31 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       safetyNetMemberContribute[_id][_member] = _safetyNet.fixedDeposit;
 
       // Set epoch paid to full initial
-      epochPaid = initial;
+      epochMemberDepositedAmount[_id][epoch][_member] = initial;
     } else {
-      // Subsequent months: partials allowed up to fixedDeposit
-      if (epochPaid + _value > _safetyNet.fixedDeposit) revert ExceedsDepositAmount();
-      epochPaid += _value;
+      // Subsequent months: fill the current epoch's remaining dues first, then carry any
+      // excess into future epochs (prepay), bounded by MAX_PREPAY_EPOCHS ahead.
+      uint256 _remaining = _value;
+      uint256 _fixedDeposit = _safetyNet.fixedDeposit;
+      uint256 _lastPrepayEpoch = epoch + MAX_PREPAY_EPOCHS;
+
+      for (uint256 _targetEpoch = epoch; _remaining > 0; _targetEpoch++) {
+        // Value cannot be fully allocated within the prepay window
+        if (_targetEpoch > _lastPrepayEpoch) revert ExceedsDepositAmount();
+
+        uint256 _paid = epochMemberDepositedAmount[_id][_targetEpoch][_member];
+        if (_paid >= _fixedDeposit) continue;
+
+        uint256 _fill = _fixedDeposit - _paid;
+        if (_remaining < _fill) _fill = _remaining;
+
+        epochMemberDepositedAmount[_id][_targetEpoch][_member] = _paid + _fill;
+        _remaining -= _fill;
+      }
     }
 
     safetyNetBalance[_id] += _value;
     memberWithdrawableBalance[_id][_member] += _value * _safetyNet.redeemRatio;
-    epochMemberDepositedAmount[_id][epoch][_member] = epochPaid;
 
     IERC20(_safetyNet.token).safeTransferFrom(_member, address(this), _value);
 
@@ -475,7 +640,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /**
-   * @dev Create a request for withdrawal
+   * @notice Create a request for withdrawal
    * @param _request The request to be created
    * @return _idRequest The ID of the created request
    */
@@ -487,6 +652,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (safetyNets[_request.safetyNetId].owner == address(0)) revert NotCommissioned();
 
     requests[_idRequest] = _request;
+    _safetyNetRequestIds[_request.safetyNetId].push(_idRequest);
 
     emit RequestCreated(_idRequest, _request.owner, _request.timestamp, _request.amount);
     return _idRequest;
@@ -505,6 +671,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     uint256 currentEpochIndex = getCurrentEpochIndex(_id);
     if (_safetyNet.owner == address(0)) revert NotCommissioned();
     if (!isMember[_id][_member]) revert NotMember();
+    if (_safetyNet.safetyNetStart == 0) revert NotActive();
 
     uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.redeemRatio);
 
@@ -566,6 +733,41 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
     memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
     safetyNetBalance[_safetyNetId] -= _amount;
+  }
+
+  /// @dev Builds a {RequestView} with derived status for a given request ID
+  function _buildRequestView(uint256 _requestId) internal view returns (RequestView memory _requestView) {
+    Request memory _request = requests[_requestId];
+    bool _exists = _request.owner != address(0);
+    bool _windowOpen = _isContestable(_requestId);
+    bool _vetoed = isVetoed[_requestId];
+    bool _executed = isExecuted[_requestId];
+    bool _commissioned = safetyNets[_request.safetyNetId].owner != address(0);
+    bool _fundsAvailable = memberWithdrawableBalance[_request.safetyNetId][_request.owner] >= _request.amount;
+
+    _requestView = RequestView({
+      id: _requestId,
+      request: _request,
+      isVetoed: _vetoed,
+      isExecuted: _executed,
+      isContestable: _exists && _windowOpen && !_vetoed,
+      isExecutable: _exists && !_windowOpen && !_vetoed && !_executed && _commissioned && _fundsAvailable
+    });
+  }
+
+  /// @dev Builds the EIP-712 digest for a request authorization
+  function _hashRequestAuthorization(
+    uint256 _safetyNetId,
+    uint256 _amount,
+    uint256 _nonce,
+    uint256 _deadline
+  ) private view returns (bytes32) {
+    bytes32 _structHash = keccak256(abi.encode(_REQUEST_AUTHORIZATION_TYPEHASH, _safetyNetId, _amount, _nonce, _deadline));
+
+    bytes32 _domainSeparator =
+      keccak256(abi.encode(_EIP712_DOMAIN_TYPEHASH, _REQUEST_DOMAIN_NAME_HASH, _REQUEST_DOMAIN_VERSION_HASH, block.chainid, address(this)));
+
+    return keccak256(abi.encodePacked('\x19\x01', _domainSeparator, _structHash));
   }
 
   /// @dev Builds the EIP-712 digest for an invite

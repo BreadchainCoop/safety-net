@@ -15,16 +15,16 @@ interface ISafetyNet {
 
   /// @notice Struct defining a Safety Net group
   /// @param id Unique identifier for the Safety Net
-  /// @param owner The creator of the Safety Net
-  /// @param minimumMembers Minimum number of members required to create a Safety Net
-  /// @param maximumMembers Maximum number of members allowed in the Safety Net
+  /// @param owner The creator of the Safety Net; registered as the sole founding member at creation
+  /// @param minimumMembers Minimum number of members required to start a Safety Net; enforced by start()
+  /// @param maximumMembers Maximum number of members allowed in the Safety Net; the seat target the UI sizes invites against. Enforced at invite redemption, though the finite number of owner-signed invites is the effective cap in the normal flow
   /// @param contestThreshold Percentage threshold of members; a withdrawal request is vetoed/cancelled only if the share of contesting members exceeds this percentage
-  /// @param safetyNetStart Timestamp when the Safety Net becomes active
+  /// @param safetyNetStart Activation timestamp stamped by start(); 0 means the Safety Net has not started yet. Must be 0 at creation
   /// @param token The ERC20 token used for deposits and withdrawals
-  /// @param members List of member addresses
+  /// @param members List of joined member addresses; must be empty at creation (the owner is pushed as the sole member) and grows via redeemInvite()
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param redeemRatio Ratio of deposit to withdrawal
+  /// @param redeemRatio Ratio of deposit to withdrawal; must be exactly 1 in v1 (leverage is disabled), field retained for forward-compatibility
   /// @param contestWindow Duration of the contest period for requests
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
@@ -68,11 +68,63 @@ interface ISafetyNet {
     uint256 nonce;
   }
 
+  /// @notice Struct pairing a request with its derived status, for frontend consumption
+  /// @param id Unique identifier of the request
+  /// @param request The stored request data
+  /// @param isVetoed Whether the request has been vetoed
+  /// @param isExecuted Whether the request has been executed
+  /// @param isContestable Whether the request can be contested now (exists, contest window open, not vetoed)
+  /// @param isExecutable Whether the request can be executed now (window closed, not vetoed, not executed, net commissioned, owner balance sufficient)
+  struct RequestView {
+    uint256 id;
+    Request request;
+    bool isVetoed;
+    bool isExecuted;
+    bool isContestable;
+    bool isExecutable;
+  }
+
+  /// @notice Aggregated Safety Net details for a given member, for frontend consumption
+  /// @param safetyNet The Safety Net struct
+  /// @param totalBalance Total balance held by the Safety Net
+  /// @param memberCount Number of members in the Safety Net
+  /// @param isMember Whether the queried address is a member
+  /// @param withdrawableBalance The queried member's withdrawable balance
+  /// @param monthlyContribute The queried member's monthly contribution amount
+  /// @param duesRemaining Amount the queried member still owes this epoch
+  /// @param currentEpochIndex The current epoch index of the Safety Net
+  /// @param isDecommissionable Whether the Safety Net can be decommissioned
+  /// @param requests The Safety Net's requests with derived status
+  struct SafetyNetDetails {
+    SafetyNet safetyNet;
+    uint256 totalBalance;
+    uint256 memberCount;
+    bool isMember;
+    uint256 withdrawableBalance;
+    uint256 monthlyContribute;
+    uint256 duesRemaining;
+    uint256 currentEpochIndex;
+    bool isDecommissionable;
+    RequestView[] requests;
+  }
+
   /*///////////////////////////////////////////////////////////////
                             EVENTS
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Emitted when a new Safety Net is created
+  /// @param id Unique identifier of the Safety Net
+  /// @param minimumMembers Minimum number of members required
+  /// @param maximumMembers Maximum number of members allowed
+  /// @param contestThreshold Percentage threshold of members required to veto a request
+  /// @param members List of member addresses
+  /// @param token The ERC20 token used for deposits and withdrawals
+  /// @param initialDeposit Initial deposit required to join
+  /// @param fixedDeposit Fixed deposit fee amount
+  /// @param redeemRatio Ratio of deposit to withdrawal
+  /// @param autoThreshold Maximum amount auto-executed without a request
+  /// @param epochDuration Duration of each epoch in seconds
+  /// @param smallWithdrawsLimit Maximum number of small withdrawals per epoch
   event SafetyNetCreated(
     uint256 indexed id,
     uint256 minimumMembers,
@@ -88,35 +140,73 @@ interface ISafetyNet {
     uint256 smallWithdrawsLimit
   );
 
+  /// @notice Emitted when a Safety Net is started by its owner
+  /// @param id Unique identifier of the Safety Net
+  /// @param startTime Timestamp at which the Safety Net became active
+  event SafetyNetStarted(uint256 indexed id, uint256 startTime);
+
   /// @notice Emitted when a Safety Net is decommissioned
+  /// @param id Unique identifier of the Safety Net
   event SafetyNetDecommissioned(uint256 indexed id);
 
   /// @notice Emitted when a member deposits to a Safety Net
+  /// @param id Unique identifier of the Safety Net
+  /// @param member The depositing member
+  /// @param amount Amount deposited
   event FundsDeposited(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a member withdraws from a Safety Net
+  /// @param id Unique identifier of the Safety Net
+  /// @param member The withdrawing member
+  /// @param amount Amount withdrawn
   event FundsWithdrawn(uint256 indexed id, address indexed member, uint256 amount);
 
   /// @notice Emitted when a token is allowed or disallowed for Safety Net use
+  /// @param token The ERC20 token address
+  /// @param allowed Whether the token is allowed or not
   event TokenAllowed(address indexed token, bool indexed allowed);
 
   /// @notice Emitted when a new request is created
+  /// @param id Unique identifier of the request
+  /// @param owner The request initiator
+  /// @param timestamp Creation time of the request
+  /// @param amount Amount requested for withdrawal
   event RequestCreated(uint256 indexed id, address owner, uint256 timestamp, uint256 amount);
 
   /// @notice Emitted when a withdraw request is pending
+  /// @param requestId Unique identifier of the request
+  /// @param owner The request initiator
+  /// @param amount Amount requested for withdrawal
   event WithdrawalPending(uint256 indexed requestId, address indexed owner, uint256 amount);
 
   /// @notice Emitted when a request is contested
+  /// @param requestId Unique identifier of the request
+  /// @param owner The request initiator
+  /// @param timestamp Time at which the request was contested
   event WithdrawalContested(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
   /// @notice Emitted when a request is auto-executed after contest period
+  /// @param requestId Unique identifier of the request
+  /// @param owner The request initiator
+  /// @param amount Amount withdrawn
   event WithdrawalAutoExecuted(uint256 indexed requestId, address indexed owner, uint256 amount);
 
   /// @notice Emitted when a request reaches the veto threshold and is cancelled
+  /// @param requestId Unique identifier of the request
+  /// @param owner The request initiator
+  /// @param timestamp Time at which the request was vetoed
   event WithdrawalVetoed(uint256 indexed requestId, address indexed owner, uint256 timestamp);
 
   /// @notice Emitted when an invite is successfully redeemed
+  /// @param safetyNetId Unique identifier of the Safety Net
+  /// @param redeemer The address that redeemed the invite and joined
   event InviteRedeemed(uint256 indexed safetyNetId, address indexed redeemer);
+
+  /// @notice Emitted when a request authorization nonce is cancelled by its owner
+  /// @param safetyNetId Unique identifier of the Safety Net
+  /// @param owner The owner of the nonce space that cancelled the nonce
+  /// @param nonce The cancelled nonce
+  event RequestNonceCancelled(uint256 indexed safetyNetId, address indexed owner, uint256 nonce);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -161,7 +251,7 @@ interface ISafetyNet {
   /// @notice Thrown when the deposit exceeds allowed limits
   error ExceedsDepositAmount();
 
-  /// @notice Thrown if attempting to deposit before the fund starts
+  /// @notice Thrown if attempting to deposit into a Safety Net that has not been started via start()
   error DepositBeforeSafetyNetStart();
 
   /// @notice Thrown if the specified token is not whitelisted
@@ -170,7 +260,7 @@ interface ISafetyNet {
   /// @notice Thrown for deposit amounts that do not match requirements
   error InvalidDepositAmount();
 
-  /// @notice Thrown for an invalid Safety Net start time
+  /// @notice Thrown when a nonzero start time is passed at creation; the start time is stamped by start()
   error InvalidSafetyNetStartTime();
 
   /// @notice Thrown when indexing fails
@@ -240,6 +330,24 @@ interface ISafetyNet {
   /// @notice Thrown when attempting to add members beyond the maximum allowed
   error SafetyNetFull();
 
+  /// @notice Thrown when attempting to reuse a request authorization nonce
+  error RequestNonceAlreadyUsed();
+
+  /// @notice Thrown when a request authorization is submitted after its deadline
+  error AuthorizationExpired();
+
+  /// @notice Thrown when a nonempty members array is passed at creation; the owner is the sole founding member and everyone else joins via invites
+  error InvalidMembers();
+
+  /// @notice Thrown when starting an already-started Safety Net or redeeming an invite after start
+  error AlreadyActive();
+
+  /// @notice Thrown when starting a Safety Net with fewer joined members than `minimumMembers`
+  error NotEnoughMembers();
+
+  /// @notice Thrown when withdrawing or creating a withdraw request on a Safety Net that has not been started via start()
+  error NotActive();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -253,27 +361,43 @@ interface ISafetyNet {
   /// @param allowed Whether the token is allowed or not
   function setTokenAllowed(address token, bool allowed) external;
 
-  /// @notice Creates a new Safety Net
+  /// @notice Creates a new Safety Net with the configured owner as its sole founding member
+  /// @dev `members` must be empty and `safetyNetStart` must be 0; further members join via
+  ///      {redeemInvite} and the start time is stamped by {start}. `owner` is taken from the
+  ///      struct and is not required to equal msg.sender (relayed creation is allowed)
   /// @param safetyNet The Safety Net configuration
   /// @return id The unique ID of the newly created Safety Net
   function create(SafetyNet memory safetyNet) external returns (uint256);
+
+  /// @notice Starts a Safety Net, stamping its activation timestamp and opening the deposit/withdraw lifecycle
+  /// @dev Only the Safety Net owner may call; requires at least `minimumMembers` joined members.
+  ///      After start, invites can no longer be redeemed and epochs count from this timestamp
+  /// @param id ID of the Safety Net to start
+  function start(uint256 id) external;
 
   /// @notice Decommissions an existing Safety Net
   /// @param id ID of the Safety Net to decommission
   function decommission(uint256 id) external;
 
   /// @notice Makes a deposit into a Safety Net
+  /// @dev The first deposit (onboarding) must equal `initialDeposit` exactly. Afterwards, partial
+  ///      payments toward the current epoch's `fixedDeposit` dues are allowed, and any excess is
+  ///      carried forward as prepayment of future epochs, up to `MAX_PREPAY_EPOCHS` (12) epochs
+  ///      beyond the current one; reverts if the value cannot be fully allocated within that window
   /// @param id The Safety Net ID
   /// @param value Amount to deposit
   function deposit(uint256 id, uint256 value) external;
 
   /// @notice Makes a deposit into a Safety Net for another member
+  /// @dev Same allocation rules as {deposit}: exact `initialDeposit` for onboarding, then partial
+  ///      payments plus prepayment of up to `MAX_PREPAY_EPOCHS` (12) future epochs
   /// @param id The Safety Net ID
   /// @param value Amount to deposit
   /// @param member The member address making the deposit
   function depositFor(uint256 id, uint256 value, address member) external;
 
-  /// @notice Redeems an invite signed by the Safety Net owner
+  /// @notice Redeems an invite signed by the Safety Net owner, joining the caller as a member
+  /// @dev Only possible between creation and start(); reverts with {AlreadyActive} once started
   /// @param invite The invite data containing the Safety Net ID and nonce
   /// @param signature The owner's EIP-712 signature
   function redeemInvite(Invite calldata invite, bytes calldata signature) external;
@@ -287,6 +411,25 @@ interface ISafetyNet {
   /// @param request The withdraw request details
   /// @return id The request ID
   function createRequest(Request memory request) external returns (uint256);
+
+  /// @notice Creates a new withdraw request on behalf of the request owner using an EIP-712 signature
+  /// @dev The request owner signs `RequestAuthorization(uint256 safetyNetId,uint256 amount,uint256 nonce,uint256 deadline)`; anyone may submit
+  /// @param request The withdraw request details; `owner` must be the signer and a member of the Safety Net
+  /// @param nonce Unique nonce chosen by the owner, tracked per (safetyNetId, owner) to prevent replay
+  /// @param deadline Timestamp after which the authorization is no longer valid
+  /// @param signature The owner's EIP-712 signature over the request authorization
+  /// @return id The request ID
+  function createRequestWithSignature(
+    Request memory request,
+    uint256 nonce,
+    uint256 deadline,
+    bytes calldata signature
+  ) external returns (uint256);
+
+  /// @notice Cancels an unused request authorization nonce in the caller's own nonce space
+  /// @param safetyNetId The Safety Net ID the nonce is scoped to
+  /// @param nonce The nonce to cancel
+  function cancelRequestNonce(uint256 safetyNetId, uint256 nonce) external;
 
   /// @notice Contests a request
   /// @param requestId The ID of the request to contest
@@ -322,6 +465,7 @@ interface ISafetyNet {
   function getMemberBalances(uint256 id) external view returns (address[] memory members, uint256[] memory balances);
 
   /// @notice Returns the list of members in a Safety Net who still owe dues in the current epoch.
+  /// @dev Returns an empty array for decommissioned or not-yet-started Safety Nets (no dues before start()).
   /// @param _id Safety Net ID.
   /// @return _membersNeedingDeposit Array of member addresses that need to deposit for the current epoch.
   function getMembersNeedingDeposit(uint256 _id) external view returns (address[] memory _membersNeedingDeposit);
@@ -332,11 +476,13 @@ interface ISafetyNet {
   function isTokenAllowed(address token) external view returns (bool);
 
   /// @notice Gets the current epoch index for a Safety Net (calculated from time)
+  /// @dev Returns 0 while the Safety Net has not been started (safetyNetStart == 0)
   /// @param safetyNetId The Safety Net ID
   /// @return epochIndex The current epoch index based on time elapsed
   function getCurrentEpochIndex(uint256 safetyNetId) external view returns (uint256);
 
   /// @notice Returns how much a member still needs to pay this epoch to reach their fixedDeposit dues
+  /// @dev Returns 0 while the Safety Net has not been started (there are no dues before start())
   /// @param id Safety Net ID
   /// @param member Member address
   /// @return remaining Amount left to reach the fixed deposit in the current epoch
@@ -353,4 +499,30 @@ interface ISafetyNet {
   /// @param epochIndex The epoch index to check
   /// @return hasDeposited True if the member deposited in that epoch
   function hasMemberDepositedInEpoch(uint256 safetyNetId, address member, uint256 epochIndex) external view returns (bool);
+
+  /// @notice Returns the member addresses of a Safety Net
+  /// @param id The Safety Net ID
+  /// @return members Array of member addresses
+  function getMembers(uint256 id) external view returns (address[] memory members);
+
+  /// @notice Returns the IDs of all requests created for a Safety Net
+  /// @param id The Safety Net ID
+  /// @return requestIds Array of request IDs
+  function getSafetyNetRequestIds(uint256 id) external view returns (uint256[] memory requestIds);
+
+  /// @notice Returns all requests of a Safety Net with their derived status
+  /// @param id The Safety Net ID
+  /// @return requestViews Array of requests with derived status
+  function getSafetyNetRequests(uint256 id) external view returns (RequestView[] memory requestViews);
+
+  /// @notice Returns aggregated details of a Safety Net for a given member
+  /// @param id The Safety Net ID
+  /// @param member The member address to compute member-specific fields for
+  /// @return details The aggregated Safety Net details
+  function getSafetyNetDetails(uint256 id, address member) external view returns (SafetyNetDetails memory details);
+
+  /// @notice Returns aggregated details for every Safety Net a member has joined
+  /// @param member The member address
+  /// @return dashboard Array of aggregated details for each of the member's Safety Nets
+  function getMemberDashboard(address member) external view returns (SafetyNetDetails[] memory dashboard);
 }
