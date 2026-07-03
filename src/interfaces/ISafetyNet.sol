@@ -128,6 +128,7 @@ interface ISafetyNet {
   /// @param autoThreshold Maximum amount auto-executed without a request
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum number of small withdrawals per epoch
+  /// @param name Optional human-readable name for the Safety Net; empty string when none was provided
   event SafetyNetCreated(
     uint256 indexed id,
     address indexed owner,
@@ -141,7 +142,8 @@ interface ISafetyNet {
     uint256 redeemRatio,
     uint256 autoThreshold,
     uint256 epochDuration,
-    uint256 smallWithdrawsLimit
+    uint256 smallWithdrawsLimit,
+    string name
   );
 
   /// @notice Emitted when a Safety Net is started by its owner
@@ -357,6 +359,9 @@ interface ISafetyNet {
   /// @notice Thrown when a withdrawal request reason exceeds `MAX_REASON_BYTES` bytes
   error ReasonTooLong();
 
+  /// @notice Thrown when a Safety Net name exceeds `MAX_NAME_BYTES` bytes
+  error NameTooLong();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -374,9 +379,12 @@ interface ISafetyNet {
   /// @dev `members` must be empty and `safetyNetStart` must be 0; further members join via
   ///      {redeemInvite} and the start time is stamped by {start}. `owner` is taken from the
   ///      struct and is not required to equal msg.sender (relayed creation is allowed)
+  /// @param name Optional human-readable name for the Safety Net; must be at most `MAX_NAME_BYTES`
+  ///      bytes. Empty string is allowed (the UI falls back to "Safety Net #N"). Stored only when
+  ///      non-empty and read back via {safetyNetNames}
   /// @param safetyNet The Safety Net configuration
   /// @return id The unique ID of the newly created Safety Net
-  function create(SafetyNet memory safetyNet) external returns (uint256);
+  function create(string calldata name, SafetyNet memory safetyNet) external returns (uint256);
 
   /// @notice Starts a Safety Net, stamping its activation timestamp and opening the deposit/withdraw lifecycle
   /// @dev Only the Safety Net owner may call; requires at least `minimumMembers` joined members.
@@ -462,6 +470,14 @@ interface ISafetyNet {
   /*///////////////////////////////////////////////////////////////
                             VIEW
   //////////////////////////////////////////////////////////////*/
+
+  /// @notice Returns the optional human-readable name of a Safety Net
+  /// @dev This is the read path for names. Returns the empty string when no name was provided at
+  ///      creation (the UI then falls back to "Safety Net #N"). The name lives in an appended
+  ///      mapping and is not part of the {SafetyNet} struct
+  /// @param id The Safety Net ID
+  /// @return name The Safety Net's name, or the empty string if none was set
+  function safetyNetNames(uint256 id) external view returns (string memory name);
 
   /// @notice Retrieves a single Safety Net by ID
   /// @param id The Safety Net ID

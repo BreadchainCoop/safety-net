@@ -18,7 +18,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
       if (config.contestThreshold < 1) config.contestThreshold = 1;
       config.autoThreshold = _SAFE_AUTO_THRESHOLD + i * 1e15;
 
-      uint256 safetyNetId = _safetyNet.create(config);
+      uint256 safetyNetId = _safetyNet.create('', config);
       assertEq(safetyNetId, successfulCreations, 'safetyNetId matches successes so far');
 
       // The owner is registered as the sole founding member of every new net
@@ -37,7 +37,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
     config.members = _threeMembers();
 
     vm.expectRevert(ISafetyNet.InvalidMembers.selector);
-    _safetyNet.create(config);
+    _safetyNet.create('', config);
   }
 
   function test_Create_RevertsOnNonZeroStartTime() public {
@@ -46,7 +46,7 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
     config.safetyNetStart = block.timestamp + 1;
 
     vm.expectRevert(ISafetyNet.InvalidSafetyNetStartTime.selector);
-    _safetyNet.create(config);
+    _safetyNet.create('', config);
   }
 
   function test_Create_RevertsOnDisallowedToken_then_SucceedsWhenAllowed() public {
@@ -56,10 +56,10 @@ contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
     config.token = address(temporaryToken);
 
     vm.expectRevert(ISafetyNet.TokenNotAllowed.selector);
-    _safetyNet.create(config);
+    _safetyNet.create('', config);
 
     _safetyNet.setTokenAllowed(address(temporaryToken), true);
-    uint256 allowedSafetyNetId = _safetyNet.create(config);
+    uint256 allowedSafetyNetId = _safetyNet.create('', config);
     assertEq(allowedSafetyNetId, 0, 'first successful creation gets id 0');
   }
 }

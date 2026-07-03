@@ -145,7 +145,7 @@ abstract contract SafetyNetFuzzBase is Test {
     cfg.owner = _member1;
     cfg.members = new address[](0);
     cfg.safetyNetStart = 0;
-    _id = _safetyNet.create(cfg);
+    _id = _safetyNet.create('', cfg);
 
     for (uint256 i = 0; i < allMembers.length; i++) {
       if (allMembers[i] == _member1) continue;
