@@ -58,3 +58,10 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # The Pages deploy backend intermittently fails its status polls
+          # ("Deployment failed, try again later" after error_count is hit).
+          # Give it a longer window and far more tolerance for transient poll
+          # errors so a flaky backend doesn't fail an otherwise-good deploy.
+          timeout: 900000
+          error_count: 50
