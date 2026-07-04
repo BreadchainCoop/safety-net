@@ -113,6 +113,19 @@ export const SAFETYNET_ADDRESS: Address = withDefault(
 
 export const isContractConfigured = SAFETYNET_ADDRESS !== zeroAddress;
 
+/**
+ * The DelegatedSafetyNet extension on Gnosis (see issue #32). It references
+ * the main proxy and lets a member opt into automatic deposits: anyone (a
+ * keeper/agent or another member) can then pay that member's owed dues from a
+ * pre-approved allowance, so they never miss an epoch. Overridable via
+ * NEXT_PUBLIC_DELEGATED_ADDRESS for other deployments.
+ */
+export const DELEGATED_SAFETYNET_ADDRESS: Address = withDefault(
+  optional(process.env.NEXT_PUBLIC_DELEGATED_ADDRESS),
+  "0x78ac9A4839E94da38F8535e22e64b004afA4e133",
+  "NEXT_PUBLIC_DELEGATED_ADDRESS",
+) as Address;
+
 /** Optional base path for project-subpath hosting (GitHub Pages). */
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 

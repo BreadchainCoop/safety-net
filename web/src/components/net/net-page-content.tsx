@@ -20,6 +20,7 @@ import { InvitePanel } from "@/components/net/invite-panel";
 import { StartNetBanner } from "@/components/net/start-panel";
 import { DecommissionPanel } from "@/components/net/decommission-panel";
 import { DepositReminder } from "@/components/net/deposit-reminder";
+import { AutoDepositToggle } from "@/components/net/auto-deposit-toggle";
 import { ActivityFeed } from "@/components/net/activity-feed";
 import { useSafetyNetDetails, useSafetyNetName } from "@/hooks/use-safety-net";
 import { isContractConfigured } from "@/lib/config";
@@ -146,6 +147,7 @@ function NetDetail() {
               <>
                 <DepositPanel details={details} />
                 <DepositReminder details={details} />
+                <AutoDepositToggle details={details} />
                 <WithdrawPanel details={details} />
               </>
             ) : (
