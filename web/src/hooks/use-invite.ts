@@ -105,6 +105,10 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
           });
         }
       } catch (e) {
+        // Keep the raw error visible: parseContractError collapses non-contract
+        // failures (SDK/serialization/network) into the generic fallback, which
+        // made the Privy BigInt-serialization bug invisible in production logs.
+        console.error("[invites] signature failed:", e);
         setError(parseContractError(e, "Signature failed."));
       } finally {
         setProgress(null);
