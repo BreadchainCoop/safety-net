@@ -4,7 +4,6 @@ import {
   ADDRESSES,
   ADDRESSES_ENV_PINNED,
   ADDRESSES_URL,
-  BASE_PATH,
   CHAIN_ID,
   VERIFY_MODE,
 } from "@/lib/config";
@@ -23,19 +22,23 @@ import {
  *   2. This manifest (latest release)
  *   3. Baked-in fallbacks in config.ts
  *
- * Same-origin note: on GitHub Pages the app is served from breadchaincoop.
- * github.io, and fetching the manifest cross-origin from the GitHub *release
- * asset* fails — the asset download 302-redirects to
- * release-assets.githubusercontent.com, which omits `Access-Control-Allow-
- * Origin`, so the browser blocks it. Instead, `scripts/fetch-addresses.mjs`
- * pulls the manifest server-side at build time and writes it to
- * `public/addresses.json`; the client then fetches it from its OWN origin
- * (`${BASE_PATH}/addresses.json`) — no CORS hop. A contract-only redeploy now
- * needs a Pages rebuild to surface (the workflow can trigger one); the
- * `NEXT_PUBLIC_ADDRESSES_URL` override still bypasses this for previews.
+ * CORS note: the app is a static export (GitHub Pages). Fetching the manifest
+ * from the GitHub *release asset* fails in-browser — the asset download
+ * 302-redirects to release-assets.githubusercontent.com, which omits
+ * `Access-Control-Allow-Origin`. So contracts-deploy also mirrors the manifest
+ * to the `addresses` branch, and we fetch it via raw.githubusercontent.com,
+ * which DOES send `access-control-allow-origin: *`. This keeps the no-rebuild
+ * property: a contract redeploy updates the branch and the live app picks it up
+ * on the next page load. `NEXT_PUBLIC_ADDRESSES_URL` still overrides for previews.
  */
 
 const FETCH_TIMEOUT_MS = 5_000;
+
+// CORS-fetchable mirror of the manifest (contracts-deploy pushes here). raw
+// .githubusercontent.com sends `access-control-allow-origin: *`; the GitHub
+// release-asset download does not (it redirects to a host without CORS).
+const MANIFEST_URL =
+  "https://raw.githubusercontent.com/BreadchainCoop/safety-net/addresses/addresses.json";
 
 const address = z
   .string()
@@ -89,7 +92,7 @@ async function fetchManifest(): Promise<unknown> {
   if (ADDRESSES_URL && ADDRESSES_URL !== "off") {
     return fetchJson(ADDRESSES_URL);
   }
-  return fetchJson(`${BASE_PATH}/addresses.json`);
+  return fetchJson(MANIFEST_URL);
 }
 
 // One in-flight fetch per page load (React StrictMode double-mounts effects in dev).
