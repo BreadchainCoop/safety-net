@@ -17,9 +17,9 @@ dataSources:
     source:
       # SafetyNet proxy on Gnosis. graph-node reads logs by address; the
       # implementation ABI only decodes them (standard UUPS pattern).
-      address: "0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE"
+      address: "0x63c3c299CD5C5479E6999189D7827490Ea71cEAe"
       abi: SafetyNet
-      startBlock: 47000324
+      startBlock: 47031243
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
