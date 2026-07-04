@@ -46,6 +46,9 @@ jobs:
           # Privy embedded wallets go live when this repo variable is set. Leave
           # it UNSET to keep the RainbowKit path; the app is byte-identical then.
           NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          # Gas sponsorship is ON by default; set this repo var to "false" only
+          # for a Privy app without a Gnosis gas-sponsorship policy.
+          NEXT_PUBLIC_PRIVY_SPONSOR_GAS: ${{ vars.NEXT_PUBLIC_PRIVY_SPONSOR_GAS }}
           # Activity feed reads the subgraph when set, else falls back to logs.
           NEXT_PUBLIC_SUBGRAPH_URL: ${{ vars.NEXT_PUBLIC_SUBGRAPH_URL }}
         run: pnpm build

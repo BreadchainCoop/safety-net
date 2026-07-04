@@ -269,12 +269,13 @@ export const PRIVY_ENABLED = PRIVY_APP_ID !== undefined && !VERIFY_MODE;
 /**
  * Whether to request Privy gas sponsorship for embedded-wallet transactions.
  *
- * OFF by default: sponsorship requires an active gas-sponsorship policy for
- * Gnosis in the Privy dashboard. Requesting `sponsor: true` without one makes
- * Privy's wallet RPC reject the transaction with a 400 — so we only opt in when
- * the operator has set this up and flipped the flag. When off, embedded-wallet
- * transactions are self-paid and Privy prompts the user to fund with a little
- * xDAI when the balance is short (see use-tx-sender-privy.ts).
+ * ON by default (this deployment runs a Privy app with Gnosis gas sponsorship
+ * configured), so embedded-wallet users transact gaslessly. Sponsorship also
+ * requires "Allow transactions from the client" to be enabled in the Privy
+ * dashboard — without it, Privy's wallet RPC rejects client-initiated sends
+ * with a 400. Set NEXT_PUBLIC_PRIVY_SPONSOR_GAS=false for a Privy app that has
+ * no sponsorship policy (then embedded wallets self-pay and Privy prompts
+ * funding when short — see use-tx-sender-privy.ts).
  */
 export const PRIVY_SPONSOR_GAS =
-  process.env.NEXT_PUBLIC_PRIVY_SPONSOR_GAS === "true";
+  process.env.NEXT_PUBLIC_PRIVY_SPONSOR_GAS !== "false";

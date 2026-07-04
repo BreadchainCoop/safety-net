@@ -16,13 +16,15 @@ import type { TxRequest } from "@/hooks/use-tx";
  *   3. Privy `sendTransaction`.
  *
  * Gas modes:
- *   - PRIVY_SPONSOR_GAS: request `sponsor: true` and sign silently. This ONLY
- *     works when a Gnosis gas-sponsorship policy is configured in the Privy
- *     dashboard — otherwise Privy's wallet RPC rejects with a 400. Off by
- *     default for that reason.
- *   - Unsponsored (default): the embedded wallet pays its own gas. We show the
- *     Privy UI and pass a Gnosis `fundWalletConfig` so a wallet with no xDAI is
- *     prompted to fund instead of failing silently.
+ *   - PRIVY_SPONSOR_GAS (default ON): request `sponsor: true` and sign
+ *     silently — gasless for the user. Requires, in the Privy dashboard, a
+ *     Gnosis gas-sponsorship policy AND "Allow transactions from the client"
+ *     enabled; without either, Privy's wallet RPC rejects the client-initiated
+ *     send with a 400 (surfaced below as a clear message).
+ *   - Unsponsored (NEXT_PUBLIC_PRIVY_SPONSOR_GAS=false): the embedded wallet
+ *     pays its own gas. We show the Privy UI and pass a Gnosis
+ *     `fundWalletConfig` so a wallet with no xDAI is prompted to fund instead
+ *     of failing silently.
  *
  * Returns the tx hash so the caller's existing
  * useWaitForTransactionReceipt/invalidation flow is unchanged.
@@ -88,12 +90,13 @@ export function useTxSenderPrivy() {
             : { sponsor: false, fundWalletConfig: { chain: CHAIN } },
         );
       } catch (err) {
-        // A 400 from Privy's wallet RPC on a *sponsored* send almost always
-        // means no gas-sponsorship policy is configured for Gnosis. Surface a
-        // clear, actionable message instead of the raw HTTP error.
+        // A 400 from Privy's wallet RPC on a *sponsored* send means the Privy
+        // app can't run this client-initiated sponsored transaction — usually
+        // "Allow transactions from the client" is off or there's no Gnosis
+        // gas-sponsorship policy. Surface something actionable, not the raw 400.
         if (sponsor) {
           throw new Error(
-            "Gas sponsorship isn't set up for this network. Ask the operator to enable Gnosis gas sponsorship in the Privy dashboard, or disable NEXT_PUBLIC_PRIVY_SPONSOR_GAS so the wallet pays its own gas.",
+            "Couldn't send the sponsored transaction. In the Privy dashboard, enable Gnosis gas sponsorship and \"Allow transactions from the client\" — or set NEXT_PUBLIC_PRIVY_SPONSOR_GAS=false so the wallet pays its own gas.",
             { cause: err },
           );
         }
