@@ -1,10 +1,28 @@
 # Deployments
 
-## Gnosis Chain (chainId 100) — current
+## Rolling manifest (source of truth)
+
+Fresh stacks are deployed by the manual [`contracts-deploy.yml`](.github/workflows/contracts-deploy.yml)
+workflow (etherform scripts, one broadcast: implementation + proxy + DelegatedSafetyNet + token
+allowlist), which publishes the per-chain `addresses.json` manifest to the rolling
+[`contract-addresses` release](https://github.com/BreadchainCoop/safety-net/releases/tag/contract-addresses).
+**The frontend fetches that manifest at runtime**, so a new deployment goes live without a
+frontend rebuild. The tables below are historical snapshots; the release is the source of truth.
+
+## Gnosis Chain (chainId 100) — solidarity-ratio stack (current)
+
+Deployed via `contracts-deploy.yml` (see the rolling release for addresses). Enables the
+Broodfonds support ratio (configured 1–25, Simple-mode default ×22) with the actuarial
+effective-ratio throttle (`getEffectiveRedeemRatio`: group-size risk loading p=2%, z=1.65,
+plus a 6-month pool-runway cap), pool-solvency reverts (`InsufficientPoolFunds`), and
+pro-rata shortfall decommission (`SafetyNetShortfallDistributed`).
+
+## Gnosis Chain (chainId 100) — ratio-1 stack (frozen 2026-07-04)
 
 Deployed 2026-07-02. All contracts verified on [Gnosis Blockscout](https://gnosis.blockscout.com).
 Includes: redeem ratio locked to 1, deposit prepay up to 12 epochs, EIP-712 signed requests
-with deadlines, aggregated frontend views.
+with deadlines, aggregated frontend views. Superseded by the solidarity-ratio stack above —
+kept live (upgradeable proxy) with its test nets, but the app no longer targets it by default.
 
 | Contract | Address |
 |----------|---------|
