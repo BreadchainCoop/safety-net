@@ -24,7 +24,11 @@ interface ISafetyNet {
   /// @param members List of joined member addresses; must be empty at creation (the owner is pushed as the sole member) and grows via redeemInvite()
   /// @param initialDeposit Initial deposit required to join
   /// @param fixedDeposit Fixed deposit fee amount
-  /// @param redeemRatio Ratio of deposit to withdrawal; must be exactly 1 in v1 (leverage is disabled), field retained for forward-compatibility
+  /// @param redeemRatio Configured support ratio: a member in need may draw up to `redeemRatio` x their
+  ///        monthly contribution per month (Broodfonds convention is ~22x). Must be within
+  ///        [MINIMUM_REDEEM_RATIO, MAXIMUM_REDEEM_RATIO]. Values > 1 are solidarity leverage — claims are
+  ///        backed by the shared pool, not individual deposits — and are throttled at withdrawal time by
+  ///        the actuarial effective-ratio cap (see getEffectiveRedeemRatio)
   /// @param contestWindow Duration of the contest period for requests
   /// @param epochDuration Duration of each epoch in seconds
   /// @param smallWithdrawsLimit Maximum amount allowed for small withdrawals
@@ -96,6 +100,7 @@ interface ISafetyNet {
   /// @param duesRemaining Amount the queried member still owes this epoch
   /// @param currentEpochIndex The current epoch index of the Safety Net
   /// @param isDecommissionable Whether the Safety Net can be decommissioned
+  /// @param effectiveRedeemRatio The queried member's current effective support ratio (see getEffectiveRedeemRatio)
   /// @param requests The Safety Net's requests with derived status
   struct SafetyNetDetails {
     SafetyNet safetyNet;
@@ -107,6 +112,7 @@ interface ISafetyNet {
     uint256 duesRemaining;
     uint256 currentEpochIndex;
     bool isDecommissionable;
+    uint256 effectiveRedeemRatio;
     RequestView[] requests;
   }
 
@@ -154,6 +160,14 @@ interface ISafetyNet {
   /// @notice Emitted when a Safety Net is decommissioned
   /// @param id Unique identifier of the Safety Net
   event SafetyNetDecommissioned(uint256 indexed id);
+
+  /// @notice Emitted when a decommission distributes a shortfall pool pro-rata
+  /// @dev Only possible when `redeemRatio` > 1: total withdrawable claims exceeded the pool,
+  ///      so each member received `pool x claim / totalClaims` instead of their full balance
+  /// @param id Unique identifier of the Safety Net
+  /// @param poolBalance The pool balance that was distributed
+  /// @param totalWithdrawable The total withdrawable claims the pool could not fully cover
+  event SafetyNetShortfallDistributed(uint256 indexed id, uint256 poolBalance, uint256 totalWithdrawable);
 
   /// @notice Emitted when a member deposits to a Safety Net
   /// @param id Unique identifier of the Safety Net
@@ -249,6 +263,12 @@ interface ISafetyNet {
 
   /// @notice Thrown if the Safety Net cannot be withdrawn from
   error NotWithdrawable();
+
+  /// @notice Thrown when the Safety Net pool balance cannot cover a payout
+  /// @dev Possible when `redeemRatio` > 1: withdrawable balances are leveraged solidarity claims
+  ///      (deposits x ratio), not fully-backed deposits, so the pool can run short. The member can
+  ///      retry once dues replenish the pool, or the net can be decommissioned for a pro-rata split.
+  error InsufficientPoolFunds();
 
   /// @notice Thrown when the deposit window is closed
   error DepositWindowClosed();
@@ -556,6 +576,18 @@ interface ISafetyNet {
   /// @param member The member address to compute member-specific fields for
   /// @return details The aggregated Safety Net details
   function getSafetyNetDetails(uint256 id, address member) external view returns (SafetyNetDetails memory details);
+
+  /// @notice The support ratio actually applied to a member's withdrawals right now
+  /// @dev `min(configured redeemRatio, group-size cap, pool-coverage cap)`, floored at 1.
+  ///      The group-size cap is an actuarial risk-loading bound `1 / (p + z*sqrt(p(1-p)/N))`
+  ///      (expected sick share p, prudence factor z — see the constants in SafetyNet); the
+  ///      pool-coverage cap requires the pool to hold POOL_RUNWAY_MONTHS months of the member's
+  ///      support rate. Ratio-1 nets (pure savings circles) are never throttled: every claim is
+  ///      fully backed by deposits.
+  /// @param id The Safety Net ID
+  /// @param member The member whose contribution level anchors the pool-coverage cap
+  /// @return effectiveRatio The effective support ratio (>= 1)
+  function getEffectiveRedeemRatio(uint256 id, address member) external view returns (uint256 effectiveRatio);
 
   /// @notice Returns aggregated details for every Safety Net a member has joined
   /// @param member The member address

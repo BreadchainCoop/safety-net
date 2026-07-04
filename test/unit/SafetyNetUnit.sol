@@ -408,14 +408,29 @@ contract SafetyNetUnit is SafetyNetUnitBase {
     _sn.create('', _safetyNet);
   }
 
-  function test_CreateWhenRedeemRatioIsGreaterThanOne() external {
+  function test_CreateWhenRedeemRatioIsAboveMaximum() external {
     _allowToken(address(_token));
     ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
-
-    // Leverage is disabled in v1: the redeem ratio must be exactly 1
-    _safetyNet.redeemRatio = 2;
+    _safetyNet.redeemRatio = _sn.MAXIMUM_REDEEM_RATIO() + 1;
     vm.expectRevert(ISafetyNet.InvalidRatio.selector);
     _sn.create('', _safetyNet);
+  }
+
+  function test_CreateWhenRedeemRatioIsAtMaximum() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    _safetyNet.redeemRatio = _sn.MAXIMUM_REDEEM_RATIO();
+    uint256 id = _sn.create('', _safetyNet);
+    assertEq(_sn.getSafetyNet(id).redeemRatio, 25);
+  }
+
+  function test_CreateWhenRedeemRatioIsBroodfondsDefault() external {
+    _allowToken(address(_token));
+    ISafetyNet.SafetyNet memory _safetyNet = _defaultSafetyNet(address(_token));
+    // The Broodfonds convention: ~22x monthly contribution of sickness support
+    _safetyNet.redeemRatio = 22;
+    uint256 id = _sn.create('', _safetyNet);
+    assertEq(_sn.getSafetyNet(id).redeemRatio, 22);
   }
 
   function test_CreateWhenRedeemRatioIsOne() external {
