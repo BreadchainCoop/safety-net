@@ -125,14 +125,14 @@ export const WALLETCONNECT_PROJECT_ID = withDefault(
 export const ADDRESSES: { safetyNet: Address; delegated: Address } = {
   safetyNet: withDefault(
     env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
-    "0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE",
+    "0x63c3c299CD5C5479E6999189D7827490Ea71cEAe",
     "NEXT_PUBLIC_SAFETYNET_ADDRESS",
   ) as Address,
   // The DelegatedSafetyNet extension (issue #32): members opt into automatic
   // deposits; anyone can then pay their owed dues from a pre-approved allowance.
   delegated: withDefault(
     optional(process.env.NEXT_PUBLIC_DELEGATED_ADDRESS),
-    "0x78ac9A4839E94da38F8535e22e64b004afA4e133",
+    "0x88Fd6D424dd415780f42891F3f699D57Cd5D4C2C",
     "NEXT_PUBLIC_DELEGATED_ADDRESS",
   ) as Address,
 };
