@@ -11,6 +11,19 @@ const amountString = z
     "Enter an amount greater than 0",
   );
 
+/**
+ * Optional positive amount: empty is allowed (the form derives a sensible
+ * Broodfonds default from the recurring deposit), but if the user does enter a
+ * value in Advanced mode it must be a positive number.
+ */
+const optionalAmountString = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v.length === 0 || (!Number.isNaN(Number(v)) && Number(v) > 0),
+    "Enter an amount greater than 0",
+  );
+
 /** UTF-8 byte length — must match the contract's MAX_NAME_BYTES check. */
 const utf8Bytes = (v: string) => new TextEncoder().encode(v).length;
 
@@ -30,12 +43,17 @@ export const createNetSchema = z
       .min(2, "At least 2 members are required"),
     tokenChoice: z.enum(["bread", "custom"]),
     customToken: z.string().trim(),
-    initialDeposit: amountString,
+    // The only amount a member picks in Simple mode: the recurring (monthly)
+    // contribution. Everything else derives from it by default.
     fixedDeposit: amountString,
+    // Derived by default (= one recurring deposit): the one-off join payment.
+    // Only edited in Advanced mode, so it's optional here.
+    initialDeposit: optionalAmountString,
     // Locked onchain in v1 (MINIMUM/MAXIMUM_REDEEM_RATIO are both 1):
     // deposits and withdrawal power are 1:1, leverage disabled.
     redeemRatio: z.literal(REDEEM_RATIO),
-    autoThreshold: amountString,
+    // Derived by default (= a quarter of the recurring deposit). Advanced-only.
+    autoThreshold: optionalAmountString,
     contestThreshold: z
       .number({ error: "Enter a percentage" })
       .int("Whole numbers only")
