@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from '@openzeppelin/contracts-upgradeable/access/Own
 import {IERC20} from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import {SafeERC20} from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
 import {ReentrancyGuard} from './utils/ReentrancyGuard.sol';
@@ -21,15 +22,46 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Number of days in a month (used for calculating monthly withdrawals)
   uint256 public constant DAYS_IN_A_MONTH = 30;
 
-  /// @notice Minimum redeem ratio
-  /// @dev Together with {MAXIMUM_REDEEM_RATIO} this locks `redeemRatio` to exactly 1 in v1
+  /// @notice Minimum redeem (support) ratio — 1 is a pure savings circle: withdrawals 1:1 with deposits
   uint256 public constant MINIMUM_REDEEM_RATIO = 1;
 
-  /// @notice Maximum redeem ratio
-  /// @dev Locked to 1 in v1: with a ratio > 1, member withdrawable balances (deposits x ratio) would
-  ///      exceed the actual pool funds — insolvency by design — and decommission() would underflow
-  ///      when refunding. Leverage (ratio > 1) is deferred to v2 research.
-  uint256 public constant MAXIMUM_REDEEM_RATIO = 1;
+  /// @notice Maximum redeem (support) ratio a Safety Net can be configured with
+  /// @dev The Dutch Broodfonds convention is ~22x (EUR 33.75-112.50/month dues map to EUR 750-2,500/month
+  ///      sickness support). 25 keeps that reachable with headroom while staying anchored to the
+  ///      actuarial heuristic that one claimant's monthly benefit (dues x ratio) should be coverable
+  ///      by one month of group dues — i.e. ratio <= member count — at the Broodfonds-recommended
+  ///      minimum group size of 25. Ratios > 1 are solidarity leverage: claims exceed deposits and are
+  ///      backed by the pool, so withdrawals are additionally throttled by {getEffectiveRedeemRatio}.
+  uint256 public constant MAXIMUM_REDEEM_RATIO = 25;
+
+  /*//////////////////////////////////////////////////////////////
+                    ACTUARIAL RISK PARAMETERS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice Basis-point denominator for the risk math
+  uint256 public constant BPS = 10_000;
+
+  /// @notice Expected share of members drawing support at any given time, in basis points (2%)
+  /// @dev Calibration: Dutch Broodfondsen reported ~1% of 5,000+ participants sick at a time (2015,
+  ///      with a 1-month waiting period and 2-year benefit cap); historical US industrial sickness
+  ///      funds show ~2% of the work-year lost to compensated sickness (EH.net). 2% is the prudent
+  ///      middle of that evidence for self-employed mutual sickness funds.
+  uint256 public constant EXPECTED_SICK_SHARE_BPS = 200;
+
+  /// @notice One-sided prudence factor z applied to the sick-share standard deviation, in centi-units (1.65)
+  /// @dev Standard-deviation premium principle: required margin = z * sqrt(p(1-p)/N), shrinking with
+  ///      group size N (law of large numbers). z = 1.65 targets ~5% ruin probability — the strict end
+  ///      of the 5-10% first-year range regulators accept for new insurers — chosen because an onchain
+  ///      fund has no Broodfonds-Alliance-style reinsurance backstop. (Broodfonds' own 22.2x at N = 50
+  ///      corresponds to z ~= 1.28, the loose end of that range.)
+  uint256 public constant RISK_LOADING_Z_CENTI = 165;
+
+  /// @notice Months of a single claimant's support the pool must hold for full-rate withdrawals (6)
+  /// @dev Reserve-adequacy throttle: a member's monthly support rate is capped at pool / 6, so young
+  ///      funds pay out at reduced rates until the buffer builds (Broodfonds funds build buffers over
+  ///      their first years; the average disability claim runs ~8 months, so 6 months of runway covers
+  ///      the bulk of a typical claim before further dues arrive).
+  uint256 public constant POOL_RUNWAY_MONTHS = 6;
 
   /// @notice Maximum number of future epochs a member can prepay beyond the current epoch
   /// @dev Bounds the deposit allocation loop in {_deposit}; roughly one year of monthly epochs
@@ -240,6 +272,13 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @inheritdoc ISafetyNet
+  /// @dev Distributes the pool on wind-down. When the pool covers all withdrawable balances (always
+  ///      true at redeemRatio 1, where claims equal net deposits), every member receives their full
+  ///      withdrawable balance and any surplus is split evenly — identical to v1 behavior, with
+  ///      floor-division dust retained by the contract. When claims exceed the pool (possible at
+  ///      redeemRatio > 1, since claims are deposits x ratio), each member receives a pro-rata share
+  ///      `pool x claim / totalClaims` (floored; dust retained) — the same pro-rata benefit cut
+  ///      mutual sickness funds have historically applied under claim pressure.
   function decommission(uint256 _id) external override nonReentrant {
     SafetyNet memory _safetyNet = safetyNets[_id];
     uint256 _safetyNetMembersLength = _safetyNet.members.length;
@@ -250,23 +289,46 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
 
     safetyNetBalance[_id] = 0;
 
+    uint256 _totalWithdrawable;
     for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
-      address _member = _safetyNet.members[i];
-      uint256 _amount = memberWithdrawableBalance[_id][_member];
-      if (_amount > 0) {
-        memberWithdrawableBalance[_id][_member] = 0;
-        _balance -= _amount;
-
-        IERC20(_safetyNet.token).safeTransfer(_member, _amount);
-      }
+      _totalWithdrawable += memberWithdrawableBalance[_id][_safetyNet.members[i]];
     }
 
-    if (_balance > 0) {
-      uint256 _amount = _balance / _safetyNetMembersLength;
+    if (_totalWithdrawable <= _balance) {
+      // Covered: pay claims in full, then split any surplus evenly (dust stays in the contract)
+      for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+        address _member = _safetyNet.members[i];
+        uint256 _amount = memberWithdrawableBalance[_id][_member];
+        if (_amount > 0) {
+          memberWithdrawableBalance[_id][_member] = 0;
+          _balance -= _amount;
+
+          IERC20(_safetyNet.token).safeTransfer(_member, _amount);
+        }
+      }
+
+      if (_balance > 0) {
+        uint256 _amount = _balance / _safetyNetMembersLength;
+
+        for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
+          address _member = _safetyNet.members[i];
+          IERC20(_safetyNet.token).safeTransfer(_member, _amount);
+        }
+      }
+    } else {
+      // Shortfall (only reachable at redeemRatio > 1): pro-rata by claim, dust stays in the contract
+      emit SafetyNetShortfallDistributed(_id, _balance, _totalWithdrawable);
 
       for (uint256 i = 0; i < _safetyNetMembersLength; i++) {
         address _member = _safetyNet.members[i];
-        IERC20(_safetyNet.token).safeTransfer(_member, _amount);
+        uint256 _claim = memberWithdrawableBalance[_id][_member];
+        if (_claim > 0) {
+          memberWithdrawableBalance[_id][_member] = 0;
+          uint256 _payout = Math.mulDiv(_balance, _claim, _totalWithdrawable);
+          if (_payout > 0) {
+            IERC20(_safetyNet.token).safeTransfer(_member, _payout);
+          }
+        }
       }
     }
 
@@ -589,6 +651,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       duesRemaining: (_accruingDues && _paid < _target) ? _target - _paid : 0,
       currentEpochIndex: _currentEpochIndex,
       isDecommissionable: isDecommissionable(_id),
+      effectiveRedeemRatio: getEffectiveRedeemRatio(_id, _member),
       requests: getSafetyNetRequests(_id)
     });
   }
@@ -611,9 +674,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
    *      remaining dues are filled first, then the next epoch, and so on, up to
    *      `MAX_PREPAY_EPOCHS` epochs beyond the current one. Reverts with
    *      {ExceedsDepositAmount} if the value cannot be fully allocated within that window.
-   *      The full value is credited to `safetyNetBalance` and `memberWithdrawableBalance`
-   *      immediately (redeemRatio is 1, so deposits are fully backed; prepaid funds return
-   *      through the normal withdrawable-balance refund on decommission).
+   *      The pool (`safetyNetBalance`) is credited the deposited value, while the member's
+   *      withdrawable balance is credited `value x redeemRatio` — at ratio 1 deposits are fully
+   *      backed; at higher ratios the excess is a solidarity claim on the shared pool, throttled
+   *      at withdrawal time by {getEffectiveRedeemRatio} and settled pro-rata on decommission.
    */
   function _deposit(uint256 _id, uint256 _value, address _member) internal {
     SafetyNet storage _safetyNet = safetyNets[_id];
@@ -709,7 +773,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     if (!isMember[_id][_member]) revert NotMember();
     if (_safetyNet.safetyNetStart == 0) revert NotActive();
 
-    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member, _safetyNet.redeemRatio);
+    uint256 _dailyWithdrawableAmount = _getDailyWithdrawableAmount(_id, _member);
 
     uint256 _withdrawAmount = _dailyWithdrawableAmount * _daysRequested;
 
@@ -720,8 +784,7 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
       if (smallWithdrawsCount[_id][currentEpochIndex][_member] > _safetyNet.smallWithdrawsLimit) {
         revert ExceedsSmallWithdrawalLimit();
       }
-      memberWithdrawableBalance[_id][_member] -= _withdrawAmount;
-      safetyNetBalance[_id] -= _withdrawAmount;
+      _deduct(_id, _member, _withdrawAmount);
       IERC20(_safetyNet.token).safeTransfer(_member, _withdrawAmount);
 
       emit FundsWithdrawn(_id, _member, _withdrawAmount);
@@ -733,11 +796,36 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     }
   }
 
-  /// @dev Calculates the daily withdrawal for a member in a Safety Net
-  function _getDailyWithdrawableAmount(uint256 _id, address _member, uint256 _redeemRatio) internal view returns (uint256) {
+  /// @dev Calculates the daily withdrawal for a member: monthly contribution x the member's current
+  ///      EFFECTIVE support ratio (configured ratio throttled by the actuarial caps) / 30
+  function _getDailyWithdrawableAmount(uint256 _id, address _member) internal view returns (uint256) {
     uint256 _memberContribute = safetyNetMemberContribute[_id][_member];
-    uint256 _monthlyWithdrawalAmount = _memberContribute * _redeemRatio;
+    uint256 _monthlyWithdrawalAmount = _memberContribute * getEffectiveRedeemRatio(_id, _member);
     return _monthlyWithdrawalAmount / DAYS_IN_A_MONTH;
+  }
+
+  /// @inheritdoc ISafetyNet
+  function getEffectiveRedeemRatio(uint256 _id, address _member) public view override returns (uint256) {
+    uint256 _configured = safetyNets[_id].redeemRatio;
+    // A savings circle (ratio 1) is fully backed by deposits — never throttled. Also covers
+    // nonexistent/decommissioned nets, whose zeroed struct reads ratio 0.
+    if (_configured <= MINIMUM_REDEEM_RATIO) return _configured;
+
+    // Group-size cap (law of large numbers): 1 / (p + z * sqrt(p(1-p)/N)), all in basis points.
+    // sqrt(p_bps * (BPS - p_bps) / N) is the sick-share standard deviation expressed in bps.
+    uint256 _n = safetyNets[_id].members.length;
+    uint256 _loadingBps = (RISK_LOADING_Z_CENTI * Math.sqrt(EXPECTED_SICK_SHARE_BPS * (BPS - EXPECTED_SICK_SHARE_BPS) / _n)) / 100;
+    uint256 _effective = Math.min(_configured, BPS / (EXPECTED_SICK_SHARE_BPS + _loadingBps));
+
+    // Pool-coverage cap (reserve adequacy): the pool must hold POOL_RUNWAY_MONTHS months of this
+    // member's support rate, so monthly support <= pool / POOL_RUNWAY_MONTHS.
+    uint256 _contribute = safetyNetMemberContribute[_id][_member];
+    if (_contribute > 0) {
+      _effective = Math.min(_effective, safetyNetBalance[_id] / (POOL_RUNWAY_MONTHS * _contribute));
+    }
+
+    // The savings-circle floor is always solvent: at ratio 1 every claim is backed 1:1 by deposits
+    return Math.max(_effective, MINIMUM_REDEEM_RATIO);
   }
 
   /// @dev Check if a request is contestable by comparing the current timestamp with the request's timestamp and the contest window
@@ -762,10 +850,16 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   }
 
   /// @dev Deducts `_amount` from a member’s withdrawable balance and the Safety Net’s total balance.
-  ///      Reverts with `NotWithdrawable` if balance is insufficient.
+  ///      Reverts with `NotWithdrawable` if the member's balance is insufficient, and with
+  ///      `InsufficientPoolFunds` if the pool cannot cover the payout (possible at redeemRatio > 1,
+  ///      where withdrawable balances are leveraged claims). Every payout path routes through here,
+  ///      so the pool can never underflow.
   function _deduct(uint256 _safetyNetId, address _member, uint256 _amount) internal {
     if (memberWithdrawableBalance[_safetyNetId][_member] < _amount) {
       revert NotWithdrawable();
+    }
+    if (safetyNetBalance[_safetyNetId] < _amount) {
+      revert InsufficientPoolFunds();
     }
     memberWithdrawableBalance[_safetyNetId][_member] -= _amount;
     safetyNetBalance[_safetyNetId] -= _amount;
@@ -779,7 +873,10 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
     bool _vetoed = isVetoed[_requestId];
     bool _executed = isExecuted[_requestId];
     bool _commissioned = safetyNets[_request.safetyNetId].owner != address(0);
-    bool _fundsAvailable = memberWithdrawableBalance[_request.safetyNetId][_request.owner] >= _request.amount;
+    // Mirrors _deduct: the member's claim AND the pool must both cover the amount, so the
+    // frontend's Execute gating reflects the real execution rule
+    bool _fundsAvailable = memberWithdrawableBalance[_request.safetyNetId][_request.owner] >= _request.amount
+      && safetyNetBalance[_request.safetyNetId] >= _request.amount;
 
     _requestView = RequestView({
       id: _requestId,

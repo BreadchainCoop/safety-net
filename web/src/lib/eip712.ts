@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { CHAIN_ID, SAFETYNET_ADDRESS } from "@/lib/config";
+import { ADDRESSES, CHAIN_ID } from "@/lib/config";
 
 /**
  * EIP-712 domains/types for SafetyNet signatures. Values mirror the contract:
@@ -7,7 +7,7 @@ import { CHAIN_ID, SAFETYNET_ADDRESS } from "@/lib/config";
  * authorizations under "SafetyNetRequest" v1 (both bound to chain 100 and the
  * proxy address).
  */
-export const inviteDomain = (verifyingContract: Address = SAFETYNET_ADDRESS) =>
+export const inviteDomain = (verifyingContract: Address = ADDRESSES.safetyNet) =>
   ({
     name: "SafetyNetInvite",
     version: "1",
@@ -23,7 +23,7 @@ export const inviteTypes = {
 } as const;
 
 export const requestAuthorizationDomain = (
-  verifyingContract: Address = SAFETYNET_ADDRESS,
+  verifyingContract: Address = ADDRESSES.safetyNet,
 ) =>
   ({
     name: "SafetyNetRequest",

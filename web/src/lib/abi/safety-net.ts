@@ -8,7 +8,33 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "DAYS_IN_A_MONTH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "EXPECTED_SICK_SHARE_BPS",
     "inputs": [],
     "outputs": [
       {
@@ -87,6 +113,32 @@ export const safetyNetAbi = [
   {
     "type": "function",
     "name": "PERCENTAGE_BASE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "POOL_RUNWAY_MONTHS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "RISK_LOADING_Z_CENTI",
     "inputs": [],
     "outputs": [
       {
@@ -506,6 +558,30 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "getEffectiveRedeemRatio",
+    "inputs": [
+      {
+        "name": "_id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_member",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getMemberBalances",
     "inputs": [
       {
@@ -665,6 +741,11 @@ export const safetyNetAbi = [
             "name": "isDecommissionable",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "effectiveRedeemRatio",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
             "name": "requests",
@@ -1035,6 +1116,11 @@ export const safetyNetAbi = [
             "name": "isDecommissionable",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "effectiveRedeemRatio",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
             "name": "requests",
@@ -2226,6 +2312,31 @@ export const safetyNetAbi = [
   },
   {
     "type": "event",
+    "name": "SafetyNetShortfallDistributed",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "poolBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalWithdrawable",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "SafetyNetStarted",
     "inputs": [
       {
@@ -2457,6 +2568,11 @@ export const safetyNetAbi = [
   {
     "type": "error",
     "name": "ExceedsSmallWithdrawalLimit",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientPoolFunds",
     "inputs": []
   },
   {

@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import { getAbiItem, type Address, type Hex, type PublicClient } from "viem";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
-import { CHAIN_ID, SAFETYNET_ADDRESS } from "@/lib/config";
+import { CHAIN_ID } from "@/lib/config";
+import { RUNTIME } from "@/lib/remote-addresses";
+import { useAddresses } from "@/components/addresses-provider";
 import {
   ACTIVITY_FROM_BLOCK,
   activityTypeFromSubgraph,
@@ -78,6 +80,7 @@ async function resolveTimestamps(
 
 async function fetchFromLogs(
   client: PublicClient,
+  contractAddress: Address,
   netId: bigint,
   requestIds: readonly bigint[],
 ): Promise<ActivityItem[]> {
@@ -89,10 +92,10 @@ async function fetchFromLogs(
     NET_EVENTS.map(async ({ name, type }) => {
       const event = getAbiItem({ abi: ABI, name }) as never;
       const logs = (await client.getLogs({
-        address: SAFETYNET_ADDRESS,
+        address: contractAddress,
         event,
         args: { id: netId } as never,
-        fromBlock: ACTIVITY_FROM_BLOCK,
+        fromBlock: RUNTIME.activityFromBlock ?? ACTIVITY_FROM_BLOCK,
         toBlock: "latest",
       })) as unknown as RawLog[];
       return logs.map((log) => ({ log, type }));
@@ -100,10 +103,10 @@ async function fetchFromLogs(
   );
 
   const createdLogs = (await client.getLogs({
-    address: SAFETYNET_ADDRESS,
+    address: contractAddress,
     event: getAbiItem({ abi: ABI, name: "RequestCreated" }) as never,
     args: { safetyNetId: netId } as never,
-    fromBlock: ACTIVITY_FROM_BLOCK,
+    fromBlock: RUNTIME.activityFromBlock ?? ACTIVITY_FROM_BLOCK,
     toBlock: "latest",
   })) as unknown as RawLog[];
 
@@ -111,9 +114,9 @@ async function fetchFromLogs(
     REQUEST_EVENTS.map(async ({ name, type }) => {
       const event = getAbiItem({ abi: ABI, name }) as never;
       const logs = (await client.getLogs({
-        address: SAFETYNET_ADDRESS,
+        address: contractAddress,
         event,
-        fromBlock: ACTIVITY_FROM_BLOCK,
+        fromBlock: RUNTIME.activityFromBlock ?? ACTIVITY_FROM_BLOCK,
         toBlock: "latest",
       })) as unknown as RawLog[];
       // These events aren't keyed by net id — keep only this net's requests.
@@ -146,7 +149,7 @@ async function fetchFromLogs(
       (args.member as Address | undefined) ??
       (args.redeemer as Address | undefined) ??
       (args.owner as Address | undefined) ??
-      SAFETYNET_ADDRESS;
+      contractAddress;
     return {
       id: `${log.transactionHash}-${log.logIndex ?? 0}`,
       type,
@@ -256,6 +259,15 @@ export function useNetActivity(
   requestIds: readonly bigint[] = [],
 ): UseNetActivityResult {
   const client = usePublicClient({ chainId: CHAIN_ID });
+  const { safetyNet } = useAddresses();
+
+  // A baked-in subgraph URL indexes the baked-in proxy. When the runtime
+  // manifest moved us to a fresh deployment, that subgraph would return
+  // another contract's nets under colliding ids — worse than no subgraph.
+  // Use a manifest-provided URL when present, else disable and fall back to
+  // the (always-correct) log scan.
+  const subgraphUrl =
+    RUNTIME.subgraphUrl ?? (RUNTIME.addressChanged ? undefined : SUBGRAPH_URL);
 
   // Stable primitive key so react-query doesn't refetch on array identity churn.
   const requestKey = useMemo(
@@ -266,9 +278,9 @@ export function useNetActivity(
   const query = useQuery({
     queryKey: [
       "net-activity",
-      SAFETYNET_ADDRESS,
+      safetyNet,
       netId?.toString() ?? null,
-      SUBGRAPH_URL ?? "logs",
+      subgraphUrl ?? "logs",
       requestKey,
     ],
     enabled: netId !== undefined && client !== undefined,
@@ -276,14 +288,14 @@ export function useNetActivity(
     refetchInterval: 30_000,
     queryFn: async (): Promise<{ items: ActivityItem[]; fromSubgraph: boolean }> => {
       const id = netId as bigint;
-      if (SUBGRAPH_URL) {
+      if (subgraphUrl) {
         try {
-          return { items: await fetchFromSubgraph(SUBGRAPH_URL, id), fromSubgraph: true };
+          return { items: await fetchFromSubgraph(subgraphUrl, id), fromSubgraph: true };
         } catch {
           // Fall through to the log path on any subgraph error.
         }
       }
-      const items = await fetchFromLogs(client as PublicClient, id, requestIds);
+      const items = await fetchFromLogs(client as PublicClient, safetyNet, id, requestIds);
       return { items, fromSubgraph: false };
     },
   });

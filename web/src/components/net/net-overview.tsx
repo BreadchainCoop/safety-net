@@ -38,7 +38,13 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
         <StatCard
           label="My withdrawable"
           value={`${formatAmount(details.withdrawableBalance, decimals)} ${symbol}`}
-          sub={details.isMember ? "1:1 with your deposits" : "not a member"}
+          sub={
+            details.isMember
+              ? net.redeemRatio > 1n
+                ? `×${net.redeemRatio.toString()} support ratio`
+                : "savings circle — 1:1 with deposits"
+              : "not a member"
+          }
           accent={details.isMember}
         />
         <StatCard
@@ -104,14 +110,17 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
             {formatAmount(net.fixedDeposit, decimals)} {symbol} / epoch
           </InfoRow>
           <InfoRow
-            label="Redeem ratio"
-            help="Fixed at ×1 in v1: every token deposited is exactly one token of withdrawable balance — deposits and withdrawal power are 1:1."
+            label="Support ratio"
+            help="A member in need can draw this multiple of their monthly contribution per month, capped by their withdrawable balance and what the group size and pool sustainably back. ×1 = pure savings circle; ≈×22 = classic Broodfonds solidarity."
           >
             ×{net.redeemRatio.toString()}
+            {details.effectiveRedeemRatio < net.redeemRatio
+              ? ` (×${details.effectiveRedeemRatio.toString()} effective now)`
+              : ""}
           </InfoRow>
           <InfoRow
             label="Instant withdrawals"
-            help="Withdrawals up to this amount are paid instantly; larger ones create a contestable request."
+            help="Petty-cash threshold: withdrawals up to this amount pay out instantly with no review. It is not the monthly support cap — larger needs go through a contestable request."
           >
             ≤ {formatAmount(net.autoThreshold, decimals)} {symbol}, max{" "}
             {net.smallWithdrawsLimit.toString()}× per epoch

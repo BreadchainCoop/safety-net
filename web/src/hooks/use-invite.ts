@@ -8,7 +8,7 @@ import {
   inviteTypes,
   randomNonce,
 } from "@/lib/eip712";
-import { CHAIN_ID, SAFETYNET_ADDRESS } from "@/lib/config";
+import { ADDRESSES, CHAIN_ID } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
 import { useTypedDataSigner } from "@/hooks/use-typed-data-signer";
 
@@ -27,7 +27,7 @@ export interface StoredInvite {
 }
 
 const storageKey = (safetyNetId: bigint, signer: string) =>
-  `safety-net:invites:${CHAIN_ID}:${SAFETYNET_ADDRESS.toLowerCase()}:${safetyNetId.toString()}:${signer.toLowerCase()}`;
+  `safety-net:invites:${CHAIN_ID}:${ADDRESSES.safetyNet.toLowerCase()}:${safetyNetId.toString()}:${signer.toLowerCase()}`;
 
 function loadInvites(key: string): StoredInvite[] {
   try {

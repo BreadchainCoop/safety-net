@@ -8,7 +8,7 @@ import { isContractConfigured } from "@/lib/config";
  * placeholder (the contract isn't deployed / configured yet).
  */
 export function ConfigWarning() {
-  if (isContractConfigured) return null;
+  if (isContractConfigured()) return null;
   return (
     <div className="section-container pt-4">
       <div className="border-system-warning/40 bg-system-warning/10 text-system-warning flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium">

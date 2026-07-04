@@ -23,7 +23,7 @@ const SECTIONS: Section[] = [
     title: "1. Create a Safety Net",
     body: [
       "A Safety Net is a shared savings pool with rules everyone agrees to up front: which token you save in, how much everyone deposits, and how withdrawals are approved.",
-      "You create the net alone and become its first member — no address lists. Pick the group size, the one-off initial deposit, and the recurring deposit due every epoch (e.g. every 30 days). Deposits convert 1:1 into withdrawable balance — the redeem ratio is locked to ×1 in v1, so there's no leverage. Small withdrawals below the instant threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
+      "You create the net alone and become its first member — no address lists. Pick the group size, the one-off initial deposit, and the recurring deposit due every epoch (e.g. every 30 days). Pick a support ratio too: at ×1 the net is a pure savings circle, while Broodfonds-style groups use ≈×22 — a member in need can draw about 22× their monthly contribution per month from the shared pool, throttled to what the group size and pool can sustainably back. Small withdrawals below the petty-cash threshold pay out immediately; larger ones go through group review with a contest window and threshold.",
       "Right after creation the app generates one single-use invite link per open seat, signed by your wallet — share those privately to bring in the rest of your group.",
     ],
   },
@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
     title: "3. Deposit",
     body: [
       "Deposits open once the owner starts the net. Your very first deposit is the initial deposit, paid exactly and in one payment — it activates your membership and sets your recurring dues.",
-      "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit adds 1:1 to your withdrawable balance.",
+      "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit multiplies by the support ratio into your withdrawable balance.",
       "You can also pay ahead: deposit more than this epoch's dues and the extra prepays future epochs — the current epoch's remaining dues fill first, then the next epoch, and so on, up to 12 epochs ahead. The app previews exactly how a deposit will be allocated before you send it.",
       "Short on BREAD? Use the \"Get BREAD\" button in the nav (or the prompt on the deposit form) to mint BREAD 1:1 from xDAI — and, on embedded-wallet sign-ins, to buy xDAI first.",
       "Turn on automatic deposits so the group can cover your dues from a pre-approved allowance — approve the SafetyNet proxy once, flip it on, and a keeper or another member can pay your owed dues so you never miss an epoch. It's non-custodial and you can turn it off any time.",
@@ -54,7 +54,7 @@ const SECTIONS: Section[] = [
     gif: "withdraw",
     title: "4. Withdraw",
     body: [
-      'Withdrawals are measured in "days of income": one day is worth your monthly contribution ÷ 30 (the redeem ratio is ×1 in v1). Pick how many days you need and the app shows the exact amount.',
+      'Withdrawals are measured in "days of support": one day is worth your monthly contribution × your current effective support ratio ÷ 30. The effective ratio ramps up as the group and its pool grow. Pick how many days you need and the app shows the exact amount.',
       "If the amount is at or below the net's instant threshold it's transferred immediately (up to a per-epoch limit of instant withdrawals). Anything larger creates a withdrawal request that your group can review first.",
       "For a large withdrawal you add a short reason (up to 200 words) explaining why you need the funds. It's stored on-chain and shown to every member, so they have the context to decide whether to contest.",
     ],

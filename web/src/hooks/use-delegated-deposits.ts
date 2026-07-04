@@ -3,7 +3,8 @@
 import { zeroAddress, type Address } from "viem";
 import { useReadContract } from "wagmi";
 import { delegatedAbi } from "@/lib/abi/delegated";
-import { CHAIN_ID, DELEGATED_SAFETYNET_ADDRESS } from "@/lib/config";
+import { ADDRESSES, CHAIN_ID } from "@/lib/config";
+import { useAddresses } from "@/components/addresses-provider";
 import { useTx } from "@/hooks/use-tx";
 
 const REFETCH_MS = 12_000;
@@ -11,7 +12,7 @@ const REFETCH_MS = 12_000;
 /**
  * Automatic deposits (DelegatedSafetyNet extension, issue #32).
  *
- * A member opts in by (1) approving the *main proxy* (SAFETYNET_ADDRESS) for
+ * A member opts in by (1) approving the *main proxy* (ADDRESSES.safetyNet) for
  * enough of the net's token to cover future dues, and (2) toggling
  * `setDelegatedDepositsEnabled(true)` on this extension. Then anyone can call
  * `depositIfAllowed(id, member)` to pay that member's owed dues from their
@@ -21,13 +22,14 @@ const REFETCH_MS = 12_000;
  *
  * The token allowance to the proxy is read/written with the existing
  * `useAllowance` / `useApprove` hooks in use-token.ts, which already target
- * SAFETYNET_ADDRESS — this hook covers only the delegated-toggle state.
+ * the SafetyNet proxy — this hook covers only the delegated-toggle state.
  */
 
 /** Whether `member` has opted into automatic (delegated) deposits. */
 export function useDelegatedEnabled(member: Address | undefined) {
+  const { delegated } = useAddresses();
   return useReadContract({
-    address: DELEGATED_SAFETYNET_ADDRESS,
+    address: delegated,
     abi: delegatedAbi,
     chainId: CHAIN_ID,
     functionName: "isDelegatedDepositsEnabled",
@@ -44,7 +46,7 @@ export function useToggleDelegated() {
   const tx = useTx();
   const toggle = (enabled: boolean) =>
     tx.run({
-      address: DELEGATED_SAFETYNET_ADDRESS,
+      address: ADDRESSES.delegated,
       abi: delegatedAbi,
       functionName: "setDelegatedDepositsEnabled",
       args: [enabled],

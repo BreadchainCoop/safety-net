@@ -6,6 +6,7 @@ import { Lightning, UsersThree } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Badge, Card } from "@/components/ui/ui";
+import { Slider } from "@/components/ui/slider-field";
 import { useWithdraw } from "@/hooks/use-safety-net-writes";
 import { useTokenInfo } from "@/hooks/use-token";
 import { DAYS_IN_A_MONTH } from "@/lib/config";
@@ -25,9 +26,12 @@ const countWords = (s: string): number =>
 const byteLength = (s: string): number => new TextEncoder().encode(s).length;
 
 /**
- * Withdraw by "days of income": amount = (monthly contribution × redeem
- * ratio ÷ 30) × days. Small amounts (≤ auto threshold) pay out instantly;
- * larger ones open a request the group can contest.
+ * Withdraw by "days of support": amount = (monthly contribution × the member's
+ * EFFECTIVE support ratio ÷ 30) × days. The effective ratio is the configured
+ * ratio throttled by the contract's actuarial caps (group size + pool runway),
+ * so the preview always matches what a withdrawal would pay right now. Small
+ * amounts (≤ the petty-cash threshold) pay out instantly; larger ones open a
+ * request the group can contest.
  */
 export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   const net = details.safetyNet;
@@ -42,8 +46,12 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
   // ran even if the input changes afterwards.
   const [submittedSmall, setSubmittedSmall] = useState(false);
 
+  const effectiveRatio = details.effectiveRedeemRatio;
   const dailyAmount =
-    (details.monthlyContribute * net.redeemRatio) / DAYS_IN_A_MONTH;
+    (details.monthlyContribute * effectiveRatio) / DAYS_IN_A_MONTH;
+  const monthlySupport = details.monthlyContribute * effectiveRatio;
+  const maxDays =
+    dailyAmount > 0n ? Number(details.withdrawableBalance / dailyAmount) : 0;
 
   const parsedDays = useMemo(() => {
     const n = Number(days);
@@ -76,7 +84,9 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
               <Caption className="text-surface-grey-2">Days requested</Caption>
             </label>
             <span className="text-primary-jade text-xs font-medium">
-              1 day = {formatAmount(dailyAmount, decimals)} {symbol}
+              ×{effectiveRatio.toString()} support ≈{" "}
+              {formatAmount(monthlySupport, decimals)} {symbol}/month · 1 day ={" "}
+              {formatAmount(dailyAmount, decimals)} {symbol}
             </span>
           </div>
           <input
@@ -91,10 +101,25 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
             value={days}
             onChange={(e) => setDays(e.target.value)}
           />
+          <Slider
+            min={1}
+            max={Math.max(1, maxDays)}
+            step={1}
+            value={Number(days) || 1}
+            onChange={(v) => setDays(String(v))}
+            disabled={notOnboarded || maxDays === 0}
+            ariaLabel="Days requested slider"
+            className="mt-3"
+          />
           <p id={`${daysId}-help`} className="text-surface-grey mt-1.5 text-xs">
-            You withdraw in &quot;days of income&quot;: each day is worth your
-            recurring deposit × the redeem ratio (×
-            {net.redeemRatio.toString()}) ÷ 30.
+            You withdraw in &quot;days of support&quot;: each day is worth your
+            monthly contribution × your current support ratio (×
+            {effectiveRatio.toString()}
+            {effectiveRatio < net.redeemRatio
+              ? ` right now, of ×${net.redeemRatio.toString()} configured — the rate grows with the group and its pool`
+              : ""}
+            ) ÷ 30. Your balance covers up to {maxDays} day
+            {maxDays === 1 ? "" : "s"}.
           </p>
         </div>
 
@@ -118,8 +143,8 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
               )}
               <span className="text-surface-grey text-xs">
                 {isSmall
-                  ? `≤ ${formatAmount(net.autoThreshold, decimals)} ${symbol} pays out immediately (max ${net.smallWithdrawsLimit.toString()}× per epoch)`
-                  : `> ${formatAmount(net.autoThreshold, decimals)} ${symbol} opens a request members can contest for ${formatDuration(net.contestWindow)}`}
+                  ? `Petty cash: up to ${formatAmount(net.autoThreshold, decimals)} ${symbol} pays out instantly, no review (max ${net.smallWithdrawsLimit.toString()}× per epoch)`
+                  : `Over the ${formatAmount(net.autoThreshold, decimals)} ${symbol} petty-cash threshold — opens a request members can contest for ${formatDuration(net.contestWindow)}`}
               </span>
             </div>
           </div>
