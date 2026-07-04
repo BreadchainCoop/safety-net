@@ -12,7 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAccount } from "wagmi";
 import { isAddress, parseEventLogs, type Address } from "viem";
 import { Body, Button, Caption, Heading2, Heading4, Logo } from "@breadcoop/ui";
-import { ArrowLeft, ArrowRight, CaretDown, CheckCircle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CheckCircle } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
@@ -30,24 +30,44 @@ const inputClass =
   "w-full rounded-xl border border-paper-2 bg-paper-main px-4 py-2.5 text-text-standard outline-none focus:border-primary-jade disabled:opacity-60";
 
 /**
- * Sensible governance defaults so a user can create a working net without
- * ever opening "Advanced settings":
- *  - contestThreshold 50 (%)  → a large withdrawal is vetoed only if a
- *    majority contests it.
- *  - contestWindowDays 3      → three days to object before it executes.
- *  - smallWithdrawsLimit 3    → three instant withdrawals per member per epoch.
- *  - autoThreshold ""         → left blank; the Advanced section pre-fills a
- *    suggestion (a quarter of the recurring deposit) the first time it opens.
- *  - minimumMembers 2         → the contract minimum that gates start().
+ * Defaults modelled on the Dutch Broodfonds ("bread fund"): a small mutual-aid
+ * circle where members pay a fixed monthly contribution, the group is capped at
+ * ~50 people, and larger claims are reviewed by the members. Simple mode uses
+ * these verbatim so a creator only picks a name, a monthly amount, and a size.
+ *
+ * Derived amounts (not in this table, computed from the recurring deposit):
+ *  - initialDeposit  = one recurring deposit (the one-off join payment)
+ *  - autoThreshold   = ¼ of the recurring deposit (small top-ups pay out
+ *    instantly; anything bigger — an actual claim — goes to group review)
  */
 const DEFAULTS = {
-  memberCount: 10,
-  contestThreshold: 50,
-  contestWindowDays: 3,
-  epochDurationDays: 30,
-  smallWithdrawsLimit: 3,
+  /** Suggested monthly contribution (BREAD ≈ USD; Broodfonds range ≈ 34–112). */
+  monthlyContribution: "50",
+  /** Broodfonds caps groups at 50 to keep everyone accountable to each other. */
+  memberCount: 50,
+  /** Startable as soon as 2 join (Broodfonds recommends ~25 in practice). */
   minimumMembers: 2,
+  /** Monthly dues. */
+  epochDurationDays: 30,
+  /** A claim is blocked only if a majority of members object. */
+  contestThreshold: 50,
+  /** A week for the group to review a large withdrawal. */
+  contestWindowDays: 7,
+  /** Small instant top-ups a member may take per month. */
+  smallWithdrawsLimit: 5,
 } as const;
+
+/** One-off join payment defaults to a single monthly contribution. */
+function deriveInitial(fixed: string): string {
+  const n = Number(fixed);
+  return Number.isFinite(n) && n > 0 ? fixed.trim() : "";
+}
+
+/** Instant-withdrawal threshold defaults to a quarter of the monthly amount. */
+function deriveAuto(fixed: string): string {
+  const n = Number(fixed);
+  return Number.isFinite(n) && n > 0 ? String(n / 4) : "";
+}
 
 type NetForm = UseFormReturn<CreateNetValues>;
 
@@ -122,8 +142,11 @@ export function CreateForm() {
       memberCount: DEFAULTS.memberCount,
       tokenChoice: "bread",
       customToken: "",
+      // Simple mode only asks for the monthly amount; it's pre-filled with the
+      // Broodfonds-ish default so a net is creatable with just a name.
+      fixedDeposit: DEFAULTS.monthlyContribution,
+      // Derived from the monthly amount unless overridden in Advanced.
       initialDeposit: "",
-      fixedDeposit: "",
       redeemRatio: REDEEM_RATIO,
       autoThreshold: "",
       contestThreshold: DEFAULTS.contestThreshold,
@@ -144,8 +167,8 @@ export function CreateForm() {
         <header className="mb-6">
           <Heading2 className="text-primary-jade">New Safety Net</Heading2>
           <Body className="text-surface-grey-2 mt-2">
-            Set the rules of your group fund — who&apos;s in, what everyone
-            contributes, and how withdrawals are approved.
+            A mutual-aid savings circle in the spirit of the Dutch Broodfonds:
+            everyone chips in monthly, and the group reviews larger claims.
           </Body>
         </header>
 
@@ -162,7 +185,9 @@ export function CreateForm() {
   );
 }
 
-/** Left panel: essentials up front, finer governance behind "Advanced". */
+type Mode = "simple" | "advanced";
+
+/** Left panel: Simple (Broodfonds defaults) or Advanced (full control). */
 function FormPanel({ onContinue }: { onContinue: () => void }) {
   const form = useFormContext<CreateNetValues>();
   const {
@@ -175,8 +200,7 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
   } = form;
   const fid = useId();
   const id = (name: string) => `${fid}-${name}`;
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const advancedId = useId();
+  const [mode, setMode] = useState<Mode>("simple");
 
   const tokenChoice = watch("tokenChoice");
   const isBread = tokenChoice === "bread";
@@ -186,22 +210,63 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
     if (await trigger()) onContinue();
   };
 
-  const openAdvanced = () => {
-    setAdvancedOpen((open) => {
-      // Pre-fill a suggested instant-withdrawal threshold (¼ of the recurring
-      // deposit) the first time Advanced opens, if the user left it blank.
-      if (!open && !getValues("autoThreshold")) {
-        const fixed = Number(getValues("fixedDeposit"));
-        if (Number.isFinite(fixed) && fixed > 0) {
-          setValue("autoThreshold", String(fixed / 4));
-        }
-      }
-      return !open;
-    });
+  // When entering Advanced, surface the currently-derived amounts so the fields
+  // aren't blank; when returning to Simple, clear any overrides so the derived
+  // Broodfonds defaults apply again on submit.
+  const switchMode = (next: Mode) => {
+    if (next === "advanced") {
+      const fixed = getValues("fixedDeposit");
+      if (!getValues("initialDeposit")) setValue("initialDeposit", deriveInitial(fixed));
+      if (!getValues("autoThreshold")) setValue("autoThreshold", deriveAuto(fixed));
+    } else {
+      setValue("initialDeposit", "");
+      setValue("autoThreshold", "");
+    }
+    setMode(next);
   };
 
   return (
     <Card className="flex flex-col gap-5">
+      {/* Mode toggle */}
+      <div
+        role="tablist"
+        aria-label="Setup mode"
+        className="border-paper-2 bg-paper-1 flex gap-1 self-start rounded-xl border p-1"
+      >
+        {(
+          [
+            ["simple", "Simple"],
+            ["advanced", "Advanced"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={mode === value}
+            onClick={() => switchMode(value)}
+            className={cn(
+              "rounded-lg px-4 py-1.5 text-sm font-bold transition-colors",
+              mode === value
+                ? "bg-primary-jade text-white"
+                : "text-surface-grey-2 hover:text-primary-jade",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "simple" && (
+        <p className="border-primary-jade/30 bg-primary-jade/5 text-surface-grey-2 rounded-xl border px-4 py-3 text-xs">
+          Using Broodfonds defaults: monthly dues, up to {DEFAULTS.memberCount}{" "}
+          members, a one-month join deposit, and larger claims reviewed by the
+          group over {DEFAULTS.contestWindowDays} days. Switch to{" "}
+          <strong>Advanced</strong> to change the join deposit, epoch length,
+          instant-withdrawal threshold, or review rules.
+        </p>
+      )}
+
       <Field
         id={id("name")}
         label="Safety Net name"
@@ -268,9 +333,31 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
       </Field>
 
       <Field
+        id={id("fixed-deposit")}
+        label="Monthly contribution"
+        help={
+          isBread
+            ? "What each member pays every epoch. 1 BREAD = 1 USD. Broodfonds contributions are typically ~34–112/month."
+            : "What each member pays every epoch after joining."
+        }
+        error={errors.fixedDeposit?.message}
+      >
+        <div className="relative">
+          <input
+            {...fieldAria(id("fixed-deposit"), errors.fixedDeposit?.message, "help")}
+            inputMode="decimal"
+            placeholder="0.0"
+            className={`${inputClass} pr-14`}
+            {...register("fixedDeposit")}
+          />
+          <AmountSuffix isBread={isBread} symbol={symbol} />
+        </div>
+      </Field>
+
+      <Field
         id={id("member-count")}
-        label="Max members"
-        help="You'll be the first member. Everyone else joins through invite links before you start the net."
+        label="Group size (max members)"
+        help="You'll be the first member. Everyone else joins through invite links before you start the net. Broodfonds caps groups at 50."
         error={errors.memberCount?.message}
       >
         <input
@@ -282,93 +369,53 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
         />
       </Field>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field
-          id={id("initial-deposit")}
-          label="Initial (join) deposit"
-          help={
-            isBread
-              ? "One-off joining payment. 1 BREAD = 1 USD."
-              : "One-off joining payment — a member's first deposit must be exactly this."
-          }
-          error={errors.initialDeposit?.message}
-        >
-          <div className="relative">
-            <input
-              {...fieldAria(
-                id("initial-deposit"),
-                errors.initialDeposit?.message,
-                "help",
-              )}
-              inputMode="decimal"
-              placeholder="0.0"
-              className={`${inputClass} pr-14`}
-              {...register("initialDeposit")}
-            />
-            <AmountSuffix isBread={isBread} symbol={symbol} />
-          </div>
-        </Field>
-        <Field
-          id={id("fixed-deposit")}
-          label="Recurring deposit"
-          help={
-            isBread
-              ? "Dues each member owes every epoch. 1 BREAD = 1 USD."
-              : "Dues each member owes every epoch after joining."
-          }
-          error={errors.fixedDeposit?.message}
-        >
-          <div className="relative">
-            <input
-              {...fieldAria(
-                id("fixed-deposit"),
-                errors.fixedDeposit?.message,
-                "help",
-              )}
-              inputMode="decimal"
-              placeholder="0.0"
-              className={`${inputClass} pr-14`}
-              {...register("fixedDeposit")}
-            />
-            <AmountSuffix isBread={isBread} symbol={symbol} />
-          </div>
-        </Field>
-      </div>
+      {mode === "advanced" && (
+        <div className="border-paper-2 flex flex-col gap-5 border-t pt-5">
+          <Heading4 className="text-text-standard text-base">
+            Advanced settings
+          </Heading4>
 
-      <Field
-        id={id("epoch-days")}
-        label="Epoch length (days)"
-        help="How often the recurring deposit is due. 30 days ≈ monthly."
-        error={errors.epochDurationDays?.message}
-      >
-        <input
-          {...fieldAria(id("epoch-days"), errors.epochDurationDays?.message, "help")}
-          type="number"
-          min={1}
-          className={inputClass}
-          {...register("epochDurationDays", { valueAsNumber: true })}
-        />
-      </Field>
+          <Field
+            id={id("initial-deposit")}
+            label="Initial (join) deposit"
+            help={
+              isBread
+                ? "One-off joining payment; a member's first deposit must be exactly this. Defaults to one monthly contribution."
+                : "One-off joining payment — a member's first deposit must be exactly this."
+            }
+            error={errors.initialDeposit?.message}
+          >
+            <div className="relative">
+              <input
+                {...fieldAria(
+                  id("initial-deposit"),
+                  errors.initialDeposit?.message,
+                  "help",
+                )}
+                inputMode="decimal"
+                placeholder={deriveInitial(watch("fixedDeposit")) || "0.0"}
+                className={`${inputClass} pr-14`}
+                {...register("initialDeposit")}
+              />
+              <AmountSuffix isBread={isBread} symbol={symbol} />
+            </div>
+          </Field>
 
-      {/* Advanced settings — sensible defaults are pre-filled, so this stays
-          closed for a typical net. */}
-      <div className="border-paper-2 border-t pt-4">
-        <button
-          type="button"
-          aria-expanded={advancedOpen}
-          aria-controls={advancedId}
-          onClick={openAdvanced}
-          className="text-surface-grey-2 hover:text-primary-jade flex w-full items-center justify-between text-sm font-bold transition-colors"
-        >
-          Advanced settings
-          <CaretDown
-            size={18}
-            className={cn("transition-transform", advancedOpen && "rotate-180")}
-          />
-        </button>
-
-        {advancedOpen && (
-          <div id={advancedId} className="mt-4 flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              id={id("epoch-days")}
+              label="Epoch length (days)"
+              help="How often the recurring deposit is due. 30 days ≈ monthly."
+              error={errors.epochDurationDays?.message}
+            >
+              <input
+                {...fieldAria(id("epoch-days"), errors.epochDurationDays?.message, "help")}
+                type="number"
+                min={1}
+                className={inputClass}
+                {...register("epochDurationDays", { valueAsNumber: true })}
+              />
+            </Field>
             <Field
               id={id("min-members")}
               label="Minimum members to start"
@@ -376,103 +423,83 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
               error={errors.minimumMembers?.message}
             >
               <input
-                {...fieldAria(
-                  id("min-members"),
-                  errors.minimumMembers?.message,
-                  "help",
-                )}
+                {...fieldAria(id("min-members"), errors.minimumMembers?.message, "help")}
                 type="number"
                 min={2}
                 className={inputClass}
                 {...register("minimumMembers", { valueAsNumber: true })}
               />
             </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                id={id("auto-threshold")}
-                label="Instant-withdrawal threshold"
-                help="Withdrawals up to this amount are paid instantly; larger ones can be contested. Defaults to ¼ of the recurring deposit."
-                error={errors.autoThreshold?.message}
-              >
-                <div className="relative">
-                  <input
-                    {...fieldAria(
-                      id("auto-threshold"),
-                      errors.autoThreshold?.message,
-                      "help",
-                    )}
-                    inputMode="decimal"
-                    placeholder="0.0"
-                    className={`${inputClass} pr-14`}
-                    {...register("autoThreshold")}
-                  />
-                  <AmountSuffix isBread={isBread} symbol={symbol} />
-                </div>
-              </Field>
-              <Field
-                id={id("small-limit")}
-                label="Instant withdrawals per epoch"
-                help="How many instant (small) withdrawals each member may make per epoch."
-                error={errors.smallWithdrawsLimit?.message}
-              >
-                <input
-                  {...fieldAria(
-                    id("small-limit"),
-                    errors.smallWithdrawsLimit?.message,
-                    "help",
-                  )}
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  {...register("smallWithdrawsLimit", { valueAsNumber: true })}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field
-                id={id("contest-threshold")}
-                label="Contest threshold (%)"
-                help="A large withdrawal is vetoed when MORE than this percentage of members contest it."
-                error={errors.contestThreshold?.message}
-              >
-                <input
-                  {...fieldAria(
-                    id("contest-threshold"),
-                    errors.contestThreshold?.message,
-                    "help",
-                  )}
-                  type="number"
-                  min={1}
-                  max={100}
-                  className={inputClass}
-                  {...register("contestThreshold", { valueAsNumber: true })}
-                />
-              </Field>
-              <Field
-                id={id("contest-window")}
-                label="Contest window (days)"
-                help="How long the group has to contest a large withdrawal before it becomes executable."
-                error={errors.contestWindowDays?.message}
-              >
-                <input
-                  {...fieldAria(
-                    id("contest-window"),
-                    errors.contestWindowDays?.message,
-                    "help",
-                  )}
-                  type="number"
-                  min={0}
-                  step="any"
-                  className={inputClass}
-                  {...register("contestWindowDays", { valueAsNumber: true })}
-                />
-              </Field>
-            </div>
           </div>
-        )}
-      </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              id={id("auto-threshold")}
+              label="Instant-withdrawal threshold"
+              help="Withdrawals up to this amount pay out instantly; larger ones go to group review. Defaults to ¼ of the monthly contribution."
+              error={errors.autoThreshold?.message}
+            >
+              <div className="relative">
+                <input
+                  {...fieldAria(id("auto-threshold"), errors.autoThreshold?.message, "help")}
+                  inputMode="decimal"
+                  placeholder={deriveAuto(watch("fixedDeposit")) || "0.0"}
+                  className={`${inputClass} pr-14`}
+                  {...register("autoThreshold")}
+                />
+                <AmountSuffix isBread={isBread} symbol={symbol} />
+              </div>
+            </Field>
+            <Field
+              id={id("small-limit")}
+              label="Instant withdrawals per epoch"
+              help="How many instant (small) withdrawals each member may make per epoch."
+              error={errors.smallWithdrawsLimit?.message}
+            >
+              <input
+                {...fieldAria(id("small-limit"), errors.smallWithdrawsLimit?.message, "help")}
+                type="number"
+                min={1}
+                className={inputClass}
+                {...register("smallWithdrawsLimit", { valueAsNumber: true })}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+              id={id("contest-threshold")}
+              label="Contest threshold (%)"
+              help="A large withdrawal is vetoed when MORE than this percentage of members contest it."
+              error={errors.contestThreshold?.message}
+            >
+              <input
+                {...fieldAria(id("contest-threshold"), errors.contestThreshold?.message, "help")}
+                type="number"
+                min={1}
+                max={100}
+                className={inputClass}
+                {...register("contestThreshold", { valueAsNumber: true })}
+              />
+            </Field>
+            <Field
+              id={id("contest-window")}
+              label="Contest window (days)"
+              help="How long the group has to contest a large withdrawal before it becomes executable."
+              error={errors.contestWindowDays?.message}
+            >
+              <input
+                {...fieldAria(id("contest-window"), errors.contestWindowDays?.message, "help")}
+                type="number"
+                min={0}
+                step="any"
+                className={inputClass}
+                {...register("contestWindowDays", { valueAsNumber: true })}
+              />
+            </Field>
+          </div>
+        </div>
+      )}
 
       {/* Mobile-only: advance to the Overview/Create step. */}
       <Button
@@ -513,10 +540,11 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
 
   const name = watch("name")?.trim();
   const members = watch("memberCount");
-  const initial = watch("initialDeposit");
   const fixed = watch("fixedDeposit");
   const epochDays = watch("epochDurationDays");
-  const autoThreshold = watch("autoThreshold");
+  // Show the derived values (Simple mode leaves these blank in form state).
+  const initial = watch("initialDeposit")?.trim() || deriveInitial(fixed);
+  const autoThreshold = watch("autoThreshold")?.trim() || deriveAuto(fixed);
 
   const amt = (v: string) => (v && Number(v) > 0 ? `${v} ${symbol}` : "—");
 
@@ -538,9 +566,13 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
 
   const onSubmit = handleSubmit((v) => {
     if (!address || !token) return;
-    const initialDeposit = parseAmount(v.initialDeposit, decimals);
-    const fixedDeposit = parseAmount(v.fixedDeposit, decimals);
-    const autoThresholdWei = parseAmount(v.autoThreshold, decimals);
+    // Derive the Broodfonds defaults for anything the user left to Simple mode.
+    const fixedStr = v.fixedDeposit.trim();
+    const initialStr = v.initialDeposit.trim() || deriveInitial(fixedStr);
+    const autoStr = v.autoThreshold.trim() || deriveAuto(fixedStr);
+    const initialDeposit = parseAmount(initialStr, decimals);
+    const fixedDeposit = parseAmount(fixedStr, decimals);
+    const autoThresholdWei = parseAmount(autoStr, decimals);
     if (
       initialDeposit === null ||
       fixedDeposit === null ||
@@ -594,7 +626,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
         (~<strong className="text-text-standard">{epochDays || "—"}</strong> days).
         Withdrawals over{" "}
         <strong className="text-text-standard">{amt(autoThreshold)}</strong> go to
-        a group vote.
+        a group review.
       </Body>
 
       <p className="text-surface-grey text-xs">
