@@ -1,0 +1,190 @@
+name: Deploy contracts
+
+# Manual full-stack deploy via etherform's helper scripts (prepare-env.sh +
+# verify-blockscout.sh, sparse-checked-out), keeping the key in a secret.
+#
+# One run of script/Deploy.sol:Deploy broadcasts the complete stack: SafetyNet
+# implementation, TransparentProxy (which self-deploys its ProxyAdmin), the
+# DelegatedSafetyNet extension, and the ALLOWED_TOKENS allowlisting.
+#
+# Afterwards the run publishes/updates the rolling `contract-addresses` GitHub
+# release with a per-chain addresses.json manifest. The static frontend fetches
+# that manifest at runtime (web/src/lib/remote-addresses.ts), so NO frontend
+# rebuild/redeploy is needed to pick up a fresh deployment.
+#
+# Requires repo secrets: PRIVATE_KEY (funded on the target chain) and
+# optionally RPC_URL (else the public Gnosis RPC).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chain:
+        description: "Target chain"
+        type: choice
+        default: gnosis
+        options:
+          - gnosis
+      allowed_tokens:
+        description: "Comma-separated ERC20s to allowlist (blank = Gnosis WXDAI + BREAD)"
+        required: false
+        default: ""
+      admin:
+        description: "Proxy admin / SafetyNet owner (blank = deployer)"
+        required: false
+        default: ""
+
+permissions:
+  # write: the publish step creates/updates the rolling contract-addresses release.
+  contents: write
+
+concurrency:
+  group: contracts-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sparse-checkout etherform deploy scripts
+        uses: actions/checkout@v4
+        with:
+          repository: BreadchainCoop/etherform
+          ref: main
+          sparse-checkout: scripts
+          path: .etherform
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies (remappings resolve through node_modules)
+        run: yarn --frozen-lockfile
+
+      - name: Resolve chain (id + RPC + explorer)
+        id: chain
+        run: |
+          case "${{ inputs.chain }}" in
+            gnosis)
+              ID=100
+              RPC="${{ secrets.RPC_URL || 'https://rpc.gnosischain.com' }}"
+              BS="https://gnosis.blockscout.com" ;;
+          esac
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "rpc=$RPC" >> "$GITHUB_OUTPUT"
+          echo "blockscout=$BS" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy full stack
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          RPC_URL: ${{ steps.chain.outputs.rpc }}
+          ADMIN_INPUT: ${{ inputs.admin }}
+          TOKENS_INPUT: ${{ inputs.allowed_tokens }}
+        run: |
+          source .etherform/scripts/deploy/prepare-env.sh
+          # Gnosis defaults: WXDAI + BREAD. Only export optional vars when set, so
+          # the script keeps working defaults (empty env vars fail address parse).
+          export ALLOWED_TOKENS="${TOKENS_INPUT:-0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d,0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3}"
+          [ -n "$ADMIN_INPUT" ] && export ADMIN_ADDRESS="$ADMIN_INPUT"
+          forge script script/Deploy.sol:Deploy \
+            --rpc-url "$RPC_URL" --broadcast --slow -vvvv
+
+      - name: Verify on Blockscout
+        continue-on-error: true
+        # Bounded: Blockscout verification can hang the etherform script.
+        # The deploy already succeeded by here — verification is best-effort.
+        timeout-minutes: 5
+        env:
+          RPC_URL: ${{ steps.chain.outputs.rpc }}
+          BLOCKSCOUT_URL: ${{ steps.chain.outputs.blockscout }}
+        run: |
+          BROADCAST_FILE="broadcast/Deploy.sol/${{ steps.chain.outputs.id }}/run-latest.json"
+          if [ -f "$BROADCAST_FILE" ]; then
+            BROADCAST_FILE="$BROADCAST_FILE" bash .etherform/scripts/deploy/verify-blockscout.sh || true
+          fi
+
+      - name: Upload deployment broadcast
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-${{ inputs.chain }}-broadcast
+          path: broadcast/Deploy.sol/${{ steps.chain.outputs.id }}/run-latest.json
+          if-no-files-found: warn
+
+      # Publish the merged address manifest to the rolling `contract-addresses`
+      # release. The static frontend fetches addresses.json from this release at
+      # runtime, so deploys go live without a frontend rebuild. The manifest is
+      # merged per chain, so deploying one chain never drops another's entry.
+      - name: Publish address manifest (rolling release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHAIN_ID: ${{ steps.chain.outputs.id }}
+        run: |
+          set -euo pipefail
+          gh release download contract-addresses -p addresses.json -O prev.json -R "$GITHUB_REPOSITORY" \
+            || echo '{}' > prev.json
+          python3 - <<'PY'
+          import json, os, time
+
+          chain = os.environ["CHAIN_ID"]
+          b = json.load(open(f"broadcast/Deploy.sol/{chain}/run-latest.json"))
+
+          created = {}
+          proxy_admin = None
+          for t in b["transactions"]:
+              if t.get("transactionType") != "CREATE" or not t.get("contractName"):
+                  continue
+              created[t["contractName"]] = t["contractAddress"]
+              if t["contractName"] == "TransparentUpgradeableProxy":
+                  # OZ v5 proxies self-deploy their ProxyAdmin inside the constructor,
+                  # so it surfaces as an additionalContracts CREATE, not a top-level one.
+                  extra = t.get("additionalContracts") or []
+                  if extra:
+                      proxy_admin = extra[0].get("address")
+
+          start_block = None
+          for r in b.get("receipts", []):
+              n = int(r.get("blockNumber", "0x0"), 16)
+              if n and (start_block is None or n < start_block):
+                  start_block = n
+
+          try:
+              prev = json.load(open("prev.json"))
+          except Exception:
+              prev = {}
+          chains = prev.get("chains", {})
+          entry = chains.get(chain, {})
+          entry.update({
+              "safetyNet": created["TransparentUpgradeableProxy"],
+              "implementation": created["SafetyNet"],
+              "proxyAdmin": proxy_admin,
+              "delegatedSafetyNet": created.get("DelegatedSafetyNet"),
+              "startBlock": start_block,
+              "commit": os.environ.get("GITHUB_SHA", ""),
+              "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          })
+          chains[chain] = entry
+          json.dump({"version": 1, "chains": chains}, open("addresses.json", "w"), indent=2)
+          print(json.dumps({"version": 1, "chains": chains}, indent=2))
+          PY
+          gh release view contract-addresses -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create contract-addresses -R "$GITHUB_REPOSITORY" \
+                 --title "Contract addresses (latest)" \
+                 --notes "Rolling manifest of live contract addresses. The static frontend fetches addresses.json from this release at runtime."
+          gh release upload contract-addresses addresses.json --clobber -R "$GITHUB_REPOSITORY"
+          gh release edit contract-addresses -R "$GITHUB_REPOSITORY" \
+            --notes "Rolling manifest of live contract addresses (last update: chain $CHAIN_ID @ ${GITHUB_SHA::7}, $(date -u +%Y-%m-%dT%H:%MZ)). The static frontend fetches addresses.json from this release at runtime."
+
+      - name: Summary
+        env:
+          CHAIN_ID: ${{ steps.chain.outputs.id }}
+        run: |
+          {
+            echo "### SafetyNet stack deployed on ${{ inputs.chain }} (chain $CHAIN_ID)"
+            python3 -c "import json;d=json.load(open('addresses.json'))['chains']['$CHAIN_ID'];[print(f'- **{k}**: \`{v}\`') for k,v in d.items()]"
+            echo ""
+            echo "Published to the \`contract-addresses\` release — the live frontend picks it up on next page load (no rebuild needed)."
+          } >> "$GITHUB_STEP_SUMMARY"
