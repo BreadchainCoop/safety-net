@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chains": {
+    "100": {
+      "safetyNet": "0x63c3c299cd5c5479e6999189d7827490ea71ceae",
+      "implementation": "0x7763be733f595c3ab7dee713937f0c2f116ace21",
+      "proxyAdmin": "0x83909c3dd3734f8575b65cd2f6beda63a696d26f",
+      "delegatedSafetyNet": "0x88fd6d424dd415780f42891f3f699d57cd5d4c2c",
+      "startBlock": 47031243,
+      "commit": "8dac487c742d9734c008af6997f2d68c770fb3b5",
+      "updatedAt": "2026-07-04T14:52:45Z"
+    }
+  }
+}
