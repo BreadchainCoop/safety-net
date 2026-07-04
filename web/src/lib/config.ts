@@ -265,3 +265,16 @@ export const PRIVY_CLIENT_ID: string | undefined =
  * app id is set AND we are not in verify mode.
  */
 export const PRIVY_ENABLED = PRIVY_APP_ID !== undefined && !VERIFY_MODE;
+
+/**
+ * Whether to request Privy gas sponsorship for embedded-wallet transactions.
+ *
+ * OFF by default: sponsorship requires an active gas-sponsorship policy for
+ * Gnosis in the Privy dashboard. Requesting `sponsor: true` without one makes
+ * Privy's wallet RPC reject the transaction with a 400 — so we only opt in when
+ * the operator has set this up and flipped the flag. When off, embedded-wallet
+ * transactions are self-paid and Privy prompts the user to fund with a little
+ * xDAI when the balance is short (see use-tx-sender-privy.ts).
+ */
+export const PRIVY_SPONSOR_GAS =
+  process.env.NEXT_PUBLIC_PRIVY_SPONSOR_GAS === "true";

@@ -6,17 +6,25 @@ import { encodeFunctionData, type Abi } from "viem";
 import { useSendTransaction } from "@privy-io/react-auth";
 import { useConnectedUser } from "@breadcoop/ui";
 import { wagmiConfigPrivy } from "@/lib/wagmi-privy";
-import { CHAIN_ID } from "@/lib/config";
+import { CHAIN, CHAIN_ID, PRIVY_SPONSOR_GAS } from "@/lib/config";
 import type { TxRequest } from "@/hooks/use-tx";
 
 /**
- * Privy sponsored-tx sender (app-stacks `use-simulate-and-sponsor-tx.ts` +
- * `use-sponsored-tx.ts`):
- *   1. simulate via wagmi to catch reverts before Privy's UI,
+ * Privy embedded-wallet tx sender (app-stacks `use-simulate-and-sponsor-tx.ts`):
+ *   1. simulate via wagmi to catch reverts before Privy takes over,
  *   2. encode calldata,
- *   3. Privy `sendTransaction` with `{ sponsor: true on Gnosis,
- *      uiOptions: { showWalletUIs: false } }` (silent signing),
- * returning the tx hash so the caller's existing
+ *   3. Privy `sendTransaction`.
+ *
+ * Gas modes:
+ *   - PRIVY_SPONSOR_GAS: request `sponsor: true` and sign silently. This ONLY
+ *     works when a Gnosis gas-sponsorship policy is configured in the Privy
+ *     dashboard — otherwise Privy's wallet RPC rejects with a 400. Off by
+ *     default for that reason.
+ *   - Unsponsored (default): the embedded wallet pays its own gas. We show the
+ *     Privy UI and pass a Gnosis `fundWalletConfig` so a wallet with no xDAI is
+ *     prompted to fund instead of failing silently.
+ *
+ * Returns the tx hash so the caller's existing
  * useWaitForTransactionReceipt/invalidation flow is unchanged.
  *
  * This module is only imported from `use-tx-sender.ts` when `PRIVY_ENABLED`,
@@ -62,23 +70,37 @@ export function useTxSenderPrivy() {
         args: request.args,
       } as Parameters<typeof encodeFunctionData>[0]);
 
-      const { hash } = await sendTransaction(
-        {
-          to: request.address,
-          data,
-          value: request.value,
-          chainId: CHAIN_ID,
-        },
-        {
-          // Gas sponsorship is a Privy dashboard setting; the code only opts in
-          // on Gnosis. If sponsorship is off there the tx still works, paid
-          // from the embedded wallet.
-          sponsor: CHAIN_ID === 100,
-          uiOptions: { showWalletUIs: false },
-        },
-      );
+      // Sponsorship needs a dashboard policy; when off, the wallet self-pays,
+      // so keep the Privy UI visible and offer funding on an empty balance.
+      const sponsor = PRIVY_SPONSOR_GAS && CHAIN_ID === 100;
 
-      return hash as `0x${string}`;
+      let result: { hash: `0x${string}` };
+      try {
+        result = await sendTransaction(
+          {
+            to: request.address,
+            data,
+            value: request.value,
+            chainId: CHAIN_ID,
+          },
+          sponsor
+            ? { sponsor: true, uiOptions: { showWalletUIs: false } }
+            : { sponsor: false, fundWalletConfig: { chain: CHAIN } },
+        );
+      } catch (err) {
+        // A 400 from Privy's wallet RPC on a *sponsored* send almost always
+        // means no gas-sponsorship policy is configured for Gnosis. Surface a
+        // clear, actionable message instead of the raw HTTP error.
+        if (sponsor) {
+          throw new Error(
+            "Gas sponsorship isn't set up for this network. Ask the operator to enable Gnosis gas sponsorship in the Privy dashboard, or disable NEXT_PUBLIC_PRIVY_SPONSOR_GAS so the wallet pays its own gas.",
+            { cause: err },
+          );
+        }
+        throw err;
+      }
+
+      return result.hash as `0x${string}`;
     },
     [sendTransaction, account],
   );
