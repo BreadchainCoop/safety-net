@@ -84,9 +84,9 @@ function fetchJson(url: string, accept?: string): Promise<unknown> {
 }
 
 /**
- * Fetch the manifest — direct URL override, or the build-shipped same-origin
- * `public/addresses.json` (written by scripts/fetch-addresses.mjs). The browser
- * only ever talks to our own origin, so there's no cross-origin/CORS hop.
+ * Fetch the manifest — direct URL override, or the CORS-fetchable `addresses`
+ * branch via raw.githubusercontent.com. The browser never hits the GitHub
+ * release asset (whose redirect target omits CORS headers).
  */
 async function fetchManifest(): Promise<unknown> {
   if (ADDRESSES_URL && ADDRESSES_URL !== "off") {
