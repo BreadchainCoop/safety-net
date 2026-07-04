@@ -46,6 +46,7 @@ const SECTIONS: Section[] = [
       "After that, you owe the recurring deposit every epoch. You can pay it in parts, and you can also pay another member's dues for them (the tokens still come from their wallet — they only save the gas). Every deposit adds 1:1 to your withdrawable balance.",
       "You can also pay ahead: deposit more than this epoch's dues and the extra prepays future epochs — the current epoch's remaining dues fill first, then the next epoch, and so on, up to 12 epochs ahead. The app previews exactly how a deposit will be allocated before you send it.",
       "Short on BREAD? Use the \"Get BREAD\" button in the nav (or the prompt on the deposit form) to mint BREAD 1:1 from xDAI — and, on embedded-wallet sign-ins, to buy xDAI first.",
+      "Turn on automatic deposits so the group can cover your dues from a pre-approved allowance — approve the SafetyNet proxy once, flip it on, and a keeper or another member can pay your owed dues so you never miss an epoch. It's non-custodial and you can turn it off any time.",
     ],
   },
   {

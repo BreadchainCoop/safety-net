@@ -14,6 +14,9 @@ with deadlines, aggregated frontend views.
 | SafetyNet (implementation v2 — saving-circles membership model) | [`0x515D1cFec5B21a2648a504bc1B4A9e1977f14743`](https://gnosis.blockscout.com/address/0x515D1cFec5B21a2648a504bc1B4A9e1977f14743) |
 | SafetyNet (implementation v1) | [`0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed`](https://gnosis.blockscout.com/address/0x32A0C6BeCceBe89E852faBEF29cC6016CFa380Ed) |
 | ProxyAdmin (auto-deployed by proxy) | [`0x1039CD43f31EC060F114B881264aD7799A24980A`](https://gnosis.blockscout.com/address/0x1039CD43f31EC060F114B881264aD7799A24980A) |
+| DelegatedSafetyNet (standalone extension — allowance-based & batch deposits, #32) | [`0x78ac9A4839E94da38F8535e22e64b004afA4e133`](https://gnosis.blockscout.com/address/0x78ac9A4839E94da38F8535e22e64b004afA4e133) |
+
+The `DelegatedSafetyNet` extension is a standalone (non-upgradeable) contract that references the proxy above. Members opt in (`setDelegatedDepositsEnabled(true)`) and approve the **proxy** for their token; anyone/a keeper can then call `depositIfAllowed(id, member)` / `batchDepositIfAllowed(ids, members)` to pay a member's owed dues from their allowance. `getAddressesForDeposit()` enumerates eligible members. No proxy upgrade was needed (the proxy's `depositFor` already pulls from the member).
 
 Upgraded in place to v2 on 2026-07-03 via `ProxyAdmin.upgradeAndCall`
 ([tx `0xab6fbdb0…f80584`](https://gnosis.blockscout.com/tx/0xab6fbdb079520e8e8b89ef6339f0e8a440d3fee32fa117f3d747b4e138f80584)),
