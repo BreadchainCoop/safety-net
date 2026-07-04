@@ -22,3 +22,6 @@ next-env.d.ts
 
 # parallel dev/build dirs (NEXT_DIST_DIR)
 .next-*/
+
+# build-generated same-origin contract manifest (scripts/fetch-addresses.mjs)
+public/addresses.json

@@ -4,6 +4,7 @@ import {
   ADDRESSES,
   ADDRESSES_ENV_PINNED,
   ADDRESSES_URL,
+  BASE_PATH,
   CHAIN_ID,
   VERIFY_MODE,
 } from "@/lib/config";
@@ -22,18 +23,18 @@ import {
  *   2. This manifest (latest release)
  *   3. Baked-in fallbacks in config.ts
  *
- * CORS note: plain `github.com/releases/download/...` URLs don't send CORS
- * headers on the redirect, so browsers can't fetch them. api.github.com sends
- * `access-control-allow-origin: *` on every response (including the asset
- * redirect when requested with `Accept: application/octet-stream`), so we go
- * through the API: release-by-tag → asset → download. Both requests are
- * "simple" (no preflight) and anonymous (60 req/h/IP — fine for one fetch per
- * page load).
+ * Same-origin note: on GitHub Pages the app is served from breadchaincoop.
+ * github.io, and fetching the manifest cross-origin from the GitHub *release
+ * asset* fails — the asset download 302-redirects to
+ * release-assets.githubusercontent.com, which omits `Access-Control-Allow-
+ * Origin`, so the browser blocks it. Instead, `scripts/fetch-addresses.mjs`
+ * pulls the manifest server-side at build time and writes it to
+ * `public/addresses.json`; the client then fetches it from its OWN origin
+ * (`${BASE_PATH}/addresses.json`) — no CORS hop. A contract-only redeploy now
+ * needs a Pages rebuild to surface (the workflow can trigger one); the
+ * `NEXT_PUBLIC_ADDRESSES_URL` override still bypasses this for previews.
  */
 
-const REPO = "BreadchainCoop/safety-net";
-const RELEASE_TAG = "contract-addresses";
-const ASSET_NAME = "addresses.json";
 const FETCH_TIMEOUT_MS = 5_000;
 
 const address = z
@@ -79,17 +80,16 @@ function fetchJson(url: string, accept?: string): Promise<unknown> {
   });
 }
 
-/** Fetch the manifest — direct URL override, or via the GitHub API release. */
+/**
+ * Fetch the manifest — direct URL override, or the build-shipped same-origin
+ * `public/addresses.json` (written by scripts/fetch-addresses.mjs). The browser
+ * only ever talks to our own origin, so there's no cross-origin/CORS hop.
+ */
 async function fetchManifest(): Promise<unknown> {
   if (ADDRESSES_URL && ADDRESSES_URL !== "off") {
     return fetchJson(ADDRESSES_URL);
   }
-  const release = (await fetchJson(
-    `https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}`,
-  )) as { assets?: { name: string; url: string }[] };
-  const asset = release.assets?.find((a) => a.name === ASSET_NAME);
-  if (!asset) throw new Error(`release has no ${ASSET_NAME} asset`);
-  return fetchJson(asset.url, "application/octet-stream");
+  return fetchJson(`${BASE_PATH}/addresses.json`);
 }
 
 // One in-flight fetch per page load (React StrictMode double-mounts effects in dev).
