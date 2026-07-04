@@ -55,7 +55,7 @@ abstract contract SafetyNetUnitBase is Test {
   /// @dev Monotonic nonce used by the invite helpers to avoid collisions across joins
   uint256 internal _inviteNonce;
 
-  function setUp() public {
+  function setUp() public virtual {
     (_owner, _ownerKey) = makeAddrAndKey('owner');
     (_impostor, _impostorKey) = makeAddrAndKey('impostor');
     (_requester, _requesterKey) = makeAddrAndKey('requester');
