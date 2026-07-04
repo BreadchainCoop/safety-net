@@ -11,11 +11,21 @@ frontend rebuild. The tables below are historical snapshots; the release is the 
 
 ## Gnosis Chain (chainId 100) — solidarity-ratio stack (current)
 
-Deployed via `contracts-deploy.yml` (see the rolling release for addresses). Enables the
-Broodfonds support ratio (configured 1–25, Simple-mode default ×22) with the actuarial
-effective-ratio throttle (`getEffectiveRedeemRatio`: group-size risk loading p=2%, z=1.65,
-plus a 6-month pool-runway cap), pool-solvency reverts (`InsufficientPoolFunds`), and
+Deployed 2026-07-04 via `contracts-deploy.yml` (run of commit `8dac487`, deploy block 47031243).
+Enables the Broodfonds support ratio (configured 1–25, Simple-mode default ×22) with the
+actuarial effective-ratio throttle (`getEffectiveRedeemRatio`: group-size risk loading p=2%,
+z=1.65, plus a 6-month pool-runway cap), pool-solvency reverts (`InsufficientPoolFunds`), and
 pro-rata shortfall decommission (`SafetyNetShortfallDistributed`).
+
+| Contract | Address |
+|----------|---------|
+| SafetyNet (proxy — use this address) | [`0x63c3c299CD5C5479E6999189D7827490Ea71cEAe`](https://gnosis.blockscout.com/address/0x63c3c299CD5C5479E6999189D7827490Ea71cEAe) |
+| SafetyNet (implementation) | [`0x7763be733f595C3AB7dEE713937f0c2F116acE21`](https://gnosis.blockscout.com/address/0x7763be733f595C3AB7dEE713937f0c2F116acE21) |
+| ProxyAdmin (auto-deployed by proxy) | [`0x83909C3dd3734f8575b65CD2F6bEda63A696d26F`](https://gnosis.blockscout.com/address/0x83909C3dd3734f8575b65CD2F6bEda63A696d26F) |
+| DelegatedSafetyNet (extension) | [`0x88fd6d424Dd415780F42891f3F699d57cD5d4C2c`](https://gnosis.blockscout.com/address/0x88fd6d424Dd415780F42891f3F699d57cD5d4C2c) |
+
+- Owner / admin: `0x6636A1CCBdf54485067304C1a590DE016DeaD9F0` · allowed tokens: WXDAI, BREAD
+- Subgraph: [`safety-net/v0.0.3`](https://api.studio.thegraph.com/query/1756070/safety-net/v0.0.3)
 
 ## Gnosis Chain (chainId 100) — ratio-1 stack (frozen 2026-07-04)
 
