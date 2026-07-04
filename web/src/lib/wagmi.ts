@@ -69,14 +69,25 @@ const connectors: CreateConnectorFn[] =
  */
 export const chains = [gnosis, mainnet] as const;
 
+// Gnosis read endpoints, tried in order via wagmi `fallback`. RPC_URL
+// (NEXT_PUBLIC_RPC_URL, defaulting to rpc.gnosischain.com) stays primary; the
+// rest are verified keyless public endpoints kept intentionally diverse
+// (different operators) so one provider being down, rate-limited, or blocked
+// on a given network doesn't blank the app. NOTE: this is a static-export dapp
+// (next.config `output: "export"`), so there is no server runtime to proxy
+// through — the browser talks to these hosts directly. A client whose
+// VPN/DNS/ad-blocker null-routes RPC hostnames (ERR_NAME_NOT_RESOLVED) will
+// still need a first-party endpoint (private RPC on our own domain) to be
+// fully immune; that is infra, not a code change.
 export const transports = {
   [gnosis.id]: fallback([
     http(RPC_URL, { timeout: 7_000, retryCount: 1 }),
-    http("https://1rpc.io/gnosis", { timeout: 7_000, retryCount: 1 }),
-    http("https://gnosis-mainnet.public.blastapi.io", {
+    http("https://gnosis.drpc.org", { timeout: 7_000, retryCount: 1 }),
+    http("https://gnosis-rpc.publicnode.com", {
       timeout: 7_000,
       retryCount: 1,
     }),
+    http("https://rpc.gnosis.gateway.fm", { timeout: 7_000, retryCount: 1 }),
   ]),
   // ENS-only public fallback (no key). Reads never write, so no risk.
   [mainnet.id]: fallback([
