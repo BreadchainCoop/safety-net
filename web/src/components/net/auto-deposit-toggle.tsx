@@ -12,7 +12,8 @@ import {
   useToggleDelegated,
 } from "@/hooks/use-delegated-deposits";
 import { useAllowance, useApprove, useTokenInfo } from "@/hooks/use-token";
-import { addressUrl, SAFETYNET_ADDRESS } from "@/lib/config";
+import { addressUrl } from "@/lib/config";
+import { useAddresses } from "@/components/addresses-provider";
 import { formatAmount, shortenAddress } from "@/lib/format";
 import type { SafetyNetDetails } from "@/lib/types";
 
@@ -29,6 +30,7 @@ import type { SafetyNetDetails } from "@/lib/types";
  */
 export function AutoDepositToggle({ details }: { details: SafetyNetDetails }) {
   const { address } = useAccount();
+  const { safetyNet: proxyAddress } = useAddresses();
   const net = details.safetyNet;
   const { symbol, decimals } = useTokenInfo(net.token);
 
@@ -113,12 +115,12 @@ export function AutoDepositToggle({ details }: { details: SafetyNetDetails }) {
             <dt>Spender (proxy)</dt>
             <dd>
               <a
-                href={addressUrl(SAFETYNET_ADDRESS)}
+                href={addressUrl(proxyAddress)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-primary-jade hover:underline"
               >
-                {shortenAddress(SAFETYNET_ADDRESS)}
+                {shortenAddress(proxyAddress)}
               </a>
             </dd>
           </div>

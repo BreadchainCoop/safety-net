@@ -2,7 +2,7 @@
 
 import type { Address, ContractFunctionArgs } from "viem";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
-import { SAFETYNET_ADDRESS } from "@/lib/config";
+import { ADDRESSES } from "@/lib/config";
 import { useTx } from "@/hooks/use-tx";
 
 /**
@@ -24,7 +24,7 @@ export function useCreateSafetyNet() {
   const tx = useTx();
   const create = (name: CreateName, safetyNet: CreateInput) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "create",
       args: [name, safetyNet],
@@ -40,7 +40,7 @@ export function useStartSafetyNet() {
   const tx = useTx();
   const start = (id: bigint) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "start",
       args: [id],
@@ -52,7 +52,7 @@ export function useDeposit() {
   const tx = useTx();
   const deposit = (id: bigint, value: bigint) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "deposit",
       args: [id, value],
@@ -64,7 +64,7 @@ export function useDepositFor() {
   const tx = useTx();
   const depositFor = (id: bigint, value: bigint, member: Address) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "depositFor",
       args: [id, value, member],
@@ -76,7 +76,7 @@ export function useWithdraw() {
   const tx = useTx();
   const withdraw = (id: bigint, daysRequested: bigint, reason: string) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "withdraw",
       args: [id, daysRequested, reason],
@@ -88,7 +88,7 @@ export function useContest() {
   const tx = useTx();
   const contest = (requestId: bigint) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "contest",
       args: [requestId],
@@ -100,7 +100,7 @@ export function useExecuteContestedWithdrawal() {
   const tx = useTx();
   const execute = (requestId: bigint) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "executeContestedWithdrawal",
       args: [requestId],
@@ -112,7 +112,7 @@ export function useDecommission() {
   const tx = useTx();
   const decommission = (id: bigint) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "decommission",
       args: [id],
@@ -127,7 +127,7 @@ export function useRedeemInvite() {
     signature: `0x${string}`,
   ) =>
     tx.run({
-      address: SAFETYNET_ADDRESS,
+      address: ADDRESSES.safetyNet,
       abi: safetyNetAbi,
       functionName: "redeemInvite",
       args: [invite, signature],

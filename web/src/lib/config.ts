@@ -51,6 +51,15 @@ const clientEnvSchema = z.object({
     .optional(),
   // Optional Privy client id (app-stacks passes it; optional in the SDK).
   NEXT_PUBLIC_PRIVY_CLIENT_ID: z.string().min(1).optional(),
+  // Runtime address manifest: "off" disables runtime hydration entirely; an
+  // http(s) URL fetches that manifest directly (tests/previews); unset uses
+  // the GitHub contract-addresses release (see remote-addresses.ts).
+  NEXT_PUBLIC_ADDRESSES_URL: z
+    .string()
+    .refine((v) => v === "off" || v.startsWith("http"), {
+      message: 'must be "off" or an http(s) manifest URL',
+    })
+    .optional(),
 });
 
 const parsedEnv = clientEnvSchema.safeParse({
@@ -64,6 +73,7 @@ const parsedEnv = clientEnvSchema.safeParse({
   NEXT_PUBLIC_SITE_URL: optional(process.env.NEXT_PUBLIC_SITE_URL),
   NEXT_PUBLIC_PRIVY_APP_ID: optional(process.env.NEXT_PUBLIC_PRIVY_APP_ID),
   NEXT_PUBLIC_PRIVY_CLIENT_ID: optional(process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID),
+  NEXT_PUBLIC_ADDRESSES_URL: optional(process.env.NEXT_PUBLIC_ADDRESSES_URL),
 });
 
 if (!parsedEnv.success) {
@@ -101,30 +111,45 @@ export const WALLETCONNECT_PROJECT_ID = withDefault(
 );
 
 /**
- * The SafetyNet proxy on Gnosis (see DEPLOYMENTS.md at the repo root).
- * Overridable via NEXT_PUBLIC_SAFETYNET_ADDRESS for other deployments.
- * `isContractConfigured` gates all reads/writes if set to the zero address.
+ * Contract addresses, MUTABLE on purpose (crowdstake.fun pattern): the deploy
+ * workflow publishes an addresses.json manifest to the rolling GitHub release
+ * `contract-addresses`, and `hydrateRemoteAddresses()` (remote-addresses.ts)
+ * updates this object in place at runtime — so a fresh deployment goes live
+ * without a frontend rebuild. The values below are baked-in fallbacks (see
+ * DEPLOYMENTS.md at the repo root).
+ *
+ * Read addresses at CALL TIME (`ADDRESSES.safetyNet` inside a handler/render),
+ * never capture them at module scope. For wagmi reads, subscribe through
+ * `useAddresses()` (addresses-provider.tsx) so queries refetch on hydration.
  */
-export const SAFETYNET_ADDRESS: Address = withDefault(
-  env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
-  "0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE",
-  "NEXT_PUBLIC_SAFETYNET_ADDRESS",
-) as Address;
-
-export const isContractConfigured = SAFETYNET_ADDRESS !== zeroAddress;
+export const ADDRESSES: { safetyNet: Address; delegated: Address } = {
+  safetyNet: withDefault(
+    env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
+    "0x4b1B21A7983EBEC95575d1dac63Db17Cd7eF6FdE",
+    "NEXT_PUBLIC_SAFETYNET_ADDRESS",
+  ) as Address,
+  // The DelegatedSafetyNet extension (issue #32): members opt into automatic
+  // deposits; anyone can then pay their owed dues from a pre-approved allowance.
+  delegated: withDefault(
+    optional(process.env.NEXT_PUBLIC_DELEGATED_ADDRESS),
+    "0x78ac9A4839E94da38F8535e22e64b004afA4e133",
+    "NEXT_PUBLIC_DELEGATED_ADDRESS",
+  ) as Address,
+};
 
 /**
- * The DelegatedSafetyNet extension on Gnosis (see issue #32). It references
- * the main proxy and lets a member opt into automatic deposits: anyone (a
- * keeper/agent or another member) can then pay that member's owed dues from a
- * pre-approved allowance, so they never miss an epoch. Overridable via
- * NEXT_PUBLIC_DELEGATED_ADDRESS for other deployments.
+ * Build-time env pins always win over the runtime manifest — verify-mode E2E
+ * and preview deployments must stay deterministic.
  */
-export const DELEGATED_SAFETYNET_ADDRESS: Address = withDefault(
-  optional(process.env.NEXT_PUBLIC_DELEGATED_ADDRESS),
-  "0x78ac9A4839E94da38F8535e22e64b004afA4e133",
-  "NEXT_PUBLIC_DELEGATED_ADDRESS",
-) as Address;
+export const ADDRESSES_ENV_PINNED = {
+  safetyNet: env.NEXT_PUBLIC_SAFETYNET_ADDRESS !== undefined,
+  delegated: optional(process.env.NEXT_PUBLIC_DELEGATED_ADDRESS) !== undefined,
+} as const;
+
+export const ADDRESSES_URL = env.NEXT_PUBLIC_ADDRESSES_URL;
+
+export const isContractConfigured = (): boolean =>
+  ADDRESSES.safetyNet !== zeroAddress;
 
 /** Optional base path for project-subpath hosting (GitHub Pages). */
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -161,12 +186,33 @@ export const addressUrl = (a: string) => `${BLOCK_EXPLORER}/address/${a}`;
 export const DAYS_IN_A_MONTH = 30n;
 
 /**
- * Redeem ratio bounds (SafetyNet.MINIMUM/MAXIMUM_REDEEM_RATIO). Locked to
- * exactly 1 in v1: deposits and withdrawal power are 1:1, leverage disabled.
+ * Support (redeem) ratio bounds, mirroring SafetyNet.MINIMUM/MAXIMUM_REDEEM_RATIO.
+ * A member in need can draw up to ratio x their monthly contribution per month.
+ * x1 is a pure savings circle; higher ratios are pool-backed solidarity leverage,
+ * throttled onchain by the actuarial effective-ratio caps (getEffectiveRedeemRatio).
  */
 export const MIN_REDEEM_RATIO = 1;
-export const MAX_REDEEM_RATIO = 1;
-export const REDEEM_RATIO = 1;
+export const MAX_REDEEM_RATIO = 25;
+
+/**
+ * The classic Broodfonds support convention (~22x): EUR 33.75-112.50/month dues
+ * map to EUR 750-2,500/month sickness support. Simple-mode default.
+ */
+export const BROODFONDS_RATIO = 22;
+
+/**
+ * Frontend mirror of the contract's group-size risk cap (SafetyNet constants
+ * EXPECTED_SICK_SHARE_BPS = 200, RISK_LOADING_Z_CENTI = 165): the effective
+ * ratio can't exceed 1 / (p + z*sqrt(p(1-p)/N)) for a group of N. Used to show
+ * realistic support numbers on the create page before a net exists onchain.
+ */
+export function groupRatioCap(memberCount: number): number {
+  if (memberCount < 1) return 1;
+  const loadingBps = Math.floor(
+    (165 * Math.floor(Math.sqrt(Math.floor((200 * 9800) / memberCount)))) / 100,
+  );
+  return Math.max(1, Math.floor(10_000 / (200 + loadingBps)));
+}
 
 /**
  * Mirrors SafetyNet.MAX_PREPAY_EPOCHS — a deposit may prepay dues at most

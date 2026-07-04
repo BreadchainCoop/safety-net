@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   FormProvider,
@@ -16,11 +16,18 @@ import { ArrowLeft, ArrowRight, CheckCircle } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
+import { Slider } from "@/components/ui/slider-field";
 import { useCreateSafetyNet } from "@/hooks/use-safety-net-writes";
 import { useIsTokenAllowed } from "@/hooks/use-safety-net";
 import { useTokenInfo } from "@/hooks/use-token";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
-import { BREAD_ADDRESS, REDEEM_RATIO } from "@/lib/config";
+import {
+  BREAD_ADDRESS,
+  BROODFONDS_RATIO,
+  groupRatioCap,
+  MAX_REDEEM_RATIO,
+  MIN_REDEEM_RATIO,
+} from "@/lib/config";
 import { parseAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createNetSchema, type CreateNetValues } from "./schema";
@@ -45,8 +52,10 @@ const DEFAULTS = {
   monthlyContribution: "50",
   /** Broodfonds caps groups at 50 to keep everyone accountable to each other. */
   memberCount: 50,
-  /** Startable as soon as 2 join (Broodfonds recommends ~25 in practice). */
-  minimumMembers: 2,
+  /** Broodfonds recommends starting around 25 members — the 22x support math
+   *  needs that critical mass. Advanced mode can lower it to the contract
+   *  minimum of 2 (for small trusted circles or testing). */
+  minimumMembers: 25,
   /** Monthly dues. */
   epochDurationDays: 30,
   /** A claim is blocked only if a majority of members object. */
@@ -147,7 +156,7 @@ export function CreateForm() {
       fixedDeposit: DEFAULTS.monthlyContribution,
       // Derived from the monthly amount unless overridden in Advanced.
       initialDeposit: "",
-      redeemRatio: REDEEM_RATIO,
+      redeemRatio: BROODFONDS_RATIO,
       autoThreshold: "",
       contestThreshold: DEFAULTS.contestThreshold,
       contestWindowDays: DEFAULTS.contestWindowDays,
@@ -205,6 +214,18 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
   const tokenChoice = watch("tokenChoice");
   const isBread = tokenChoice === "bread";
   const symbol = useNetSymbol(form);
+  const fixed = watch("fixedDeposit");
+  const memberCount = watch("memberCount");
+  const ratio = watch("redeemRatio");
+
+  // Simple mode manages minimumMembers for the user: the Broodfonds 25, but
+  // never above the chosen group size (the schema cross-checks the two, and a
+  // hidden failing field would block creation invisibly).
+  useEffect(() => {
+    if (mode !== "simple") return;
+    const cap = Number.isFinite(memberCount) ? memberCount : DEFAULTS.minimumMembers;
+    setValue("minimumMembers", Math.max(2, Math.min(DEFAULTS.minimumMembers, cap)));
+  }, [mode, memberCount, setValue]);
 
   const continueToReview = async () => {
     if (await trigger()) onContinue();
@@ -260,10 +281,12 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
       {mode === "simple" && (
         <p className="border-primary-jade/30 bg-primary-jade/5 text-surface-grey-2 rounded-xl border px-4 py-3 text-xs">
           Using Broodfonds defaults: monthly dues, up to {DEFAULTS.memberCount}{" "}
-          members, a one-month join deposit, and larger claims reviewed by the
-          group over {DEFAULTS.contestWindowDays} days. Switch to{" "}
-          <strong>Advanced</strong> to change the join deposit, epoch length,
-          instant-withdrawal threshold, or review rules.
+          members (startable once {DEFAULTS.minimumMembers} have joined), a
+          one-month join deposit, and ×{BROODFONDS_RATIO} monthly support when a
+          member is in need — larger claims are reviewed by the group over{" "}
+          {DEFAULTS.contestWindowDays} days. Switch to <strong>Advanced</strong>{" "}
+          to change the support ratio, join deposit, epoch length, petty-cash
+          threshold, or review rules.
         </p>
       )}
 
@@ -352,6 +375,26 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
           />
           <AmountSuffix isBread={isBread} symbol={symbol} />
         </div>
+        <Slider
+          min={10}
+          max={250}
+          step={5}
+          value={Number(fixed) || 10}
+          onChange={(v) =>
+            setValue("fixedDeposit", String(v), {
+              shouldValidate: true,
+              shouldDirty: true,
+            })
+          }
+          ariaLabel="Monthly contribution slider"
+          className="mt-3"
+        />
+        <SupportRateNote
+          fixed={fixed}
+          ratio={ratio}
+          memberCount={memberCount}
+          symbol={symbol}
+        />
       </Field>
 
       <Field
@@ -367,6 +410,20 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
           className={inputClass}
           {...register("memberCount", { valueAsNumber: true })}
         />
+        <Slider
+          min={2}
+          max={50}
+          step={1}
+          value={Number.isFinite(memberCount) ? memberCount : 2}
+          onChange={(v) =>
+            setValue("memberCount", v, {
+              shouldValidate: true,
+              shouldDirty: true,
+            })
+          }
+          ariaLabel="Group size slider"
+          className="mt-3"
+        />
       </Field>
 
       {mode === "advanced" && (
@@ -374,6 +431,36 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
           <Heading4 className="text-text-standard text-base">
             Advanced settings
           </Heading4>
+
+          <Field
+            id={id("redeem-ratio")}
+            label="Support ratio"
+            help={`How much monthly support a member in need can draw, as a multiple of the monthly contribution. ×1 is a pure savings circle — you only take out what you put in. Broodfonds groups use ≈×${BROODFONDS_RATIO}. The rate members actually get is throttled onchain to what the group size and pool can sustainably back.`}
+            error={errors.redeemRatio?.message}
+          >
+            <input
+              {...fieldAria(id("redeem-ratio"), errors.redeemRatio?.message, "help")}
+              type="number"
+              min={MIN_REDEEM_RATIO}
+              max={MAX_REDEEM_RATIO}
+              className={inputClass}
+              {...register("redeemRatio", { valueAsNumber: true })}
+            />
+            <Slider
+              min={MIN_REDEEM_RATIO}
+              max={MAX_REDEEM_RATIO}
+              step={1}
+              value={Number.isFinite(ratio) ? ratio : BROODFONDS_RATIO}
+              onChange={(v) =>
+                setValue("redeemRatio", v, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+              ariaLabel="Support ratio slider"
+              className="mt-3"
+            />
+          </Field>
 
           <Field
             id={id("initial-deposit")}
@@ -419,7 +506,7 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
             <Field
               id={id("min-members")}
               label="Minimum members to start"
-              help="You can only start the net once this many members have joined (contract minimum: 2)."
+              help="You can only start the net once this many members have joined. Broodfonds recommends ~25 — the support math needs critical mass; the contract minimum is 2."
               error={errors.minimumMembers?.message}
             >
               <input
@@ -435,8 +522,8 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
               id={id("auto-threshold")}
-              label="Instant-withdrawal threshold"
-              help="Withdrawals up to this amount pay out instantly; larger ones go to group review. Defaults to ¼ of the monthly contribution."
+              label="Instant (petty-cash) threshold"
+              help="Small withdrawals up to this amount pay out instantly with no review — petty cash, not the monthly support cap. Defaults to ¼ of the monthly contribution."
               error={errors.autoThreshold?.message}
             >
               <div className="relative">
@@ -541,7 +628,12 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
   const name = watch("name")?.trim();
   const members = watch("memberCount");
   const fixed = watch("fixedDeposit");
+  const ratio = watch("redeemRatio");
   const epochDays = watch("epochDurationDays");
+  const supportPerMonth =
+    Number.isFinite(ratio) && Number(fixed) > 0
+      ? Number(fixed) * ratio
+      : undefined;
   // Show the derived values (Simple mode leaves these blank in form state).
   const initial = watch("initialDeposit")?.trim() || deriveInitial(fixed);
   const autoThreshold = watch("autoThreshold")?.trim() || deriveAuto(fixed);
@@ -594,7 +686,7 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
       members: [],
       initialDeposit,
       fixedDeposit,
-      redeemRatio: BigInt(REDEEM_RATIO), // locked to 1 onchain in v1
+      redeemRatio: BigInt(v.redeemRatio),
       autoThreshold: autoThresholdWei,
       contestWindow: BigInt(Math.round(v.contestWindowDays * 86_400)),
       epochDuration: BigInt(Math.round(v.epochDurationDays * 86_400)),
@@ -624,15 +716,30 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
         <strong className="text-text-standard">{amt(initial)}</strong> to join and{" "}
         <strong className="text-text-standard">{amt(fixed)}</strong> each epoch
         (~<strong className="text-text-standard">{epochDays || "—"}</strong> days).
-        Withdrawals over{" "}
-        <strong className="text-text-standard">{amt(autoThreshold)}</strong> go to
-        a group review.
+        Small withdrawals up to{" "}
+        <strong className="text-text-standard">{amt(autoThreshold)}</strong> pay
+        out instantly; anything larger goes to a group review.
       </Body>
 
-      <p className="text-surface-grey text-xs">
-        Deposits and withdrawal power are 1:1 (redeem ratio ×1) — every token you
-        put in unlocks exactly one token of withdrawable balance.
-      </p>
+      {ratio > 1 ? (
+        <p className="border-primary-jade/30 bg-primary-jade/5 text-surface-grey-2 rounded-xl border px-4 py-3 text-xs">
+          <strong className="text-text-standard">
+            Support ratio ×{ratio}:
+          </strong>{" "}
+          a member in need can draw up to {ratio} × their monthly contribution —
+          about{" "}
+          <strong className="text-text-standard">
+            {supportPerMonth ? `${supportPerMonth} ${symbol}/month` : "—"}
+          </strong>{" "}
+          — from the shared pool, capped by their withdrawable balance and what
+          the group size and pool can sustainably back.
+        </p>
+      ) : (
+        <p className="text-surface-grey text-xs">
+          Pure savings circle (support ratio ×1) — every token you put in
+          unlocks exactly one token of withdrawable balance.
+        </p>
+      )}
 
       {Object.keys(errors).length > 0 && !created && (
         <p className="text-system-red text-xs font-medium">
@@ -700,6 +807,45 @@ function OverviewPanel({ onBack }: { onBack: () => void }) {
         </Button>
       )}
     </Card>
+  );
+}
+
+/**
+ * The headline Broodfonds promise, live-updating under the contribution field:
+ * what monthly support the chosen contribution buys, and what the group size
+ * sustainably backs (mirror of the contract's actuarial group cap).
+ */
+function SupportRateNote({
+  fixed,
+  ratio,
+  memberCount,
+  symbol,
+}: {
+  fixed: string;
+  ratio: number;
+  memberCount: number;
+  symbol: string;
+}) {
+  const n = Number(fixed);
+  if (!Number.isFinite(ratio) || ratio <= 1 || !Number.isFinite(n) || n <= 0)
+    return null;
+  const cap = groupRatioCap(Number.isFinite(memberCount) ? memberCount : 2);
+  const sustained = Math.min(ratio, cap);
+  return (
+    <p className="border-primary-jade/30 bg-primary-jade/5 text-surface-grey-2 mt-3 rounded-xl border px-4 py-3 text-xs">
+      <strong className="text-text-standard">
+        Monthly support when in need: ×{ratio} ≈ {n * ratio} {symbol}/month.
+      </strong>{" "}
+      {sustained < ratio ? (
+        <>
+          A group of {memberCount || "—"} sustainably backs about ×{sustained} (
+          {n * sustained} {symbol}/month) — support ramps toward the full rate
+          as the group and its pool grow.
+        </>
+      ) : (
+        <>This group size fully backs that rate once the pool has built up.</>
+      )}
+    </p>
   );
 }
 

@@ -15,7 +15,7 @@ const FEATURES = [
   {
     icon: HandCoins,
     title: "Save together, steadily",
-    body: "Your group agrees on the rules up front — which token, how much everyone deposits, how often. Dues build a shared pool, 1:1 with your withdrawable balance, and you can prepay months ahead.",
+    body: "Your group agrees on the rules up front — which token, how much everyone deposits, how often. Dues build a shared pool that backs each member's monthly support when in need, and you can prepay months ahead.",
   },
   {
     icon: Lightning,

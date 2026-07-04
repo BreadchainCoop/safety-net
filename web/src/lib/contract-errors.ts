@@ -48,7 +48,9 @@ export const SAFETY_NET_ERRORS: Record<string, string> = {
   ContestWindowClosed:
     "The contest window for this request has closed — it can no longer be contested.",
   InvalidEpochDuration: "The epoch duration must be greater than zero.",
-  InvalidRatio: "The redeem ratio must be between 1 and 22.",
+  InvalidRatio: "The support (redeem) ratio must be between 1 and 25.",
+  InsufficientPoolFunds:
+    "The shared pool can't cover this payout right now — try again after the next dues come in, or the group can wind the net down for a pro-rata split.",
   InvalidSmallWithdrawsLimit:
     "The small-withdrawals limit must be greater than zero.",
   InvalidSmallWithdrawalLimit: "The small-withdrawal limit is invalid.",

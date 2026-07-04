@@ -1,6 +1,6 @@
 import { isAddress } from "viem";
 import { z } from "zod";
-import { REDEEM_RATIO } from "@/lib/config";
+import { MAX_REDEEM_RATIO, MIN_REDEEM_RATIO } from "@/lib/config";
 
 /** Positive decimal token amount as a string (parsed with token decimals). */
 const amountString = z
@@ -49,9 +49,13 @@ export const createNetSchema = z
     // Derived by default (= one recurring deposit): the one-off join payment.
     // Only edited in Advanced mode, so it's optional here.
     initialDeposit: optionalAmountString,
-    // Locked onchain in v1 (MINIMUM/MAXIMUM_REDEEM_RATIO are both 1):
-    // deposits and withdrawal power are 1:1, leverage disabled.
-    redeemRatio: z.literal(REDEEM_RATIO),
+    // Support ratio, mirroring the contract's MINIMUM/MAXIMUM_REDEEM_RATIO
+    // (1-25). x1 = pure savings circle; ~x22 = classic Broodfonds solidarity.
+    redeemRatio: z
+      .number({ error: "Enter a whole number" })
+      .int("Whole numbers only")
+      .min(MIN_REDEEM_RATIO, `At least ×${MIN_REDEEM_RATIO}`)
+      .max(MAX_REDEEM_RATIO, `At most ×${MAX_REDEEM_RATIO}`),
     // Derived by default (= a quarter of the recurring deposit). Advanced-only.
     autoThreshold: optionalAmountString,
     contestThreshold: z
