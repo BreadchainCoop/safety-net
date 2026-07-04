@@ -90,12 +90,16 @@ export const transports = {
     http("https://rpc.gnosis.gateway.fm", { timeout: 7_000, retryCount: 1 }),
   ]),
   // ENS-only public fallback (no key). Reads never write, so no risk.
+  // publicnode + cloudflare send permissive CORS headers from a browser;
+  // eth.merkle.io does not (its CORS preflight fails from the GH Pages origin),
+  // so it goes last — the fallback still reaches it as a last resort.
   [mainnet.id]: fallback([
-    http("https://eth.merkle.io", { timeout: 7_000, retryCount: 1 }),
     http("https://ethereum-rpc.publicnode.com", {
       timeout: 7_000,
       retryCount: 1,
     }),
+    http("https://cloudflare-eth.com", { timeout: 7_000, retryCount: 1 }),
+    http("https://eth.merkle.io", { timeout: 7_000, retryCount: 1 }),
   ]),
 } as const;
 
