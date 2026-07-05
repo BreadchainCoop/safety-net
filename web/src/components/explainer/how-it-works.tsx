@@ -4,15 +4,15 @@ import Link from "next/link";
 import { Body, Button, Chip, Heading1, Heading4 } from "@breadcoop/ui";
 import {
   ArrowRight,
-  Coins,
   HandCoins,
   Handshake,
   Lifebuoy,
   ShieldCheck,
   TrendUp,
+  Umbrella,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/ui";
-import { NoteBox } from "@/components/ui/note-box";
 import { StepFlow, type Step } from "@/components/explainer/step-flow";
 import { SupportCalculator } from "@/components/explainer/support-calculator";
 import {
@@ -20,72 +20,60 @@ import {
   VaultDiagramCaption,
 } from "@/components/explainer/diagrams/vault-diagram";
 import { RequestLifecycle } from "@/components/explainer/diagrams/request-lifecycle";
-import { RatioRampChart } from "@/components/explainer/diagrams/ratio-ramp-chart";
-import { BROODFONDS_RATIO } from "@/lib/config";
 
 const LIFECYCLE: Step[] = [
   {
     icon: Handshake,
     title: "Agree",
-    body: "Your circle picks the rules together: which token, how much everyone deposits each epoch, and how big a withdrawal needs a group review.",
+    body: "Your circle picks the rules together: which token, how much everyone chips in each month, and how big a withdrawal needs a group check-in.",
   },
   {
     icon: HandCoins,
-    title: "Deposit",
-    body: "Everyone pays the same recurring dues into one shared pool. Your money is tracked as yours — deposits stay yours, not the fund's.",
+    title: "Chip in",
+    body: "Everyone pays the same amount into one shared pool, month after month. Your balance is tracked as yours — deposits stay yours, not the fund's.",
   },
   {
     icon: TrendUp,
-    title: "Build",
-    body: "Each deposit multiplies by the support ratio into your withdrawable balance. The pool grows into a cushion the whole group stands on.",
+    title: "Build a cushion",
+    body: "Month by month the pool grows into a real cushion — one the whole group can lean on when someone hits a rough patch.",
   },
   {
     icon: Lifebuoy,
-    title: "Support",
-    body: "When a member is in need, they draw monthly support from the pool — up to the support ratio × their dues. Small needs pay out instantly; large ones get a quick group check-in.",
+    title: "Get support",
+    body: "When a member is in need, they draw monthly support from the pool — far more than they put in on their own. Small amounts pay out instantly; bigger ones get a quick group check-in.",
   },
   {
     icon: ShieldCheck,
-    title: "Protect",
-    body: "Any member can contest a large request inside the window. Enough contests veto it. If the group ever winds down, everyone gets their balance plus an even split of the pool back.",
+    title: "Look out for each other",
+    body: "The group reviews large requests together, and if the circle ever winds down, everyone gets their balance plus an even share of the pool back. No bank, no forms — just your people.",
   },
 ];
 
 const MECHANISM: Step[] = [
   {
-    icon: Coins,
-    title: "×22 sounds impossible — until you count who's actually in need",
-    body: "In any given month only a small share of a group is drawing support. The Broodfonds convention assumes about 2%. If 1 in 50 needs help, the other 49 are quietly backing them.",
+    icon: Umbrella,
+    title: "Most months, most people are fine",
+    body: "Illness, a lost contract, a broken leg — they hit a few people at a time, not everyone at once. On any given month, only a small handful of your circle is actually drawing support.",
   },
   {
-    title: "So each unit of dues can back roughly ×22 of support",
-    body: "1 ÷ 2% ≈ 50 in theory; the protocol keeps a safety margin on top, landing near ×22 for a large, healthy group. That's the pooling multiplier — not interest, not yield. It only works because most members aren't claiming at once.",
-    extra: (
-      <NoteBox>
-        <strong className="text-text-standard">No magic, no lending.</strong>{" "}
-        Nobody borrows your deposit and nobody pays interest. The multiplier is
-        pure mutual pooling: many small monthly contributions standing behind the
-        few who need help this month.
-      </NoteBox>
-    ),
+    icon: HandCoins,
+    title: "So a little from everyone becomes a lot for someone",
+    body: "When everyone chips in a small amount each month and only one or two need help, the whole group's contributions stand behind them. That's why the support you can draw is many times what you pay in — it's the circle catching you, not a return on your money.",
   },
   {
-    title: "Bigger groups make the multiplier safer, not bigger",
-    body: "With just a few members, one unlucky month swings the average hard — so the sustainable ratio is capped lower. As the group grows, the law of large numbers smooths that 2% and the cap climbs toward the full rate.",
-    extra: (
-      <div className="max-w-sm">
-        <RatioRampChart ratio={BROODFONDS_RATIO} />
-      </div>
-    ),
+    icon: UsersThree,
+    title: "Bigger circles are steadier",
+    body: "The more people in your net, the more predictable it is: one rough month barely moves the average, so the group can comfortably promise more support to whoever needs it.",
   },
   {
-    title: "Your effective ratio ramps as the pool fills",
-    body: "A brand-new net can't pay ×22 on day one — there's nothing pooled yet. The effective ratio starts low and climbs toward the ratio you configured as members deposit. The app always shows both: “×22 configured (×N effective now).”",
+    icon: TrendUp,
+    title: "It grows into the promise",
+    body: "A brand-new net hasn't pooled much yet, so it starts by backing smaller amounts and grows toward the full promise as everyone keeps chipping in. The app always shows what your net can support today.",
   },
   {
     icon: ShieldCheck,
-    title: "Contest + wind-down keep it honest",
-    body: "Large withdrawals are contestable by the group. A member who stops paying makes the net decommissionable, and winding down returns everyone's balance pro-rata. Solidarity leverage only works because the group can always say no.",
+    title: "The circle stays in control",
+    body: "Big requests get a quick group check-in, and if someone stops chipping in, anyone can wind the net down so everyone gets their share back. It works because the group can always weigh in — no bank, no bureaucracy.",
   },
 ];
 
@@ -96,7 +84,7 @@ export function HowItWorks() {
       {/* Hero */}
       <section className="pt-6 text-center">
         <div className="flex justify-center">
-          <Chip size="small">Broodfonds, on-chain</Chip>
+          <Chip size="small">Mutual aid, on-chain</Chip>
         </div>
         <div className="mt-4">
           <Heading1 className="text-text-standard">
@@ -104,10 +92,10 @@ export function HowItWorks() {
           </Heading1>
         </div>
         <Body className="text-surface-grey-2 mx-auto mt-4 max-w-xl">
-          A Safety Net is a mutual-aid savings circle: everyone chips in a little
-          each month, and any member who hits hard times can draw real monthly
-          support from the shared pool — many times their own contribution.
-          Here&apos;s exactly how, and why the math holds up.
+          A Safety Net is a savings circle with a social safety net built in:
+          everyone chips in a little each month, and any member who hits hard
+          times can draw real monthly support from the shared pool — far more
+          than they put in alone.
         </Body>
       </section>
 
@@ -119,9 +107,11 @@ export function HowItWorks() {
         >
           The lifecycle
         </h2>
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-start">
-          <StepFlow steps={LIFECYCLE} />
-          <div className="lg:pt-2">
+        <div className="mt-6 grid gap-8 lg:grid-cols-3 lg:items-start">
+          <div className="lg:col-span-2">
+            <StepFlow steps={LIFECYCLE} />
+          </div>
+          <div className="lg:sticky lg:top-24">
             <Card>
               <VaultDiagram />
               <VaultDiagramCaption />
@@ -130,18 +120,18 @@ export function HowItWorks() {
         </div>
       </section>
 
-      {/* 2.2 Mechanism deep-dive */}
+      {/* 2.2 Why it works, in plain terms */}
       <section aria-labelledby="how-ratio">
         <h2
           id="how-ratio"
           className="font-breadDisplay text-text-standard text-2xl font-bold uppercase"
         >
-          Why ×22 isn&apos;t magic
+          How a little becomes a lot
         </h2>
         <Body className="text-surface-grey-2 mt-2">
-          The support ratio is the one part that looks too good to be true. It
-          isn&apos;t — it&apos;s actuarial pooling, and the contract enforces a
-          cap that keeps it sustainable.
+          The support you can draw is bigger than what you pay in — sometimes a
+          lot bigger. That&apos;s not a trick or a return on investment.
+          It&apos;s just what happens when a group shares risk together.
         </Body>
         <div className="mt-6">
           <StepFlow steps={MECHANISM} />
@@ -157,8 +147,9 @@ export function HowItWorks() {
           Try it with your group
         </h2>
         <Body className="text-surface-grey-2 mt-2">
-          Drag the sliders to see what a group like yours could sustainably back
-          — the same numbers you&apos;ll see on the create page.
+          Drag the sliders to see the monthly support a group like yours could
+          give someone in need — the same numbers you&apos;ll see on the create
+          page.
         </Body>
         <div className="mt-6">
           <SupportCalculator />
@@ -174,17 +165,15 @@ export function HowItWorks() {
           Big claims get a group check-in
         </h2>
         <Body className="text-surface-grey-2 mt-2">
-          Small withdrawals pay out instantly. Anything over your group&apos;s
-          petty-cash threshold opens a contest window — a chance for the circle
-          to weigh in before funds move.
+          Small withdrawals pay out instantly. Anything bigger opens a short
+          window for the circle to weigh in before the money moves.
         </Body>
         <Card className="mt-6">
           <RequestLifecycle />
           <Body className="text-surface-grey-2 mt-4 text-sm">
-            The requester writes a short reason, visible to everyone. If more than
-            the group&apos;s threshold of members contest inside the window, the
-            request is vetoed and no funds move. Otherwise it becomes executable
-            and pays out.
+            The person asking writes a short reason, visible to everyone. If
+            enough members object inside the window, the request is turned down
+            and no money moves. Otherwise it goes through.
           </Body>
         </Card>
       </section>

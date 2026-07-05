@@ -9,13 +9,12 @@ export function IllustrationDisclaimer() {
   return (
     <NoteBox icon>
       <strong className="text-text-standard">
-        Illustration, not a promise.
+        An illustration, not a promise.
       </strong>{" "}
-      These figures show how the support ratio <em>could</em> work for a group
-      like this — it&apos;s the same math the contract uses — but real support
-      depends on your pool&apos;s actual balance, your group&apos;s size, and how
-      many members need help at once. Your <em>effective</em> ratio ramps up as
-      the pool fills, and no payout is guaranteed. Nothing here is financial
+      This shows how much a group like this <em>could</em> support someone — but
+      real support depends on how full your pool is, how big your circle is, and
+      how many people need help at once. A new net supports smaller amounts and
+      grows over time, and no payout is guaranteed. Nothing here is financial
       advice.
     </NoteBox>
   );
