@@ -8,7 +8,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TimeDisplay } from "@/components/ui/time-display";
 import { TxStatus } from "@/components/ui/tx-status";
 import { ActionButton } from "@/components/ui/action-button";
-import { Badge, Card, EmptyState } from "@/components/ui/ui";
+import { Badge, Card, EmptyState, ProgressBar } from "@/components/ui/ui";
+import { NoteBox } from "@/components/ui/note-box";
 import { useNow } from "@/hooks/use-now";
 import { useHasContested } from "@/hooks/use-safety-net";
 import {
@@ -16,7 +17,7 @@ import {
   useExecuteContestedWithdrawal,
 } from "@/hooks/use-safety-net-writes";
 import { useTokenInfo } from "@/hooks/use-token";
-import { formatAmount, shortenAddress } from "@/lib/format";
+import { formatAmount, formatDuration, shortenAddress } from "@/lib/format";
 import {
   requestStatus,
   type RequestView,
@@ -48,6 +49,15 @@ function RequestRow({
   const memberCount = Number(details.memberCount);
   const votesToVeto =
     Math.floor((memberCount * Number(net.contestThreshold)) / 100) + 1;
+  const remainingToVeto = Math.max(
+    0,
+    votesToVeto - Number(view.request.contestCount),
+  );
+  // Fraction of the contest window that has elapsed (0..1), for the drain bar.
+  const windowStart = Number(view.request.timestamp);
+  const windowLen = Number(net.contestWindow);
+  const windowElapsed =
+    windowLen > 0 ? (now - windowStart) / windowLen : 1;
   const isMine = view.request.owner.toLowerCase() === address?.toLowerCase();
 
   return (
@@ -85,21 +95,53 @@ function RequestRow({
           &ldquo;{view.reason}&rdquo;
         </blockquote>
       ) : (
-        <p className="text-surface-grey mt-3 text-sm italic">No reason given</p>
+        <p className="text-system-warning mt-3 text-sm font-medium italic">
+          No reason given — consider that when deciding whether to contest.
+        </p>
       )}
 
       <div className="text-surface-grey mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span>
           Requested <TimeDisplay timestamp={view.request.timestamp} />
         </span>
-        <span>
-          {view.request.contestCount.toString()} of {votesToVeto} contests
-          needed to veto
-        </span>
         <span className="text-surface-grey-2">
           Request #{view.id.toString()}
         </span>
       </div>
+
+      {/* Contest-window drain (contestable rows only) */}
+      {status === "contestable" && (
+        <div className="mt-3">
+          <div className="text-surface-grey mb-1 flex items-center justify-between text-xs">
+            <span>Contest window</span>
+            <span>
+              closes <TimeDisplay timestamp={contestEnds} />
+            </span>
+          </div>
+          <ProgressBar value={windowElapsed} tone="warning" />
+        </div>
+      )}
+
+      {/* Veto progress toward the threshold */}
+      {(status === "contestable" || status === "vetoed") && (
+        <div className="mt-3">
+          <div className="text-surface-grey mb-1 flex items-center justify-between text-xs">
+            <span>
+              {view.request.contestCount.toString()} of {votesToVeto} contests to
+              veto
+            </span>
+            <span>
+              {status === "vetoed"
+                ? "vetoed"
+                : `${remainingToVeto} more would veto this`}
+            </span>
+          </div>
+          <ProgressBar
+            value={Number(view.request.contestCount) / votesToVeto}
+            tone="red"
+          />
+        </div>
+      )}
 
       {status === "contestable" && details.isMember && (
         <div className="mt-3 max-w-xs">
@@ -121,6 +163,10 @@ function RequestRow({
             error={contestTx.error}
             successLabel="Contest recorded"
           />
+          <p className="text-surface-grey mt-1.5 text-xs">
+            A veto vote — cast it if the timing or need doesn&apos;t look right.
+            You can contest once, and it can&apos;t be undone.
+          </p>
           <ConfirmDialog
             open={confirmingContest}
             title="Contest this withdrawal?"
@@ -164,6 +210,8 @@ function RequestRow({
 
 /** All withdrawal requests of a net, newest first, with contest/execute actions. */
 export function RequestsList({ details }: { details: SafetyNetDetails }) {
+  const net = details.safetyNet;
+  const { symbol, decimals } = useTokenInfo(net.token);
   const requests = useMemo(
     () => [...details.requests].reverse(),
     [details.requests],
@@ -184,6 +232,16 @@ export function RequestsList({ details }: { details: SafetyNetDetails }) {
       <Caption className="text-surface-grey-2">
         Withdrawal requests ({requests.length})
       </Caption>
+      <div className="mt-3">
+        <NoteBox icon>
+          <strong className="text-text-standard">How requests work.</strong>{" "}
+          Small withdrawals (≤ {formatAmount(net.autoThreshold, decimals)}{" "}
+          {symbol}) pay out instantly. Larger ones open a{" "}
+          {formatDuration(net.contestWindow)} contest window — if more than{" "}
+          {net.contestThreshold.toString()}% of members contest, the request is
+          vetoed and no funds move.
+        </NoteBox>
+      </div>
       <ul className="mt-2">
         {requests.map((view) => (
           <RequestRow

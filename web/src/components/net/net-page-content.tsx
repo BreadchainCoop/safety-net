@@ -4,6 +4,8 @@ import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { zeroAddress } from "viem";
+import { Button } from "@breadcoop/ui";
+import { ArrowRight } from "@phosphor-icons/react";
 import {
   EmptyState,
   ErrorState,
@@ -121,14 +123,27 @@ function NetDetail() {
             <div className="flex flex-col gap-4">
               {details.isMember ? (
                 <EmptyState>
-                  Deposits open once the owner starts the net — withdrawals
-                  and requests do too.
+                  You&apos;re in. Once{" "}
+                  {details.safetyNet.minimumMembers.toString()} members have
+                  joined, the owner starts the net and epoch 1 begins —
+                  deposits, support, and requests all open then.
                 </EmptyState>
               ) : (
-                <EmptyState>
-                  You&apos;re not a member of this Safety Net. Ask the owner
-                  for an invite link to join before it starts.
-                </EmptyState>
+                <div className="flex flex-col gap-3">
+                  <EmptyState>
+                    You&apos;re not a member of this Safety Net. Ask the owner
+                    for an invite link to join before it starts.
+                  </EmptyState>
+                  <Button
+                    as={Link}
+                    app="net"
+                    variant="secondary"
+                    rightIcon={<ArrowRight />}
+                    href="/how"
+                  >
+                    See how it works
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -151,10 +166,21 @@ function NetDetail() {
                 <WithdrawPanel details={details} />
               </>
             ) : (
-              <EmptyState>
-                You&apos;re not a member of this Safety Net — it has already
-                started, so joining is closed.
-              </EmptyState>
+              <div className="flex flex-col gap-3">
+                <EmptyState>
+                  You&apos;re not a member of this Safety Net — it has already
+                  started, so joining is closed.
+                </EmptyState>
+                <Button
+                  as={Link}
+                  app="net"
+                  variant="secondary"
+                  rightIcon={<ArrowRight />}
+                  href="/how"
+                >
+                  How Safety Nets work
+                </Button>
+              </div>
             )}
             <DecommissionPanel details={details} />
           </div>

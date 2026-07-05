@@ -82,7 +82,7 @@ export function Landing() {
           >
             Connect wallet
           </Button>
-          <Button as={Link} app="net" variant="secondary" href="/docs">
+          <Button as={Link} app="net" variant="secondary" href="/how">
             How it works
           </Button>
         </div>
@@ -135,12 +135,19 @@ export function Landing() {
           ))}
         </ol>
         <p className="text-surface-grey-2 mt-4 text-sm">
-          Want the full walkthrough with screen recordings?{" "}
+          See it visually with an interactive calculator on{" "}
+          <Link
+            href="/how"
+            className="text-primary-jade font-bold hover:underline"
+          >
+            How it works
+          </Link>
+          , or the full walkthrough with screen recordings in the{" "}
           <Link
             href="/docs"
             className="text-primary-jade font-bold hover:underline"
           >
-            Read the docs
+            docs
           </Link>
           .
         </p>

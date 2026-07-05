@@ -3,6 +3,7 @@
 import { Caption } from "@breadcoop/ui";
 import { AddressDisplay } from "@/components/ui/address-display";
 import { Card, InfoRow, ProgressBar, StatCard } from "@/components/ui/ui";
+import { FundHealthPanel } from "@/components/net/fund-health-panel";
 import { useNow } from "@/hooks/use-now";
 import { useTokenInfo } from "@/hooks/use-token";
 import { useSafetyNetName } from "@/hooks/use-safety-net";
@@ -86,6 +87,8 @@ export function NetOverview({ details }: { details: SafetyNetDetails }) {
           <ProgressBar value={epochProgress} />
         </div>
       </Card>
+
+      {started && <FundHealthPanel details={details} />}
 
       <Card>
         <Caption className="text-surface-grey-2">Rules</Caption>
