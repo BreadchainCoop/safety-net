@@ -15,9 +15,12 @@ import { FundHub } from "./fund-hub";
 export function GetBreadModal({
   open,
   onClose,
+  prefillMint,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Shortfall (18 decimals) to prefill the Mint rail with — see FundHub. */
+  prefillMint?: bigint;
 }) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -52,7 +55,7 @@ export function GetBreadModal({
         <div id={titleId} className="sr-only">
           Add funds
         </div>
-        <FundHub onClose={onClose} />
+        <FundHub onClose={onClose} prefillMint={prefillMint} />
       </div>
     </div>
   );

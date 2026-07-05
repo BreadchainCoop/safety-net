@@ -32,7 +32,18 @@ interface Rail {
 }
 
 /** "Get BREAD" funding hub — a sectioned set of ways to add funds. */
-export function FundHub({ onClose }: { onClose: () => void }) {
+export function FundHub({
+  onClose,
+  prefillMint,
+}: {
+  onClose: () => void;
+  /**
+   * When opened from a deposit that's short on BREAD, the exact shortfall (18
+   * decimals): the hub opens on the Mint rail with this amount filled in so a
+   * user who already holds xDAI can top up in one click.
+   */
+  prefillMint?: bigint;
+}) {
   const { address } = useAccount();
   const {
     breadBalance,
@@ -105,11 +116,13 @@ export function FundHub({ onClose }: { onClose: () => void }) {
   // PRIVY_ENABLED and PEER_ONRAMP_ENABLED are build-time constants, so the rail
   // set is stable per build — no need to list them as deps.
 
-  const [rail, setRail] = useState<RailId>("bridge");
+  const [rail, setRail] = useState<RailId>(prefillMint ? "mint" : "bridge");
   const active = rails.find((r) => r.id === rail) ?? rails[0];
 
   // ---- Direct mint state ----------------------------------------------------
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(
+    prefillMint ? formatUnits(prefillMint, 18) : "",
+  );
   const mintableXdai = useMemo(() => {
     if (xdaiBalance === undefined) return undefined;
     return xdaiBalance > GAS_RESERVE_XDAI ? xdaiBalance - GAS_RESERVE_XDAI : 0n;
@@ -164,6 +177,17 @@ export function FundHub({ onClose }: { onClose: () => void }) {
         Fund your wallet, then mint BREAD — the savings token your Safety Net
         holds. BREAD mints 1:1 from xDAI and redeems back anytime.
       </Body>
+
+      {prefillMint !== undefined && prefillMint > 0n && (
+        <div className="border-primary-jade/40 bg-primary-jade/10 mt-3 rounded-xl border px-3 py-2 text-sm">
+          <p className="text-text-standard font-medium">
+            You need {formatAmount(prefillMint, 18)} more BREAD for your deposit.
+          </p>
+          <p className="text-surface-grey-2 mt-0.5 text-xs">
+            Already have xDAI? Mint it below. Otherwise add xDAI first, then mint.
+          </p>
+        </div>
+      )}
 
       {/* Live balances */}
       <dl className="border-paper-2 bg-paper-main mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border">
