@@ -7,6 +7,7 @@ import type { Abi, Address } from "viem";
 import { CHAIN_ID } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
 import { useTxSender } from "@/hooks/use-tx-sender";
+import { useToast } from "@/hooks/use-toast";
 
 export type TxStatus = "idle" | "signing" | "confirming" | "success" | "error";
 
@@ -33,6 +34,7 @@ export function useTx() {
   const [hash, setHash] = useState<`0x${string}` | undefined>(undefined);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const {
     data: receipt,
@@ -57,11 +59,20 @@ export function useTx() {
         setHash(txHash);
         return txHash;
       } catch (e) {
-        setSubmitError(parseContractError(e));
+        const friendly = parseContractError(e);
+        // Always log the raw error: a money app must never fail silently, and a
+        // non-contract SDK error (like the Privy BigInt bug) would otherwise
+        // collapse into the generic message with no way to diagnose it.
+        console.error(`[tx:${request.functionName}] failed:`, e);
+        setSubmitError(friendly);
+        // A user rejecting the wallet prompt isn't an error worth a toast.
+        if (!/rejected in wallet/i.test(friendly)) {
+          toast({ tone: "error", message: friendly });
+        }
         return undefined;
       }
     },
-    [send],
+    [send, toast],
   );
 
   const reset = useCallback(() => {

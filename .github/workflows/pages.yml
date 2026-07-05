@@ -41,6 +41,9 @@ jobs:
         working-directory: web
         env:
           NEXT_PUBLIC_BASE_PATH: /safety-net
+          # Baked into the bundle so the client can tell when it's running a
+          # stale (cached) build vs. the one currently deployed (build-id.txt).
+          NEXT_PUBLIC_BUILD_ID: ${{ github.sha }}
           NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ vars.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
           NEXT_PUBLIC_SAFETYNET_ADDRESS: ${{ vars.NEXT_PUBLIC_SAFETYNET_ADDRESS }}
           # Privy embedded wallets go live when this repo variable is set. Leave
@@ -52,6 +55,12 @@ jobs:
           # Activity feed reads the subgraph when set, else falls back to logs.
           NEXT_PUBLIC_SUBGRAPH_URL: ${{ vars.NEXT_PUBLIC_SUBGRAPH_URL }}
         run: pnpm build
+
+      # Version signal for the client refresh banner (see version-check.tsx).
+      # Served at /safety-net/build-id.txt; must match NEXT_PUBLIC_BUILD_ID above.
+      - name: Emit build id
+        working-directory: web
+        run: echo "${{ github.sha }}" > out/build-id.txt
 
       - uses: actions/upload-pages-artifact@v3
         with:
