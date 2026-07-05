@@ -8,6 +8,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { AmountField } from "@/components/ui/amount-field";
 import { TxStatus } from "@/components/ui/tx-status";
 import { Card } from "@/components/ui/ui";
+import { NoteBox } from "@/components/ui/note-box";
 import { GetBreadModal } from "@/components/funding/get-bread-modal";
 import { useMemberDepositInfo } from "@/hooks/use-safety-net";
 import { useDeposit, useDepositFor } from "@/hooks/use-safety-net-writes";
@@ -268,6 +269,16 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
       </div>
 
       <div className="mt-4 flex flex-col gap-3">
+        {onboarding && mode === "self" && (
+          <NoteBox icon>
+            <strong className="text-text-standard">
+              First deposit — your join payment.
+            </strong>{" "}
+            Pay exactly {formatAmount(net.initialDeposit, decimals)} {symbol} once
+            to activate your membership. It sets your recurring dues and unlocks
+            withdrawals. Your deposit stays yours.
+          </NoteBox>
+        )}
         {mode === "other" && (
           <div>
             <label htmlFor={otherInputId}>

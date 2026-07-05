@@ -69,12 +69,25 @@ export function StatCard({
   );
 }
 
-/** A horizontal progress bar (0..1), jade fill. */
-export function ProgressBar({ value }: { value: number }) {
+/** A horizontal progress bar (0..1). Jade fill by default; `tone` recolors it
+ * (e.g. red for veto progress, warning for a draining window). */
+export function ProgressBar({
+  value,
+  tone = "jade",
+}: {
+  value: number;
+  tone?: "jade" | "red" | "warning" | "green";
+}) {
+  const fill = {
+    jade: "bg-primary-jade",
+    red: "bg-red-main",
+    warning: "bg-system-warning",
+    green: "bg-system-green",
+  }[tone];
   return (
     <div className="bg-paper-2 h-2 w-full overflow-hidden rounded-full">
       <div
-        className="bg-primary-jade h-full rounded-full transition-all"
+        className={cn("h-full rounded-full transition-all", fill)}
         style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
       />
     </div>

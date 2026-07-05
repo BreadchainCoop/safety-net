@@ -101,6 +101,15 @@ export default function DocsPage() {
           deposits build a shared pool, and the group — not an institution —
           approves large withdrawals. Here&apos;s every flow, step by step.
         </p>
+        <p className="text-surface-grey-2 mt-3 text-sm">
+          Prefer a visual walkthrough with an interactive calculator?{" "}
+          <a
+            href="/how"
+            className="text-primary-jade font-bold hover:underline"
+          >
+            See How it works →
+          </a>
+        </p>
       </div>
 
       <nav className="border-paper-2 bg-paper-0 mb-10 rounded-2xl border p-5 text-sm">
