@@ -3,11 +3,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { Caption, CopyButtonIcon } from "@breadcoop/ui";
-import { PaperPlaneTilt } from "@phosphor-icons/react";
+import { CopySimple, DownloadSimple, PaperPlaneTilt } from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
 import { Badge, Card } from "@/components/ui/ui";
 import { inviteLink, useInviteLinks } from "@/hooks/use-invite";
-import { useInviteNoncesUsed } from "@/hooks/use-safety-net";
+import { useInviteNoncesUsed, useSafetyNetName } from "@/hooks/use-safety-net";
+import { useToast } from "@/hooks/use-toast";
+import { ADDRESSES, CHAIN_ID } from "@/lib/config";
 import type { SafetyNetDetails } from "@/lib/types";
 
 /**
@@ -32,7 +34,22 @@ export function InviteLinksBody({
   const net = details.safetyNet;
   const { invites, isLoaded, generate, progress, isGenerating, error } =
     useInviteLinks(net.id);
+  const { toast } = useToast();
   const countId = useId();
+
+  // Invites live only in this browser's localStorage; if it's blocked (private
+  // mode / storage disabled) they vanish on refresh, so nudge the owner to
+  // export. We probe once on mount rather than trusting the silent save.
+  const [storageBlocked, setStorageBlocked] = useState(false);
+  useEffect(() => {
+    try {
+      const probe = "__sn_invite_probe__";
+      window.localStorage.setItem(probe, "1");
+      window.localStorage.removeItem(probe);
+    } catch {
+      setStorageBlocked(true);
+    }
+  }, []);
 
   const remaining = Math.max(
     0,
@@ -56,6 +73,57 @@ export function InviteLinksBody({
   );
   const used = useInviteNoncesUsed(net.id, nonces);
   const acceptedCount = used.filter(Boolean).length;
+  const { data: netName } = useSafetyNetName(net.id);
+
+  const links = useMemo(
+    () => invites.map((inv) => inviteLink(net.id, inv)),
+    [invites, net.id],
+  );
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(links.join("\n"));
+      toast({
+        tone: "success",
+        message: `Copied ${links.length} invite ${links.length === 1 ? "link" : "links"}.`,
+      });
+    } catch {
+      toast({
+        tone: "error",
+        message: "Couldn't copy — use the copy button on each link instead.",
+      });
+    }
+  };
+
+  // Download a self-contained JSON backup so links survive a cleared browser or
+  // a move to a new device (the only place they otherwise exist).
+  const downloadJson = () => {
+    const payload = {
+      safetyNet: netName || `Safety Net #${net.id.toString()}`,
+      safetyNetId: net.id.toString(),
+      chainId: CHAIN_ID,
+      contract: ADDRESSES.safetyNet,
+      exportedAt: new Date().toISOString(),
+      note: "Each link is single-use. Anyone with a pending link can join this net — keep this file private.",
+      invites: invites.map((inv, i) => ({
+        index: i + 1,
+        nonce: inv.nonce,
+        status: used[i] === true ? "accepted" : "pending",
+        link: links[i],
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `safety-net-${net.id.toString()}-invites.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const clamped = Math.min(
     Math.max(1, Math.floor(count) || 1),
@@ -64,6 +132,13 @@ export function InviteLinksBody({
 
   return (
     <div>
+      {storageBlocked && invites.length > 0 && (
+        <p className="border-red-1 bg-red-0/60 text-red-main mt-2 rounded-xl border px-3 py-2 text-xs font-medium">
+          This browser is blocking local storage, so these links won&apos;t be
+          saved. Download or copy them now — they&apos;ll be lost on refresh.
+        </p>
+      )}
+
       {full && (
         <p className="text-system-warning mt-2 text-xs font-medium">
           The group is at its maximum of {net.maximumMembers.toString()} members
@@ -134,6 +209,23 @@ export function InviteLinksBody({
             </span>
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={copyAll}
+              className="border-paper-2 text-surface-grey-2 hover:border-primary-jade hover:text-primary-jade inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors"
+            >
+              <CopySimple size={14} weight="bold" /> Copy all
+            </button>
+            <button
+              type="button"
+              onClick={downloadJson}
+              className="border-paper-2 text-surface-grey-2 hover:border-primary-jade hover:text-primary-jade inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors"
+            >
+              <DownloadSimple size={14} weight="bold" /> Download backup
+            </button>
+          </div>
+
           <ul className="mt-2 flex max-h-96 flex-col gap-2 overflow-y-auto">
             {invites.map((inv, i) => {
               const link = inviteLink(net.id, inv);
@@ -169,8 +261,10 @@ export function InviteLinksBody({
 
           <p className="text-surface-grey mt-3 text-xs">
             <span className="text-system-warning font-bold">Reminder: </span>
-            each link is unique and can only be used once. Links are saved only
-            in this browser — share them privately.
+            each link is unique and can only be used once. They&apos;re saved
+            only in this browser — <strong>download a backup</strong> so you
+            don&apos;t lose them if you clear your browser or switch devices, and
+            share them privately.
           </p>
         </>
       )}

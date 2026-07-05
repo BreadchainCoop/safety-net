@@ -11,6 +11,7 @@ import {
 import { ADDRESSES, CHAIN_ID } from "@/lib/config";
 import { parseContractError } from "@/lib/parse-contract-error";
 import { useTypedDataSigner } from "@/hooks/use-typed-data-signer";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * A generated invite persisted in this browser. app-stacks keeps its invite
@@ -62,6 +63,7 @@ export function inviteLink(safetyNetId: bigint, invite: StoredInvite): string {
  */
 export function useInviteLinks(safetyNetId: bigint | undefined) {
   const { address } = useAccount();
+  const { toast } = useToast();
   // Privy mode signs silently (showWalletUIs:false); general/verify uses wagmi.
   const signTypedData = useTypedDataSigner();
   const [invites, setInvites] = useState<StoredInvite[]>([]);
@@ -109,7 +111,11 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
         // failures (SDK/serialization/network) into the generic fallback, which
         // made the Privy BigInt-serialization bug invisible in production logs.
         console.error("[invites] signature failed:", e);
-        setError(parseContractError(e, "Signature failed."));
+        const friendly = parseContractError(e, "Couldn't sign the invite links.");
+        setError(friendly);
+        if (!/rejected in wallet/i.test(friendly)) {
+          toast({ tone: "error", message: friendly });
+        }
       } finally {
         setProgress(null);
         if (generated.length > 0) {
@@ -121,7 +127,7 @@ export function useInviteLinks(safetyNetId: bigint | undefined) {
         }
       }
     },
-    [key, safetyNetId, signTypedData],
+    [key, safetyNetId, signTypedData, toast],
   );
 
   return {

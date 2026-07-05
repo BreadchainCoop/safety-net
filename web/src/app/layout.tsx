@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Navbar } from "@/components/navbar";
 import { VerifyBanner } from "@/components/verify-banner";
+import { VersionCheck } from "@/components/version-check";
 import { NotificationBanner } from "@/components/notification-banner";
 import { ConfigWarning } from "@/components/config-warning";
 import { SiteFooter } from "@/components/site-footer";
@@ -27,6 +28,7 @@ export default function RootLayout({
           <VerifyBanner />
           <Navbar />
           <ConfigWarning />
+          <VersionCheck />
           <NotificationBanner />
           <main className="section-container flex-1 py-8">{children}</main>
           <SiteFooter />

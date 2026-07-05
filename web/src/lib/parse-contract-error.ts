@@ -29,13 +29,33 @@ export function parseContractError(
   }
 
   const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
 
-  if (message.toLowerCase().includes("user rejected"))
+  if (
+    lower.includes("user rejected") ||
+    lower.includes("user denied") ||
+    lower.includes("rejected the request")
+  )
     return "Rejected in wallet.";
 
   for (const [name, friendly] of Object.entries(SAFETY_NET_ERRORS)) {
     if (message.includes(name)) return friendly;
   }
+
+  // Network / RPC failures (fetch, timeout, CORS, HTTP) — distinct from a
+  // contract revert, and actionable ("try again") rather than a hard failure.
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout") ||
+    lower.includes("network") ||
+    lower.includes("fetch failed") ||
+    /http (4|5)\d\d/.test(lower)
+  )
+    return "Network error reaching Gnosis — check your connection and try again.";
+
+  if (lower.includes("insufficient funds"))
+    return "Not enough gas (xDAI) to send this transaction.";
 
   if (error instanceof BaseError && error.shortMessage)
     return error.shortMessage;

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { PRIVY_ENABLED } from "@/lib/config";
 import { AddressesProvider } from "@/components/addresses-provider";
+import { ToastProvider } from "@/hooks/use-toast";
 import { GeneralProviders } from "@/components/providers-general";
 
 // The Privy tree is code-split behind next/dynamic so `@privy-io/*` only loads
@@ -16,18 +17,17 @@ const PrivyProviders = dynamic(
 );
 
 export function Providers({ children }: { children: ReactNode }) {
-  // AddressesProvider sits outermost: it needs no wagmi/query context, and its
-  // hydration re-render must reach both provider trees.
-  if (PRIVY_ENABLED) {
-    return (
-      <AddressesProvider>
-        <PrivyProviders>{children}</PrivyProviders>
-      </AddressesProvider>
-    );
-  }
+  // AddressesProvider + ToastProvider sit outermost: they need no wagmi/query
+  // context, and both must be ancestors of every tree (the toast surface is
+  // shared, and the addresses re-render must reach both provider trees).
+  const tree = PRIVY_ENABLED ? (
+    <PrivyProviders>{children}</PrivyProviders>
+  ) : (
+    <GeneralProviders>{children}</GeneralProviders>
+  );
   return (
     <AddressesProvider>
-      <GeneralProviders>{children}</GeneralProviders>
+      <ToastProvider>{tree}</ToastProvider>
     </AddressesProvider>
   );
 }
