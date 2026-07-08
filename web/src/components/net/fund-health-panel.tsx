@@ -54,7 +54,7 @@ export function FundHealthPanel({ details }: { details: SafetyNetDetails }) {
           help="A simple solvency check: if one member drew their full monthly support right now, roughly how many months could the current pool sustain it? Six months or more is comfortable. It's an illustration of the pool's depth, not a guarantee."
         >
           <span className="inline-flex items-center gap-2">
-            ~{runwayMonths.toFixed(1)} months
+            {runwayMonths >= 999 ? "999+" : `~${runwayMonths.toFixed(1)}`} months
             <Badge tone={runwayTone}>{runwayLabel}</Badge>
           </span>
         </InfoRow>

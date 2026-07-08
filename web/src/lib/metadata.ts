@@ -42,6 +42,7 @@ export function buildMetadata({
         ? title
         : { default: DEFAULT_TITLE, template: `%s — ${SITE_NAME}` },
     description,
+    alternates: { canonical: absolute(path) },
     openGraph: {
       type: "website",
       siteName: SITE_NAME,

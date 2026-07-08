@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 /**
  * Styled range input (design-system jade/paper tokens; rules in globals.css).
@@ -87,6 +87,9 @@ export function SliderField({
   disabled?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  // Label the number box by the visible label element (works even when `label`
+  // is a ReactNode, where a string aria-label can't be derived).
+  const labelId = useId();
 
   // External changes (slider drags, form resets) overwrite an unfocused draft.
   useEffect(() => {
@@ -101,7 +104,11 @@ export function SliderField({
   return (
     <div>
       <div className="flex items-end justify-between gap-2">
-        <label htmlFor={id} className="text-surface-grey-2 text-xs font-bold">
+        <label
+          id={labelId}
+          htmlFor={id}
+          className="text-surface-grey-2 text-xs font-bold"
+        >
           {label}
         </label>
         {format ? (
@@ -114,7 +121,7 @@ export function SliderField({
               value={draft ?? String(value)}
               inputMode="numeric"
               disabled={disabled}
-              aria-label={typeof label === "string" ? label : undefined}
+              aria-labelledby={labelId}
               onChange={(e) => {
                 setDraft(e.target.value);
                 commit(e.target.value);

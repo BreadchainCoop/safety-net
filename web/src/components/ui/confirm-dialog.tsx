@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { Body, Button, Heading4 } from "@breadcoop/ui";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 /**
  * Confirmation step for irreversible actions (decommission, contest) — the
@@ -31,16 +32,8 @@ export function ConfirmDialog({
   const titleId = useId();
   const confirmRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    // Move focus into the dialog so keyboard users aren't left behind it.
-    confirmRef.current?.querySelector("button")?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  // Focus into the dialog on open, trap Tab within it, Escape cancels.
+  useFocusTrap(confirmRef, open, onCancel);
 
   if (!open) return null;
 
