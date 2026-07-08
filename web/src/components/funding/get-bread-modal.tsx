@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useId, useRef } from "react";
 import { FundHub } from "./fund-hub";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 /**
  * "Add funds" hub modal. Keeps the original `GetBreadModal({ open, onClose })`
@@ -25,15 +26,8 @@ export function GetBreadModal({
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    dialogRef.current?.querySelector<HTMLElement>("input,button")?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Focus into the modal on open, trap Tab within it, Escape closes.
+  useFocusTrap(dialogRef, open, onClose);
 
   if (!open) return null;
 

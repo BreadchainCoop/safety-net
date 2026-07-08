@@ -183,7 +183,11 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
               rows={3}
               placeholder="Explain your request so the group can decide whether to contest it…"
               aria-invalid={reasonTooLong || undefined}
-              aria-describedby={`${reasonId}-help`}
+              aria-describedby={
+                reasonTooLong
+                  ? `${reasonId}-help ${reasonId}-error`
+                  : `${reasonId}-help`
+              }
               className={`${inputClass} mt-1.5 resize-y`}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -196,7 +200,10 @@ export function WithdrawPanel({ details }: { details: SafetyNetDetails }) {
               group. Keep it under {MAX_REASON_WORDS} words.
             </p>
             {reasonTooLong && (
-              <p className="text-system-red mt-1 text-xs font-medium">
+              <p
+                id={`${reasonId}-error`}
+                className="text-system-red mt-1 text-xs font-medium"
+              >
                 {reasonWords > MAX_REASON_WORDS
                   ? `Too long — remove ${reasonWords - MAX_REASON_WORDS} word${reasonWords - MAX_REASON_WORDS === 1 ? "" : "s"}.`
                   : "Too long — please shorten it (max 2000 bytes)."}

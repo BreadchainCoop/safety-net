@@ -307,6 +307,7 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
       </Field>
 
       <Field
+        id={id("token")}
         label="Token"
         help="The ERC20 everyone saves in. BREAD is the default; pick Custom for another allowed token."
         error={errors.customToken?.message}
@@ -345,8 +346,12 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
         </div>
         {tokenChoice === "custom" && (
           <input
+            id={id("token")}
             aria-label="Custom token address"
             aria-invalid={errors.customToken ? true : undefined}
+            aria-describedby={
+              errors.customToken ? `${id("token")}-error` : undefined
+            }
             className={`${inputClass} mt-2`}
             placeholder="0x… token address"
             {...register("customToken")}

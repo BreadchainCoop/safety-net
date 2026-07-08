@@ -10,6 +10,11 @@ export function formatAmount(
   const s = formatUnits(value, decimals);
   const n = Number(s);
   if (Number.isNaN(n)) return s;
+  // A tiny but non-zero amount would round to "0.00" and read as nothing —
+  // show a "< smallest" marker instead so it's clearly not zero.
+  const smallest = 1 / 10 ** maxFrac;
+  if (n > 0 && n < smallest)
+    return `<${smallest.toLocaleString("en-US", { maximumFractionDigits: maxFrac })}`;
   return n.toLocaleString("en-US", {
     minimumFractionDigits: n === 0 ? 0 : Math.min(2, maxFrac),
     maximumFractionDigits: maxFrac,
