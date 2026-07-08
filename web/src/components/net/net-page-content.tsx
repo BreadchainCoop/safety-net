@@ -150,14 +150,25 @@ function NetDetail() {
         </>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="flex flex-col gap-4 lg:col-span-2">
+          {/* On phones the single column stacks top-to-bottom; a member's
+              Deposit/Withdraw actions (right) come first so they aren't buried
+              under overview/members/requests. Reverts to the sidebar on lg. */}
+          <div
+            className={`flex flex-col gap-4 lg:col-span-2 ${
+              details.isMember ? "order-2 lg:order-1" : ""
+            }`}
+          >
             <NetOverview details={details} />
             <MembersList details={details} />
             <RequestsList details={details} />
             <ActivityFeed details={details} />
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div
+            className={`flex flex-col gap-4 ${
+              details.isMember ? "order-1 lg:order-2" : ""
+            }`}
+          >
             {details.isMember ? (
               <>
                 <DepositPanel details={details} />

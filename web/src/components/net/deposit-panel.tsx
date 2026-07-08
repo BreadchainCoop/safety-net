@@ -158,6 +158,11 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
     net.token.toLowerCase() === BREAD_ADDRESS.toLowerCase();
   const canGetBread =
     mode === "self" && isBreadNet && insufficientBalance === true;
+  // The exact top-up needed to afford this deposit — prefilled into Get-BREAD.
+  const shortfall =
+    canGetBread && parsed !== null && balance !== undefined
+      ? parsed - balance
+      : undefined;
   // Upper bound on what the prepay window can absorb: this epoch's remaining
   // dues + MAX_PREPAY_EPOCHS full epochs. (Future-epoch fills can't be read
   // cheaply, so a deposit inside this bound can still revert with
@@ -344,9 +349,11 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
           <button
             type="button"
             onClick={() => setGetBreadOpen(true)}
-            className="border-primary-jade text-primary-jade hover:bg-primary-jade/10 self-start rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors"
+            className="bg-primary-jade hover:bg-primary-jade/90 self-start rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-colors"
           >
-            Not enough BREAD — Get BREAD
+            {shortfall !== undefined && shortfall > 0n
+              ? `Get ${formatAmount(shortfall, decimals)} ${symbol}`
+              : `Get ${symbol}`}
           </button>
         )}
         {exceedsCapacity && (
@@ -360,7 +367,8 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
           <p className="text-system-warning text-xs font-medium">
             Deposits pull tokens from the member&apos;s own wallet — they must
             first approve the SafetyNet contract for at least{" "}
-            {formatAmount(parsed, decimals)} {symbol}.
+            {formatAmount(parsed, decimals)} {symbol}, and need a little xDAI for
+            gas to do it (gas sponsorship only covers in-app wallets).
           </p>
         )}
 
@@ -400,6 +408,7 @@ export function DepositPanel({ details }: { details: SafetyNetDetails }) {
       <GetBreadModal
         open={getBreadOpen}
         onClose={() => setGetBreadOpen(false)}
+        prefillMint={shortfall}
       />
     </Card>
   );
