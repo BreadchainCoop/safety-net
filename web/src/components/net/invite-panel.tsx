@@ -3,8 +3,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { Caption, CopyButtonIcon } from "@breadcoop/ui";
-import { CopySimple, DownloadSimple, PaperPlaneTilt } from "@phosphor-icons/react";
+import {
+  CopySimple,
+  DownloadSimple,
+  PaperPlaneTilt,
+  QrCode as QrCodeIcon,
+} from "@phosphor-icons/react";
 import { ActionButton } from "@/components/ui/action-button";
+import { QrCode } from "@/components/ui/qr-code";
 import { Badge, Card } from "@/components/ui/ui";
 import { inviteLink, useInviteLinks } from "@/hooks/use-invite";
 import { useInviteNoncesUsed, useSafetyNetName } from "@/hooks/use-safety-net";
@@ -36,6 +42,8 @@ export function InviteLinksBody({
     useInviteLinks(net.id);
   const { toast } = useToast();
   const countId = useId();
+  // Which invite row (if any) has its scannable QR expanded — one at a time.
+  const [qrIndex, setQrIndex] = useState<number | null>(null);
 
   // Invites live only in this browser's localStorage; if it's blocked (private
   // mode / storage disabled) they vanish on refresh, so nudge the owner to
@@ -233,27 +241,58 @@ export function InviteLinksBody({
               return (
                 <li
                   key={inv.nonce}
-                  className="border-paper-2 bg-paper-main flex items-center gap-2 rounded-xl border px-3 py-2"
+                  className="border-paper-2 bg-paper-main flex flex-col gap-2 rounded-xl border px-3 py-2"
                 >
-                  <span className="text-surface-grey font-mono text-xs">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <input
-                    readOnly
-                    aria-label={`Invite link ${i + 1}`}
-                    value={link}
-                    onFocus={(e) => e.target.select()}
-                    className="text-text-standard w-full min-w-0 bg-transparent font-mono text-xs outline-none"
-                  />
-                  <Badge tone={isUsed ? "green" : "warning"}>
-                    {isUsed ? "Accepted" : "Pending"}
-                  </Badge>
-                  <CopyButtonIcon
-                    textToCopy={link}
-                    aria-label={`Copy invite link ${i + 1}`}
-                    checkedIconSize={16}
-                    className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-surface-grey font-mono text-xs">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <input
+                      readOnly
+                      aria-label={`Invite link ${i + 1}`}
+                      value={link}
+                      onFocus={(e) => e.target.select()}
+                      className="text-text-standard w-full min-w-0 bg-transparent font-mono text-xs outline-none"
+                    />
+                    <Badge tone={isUsed ? "green" : "warning"}>
+                      {isUsed ? "Accepted" : "Pending"}
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setQrIndex((cur) => (cur === i ? null : i))
+                      }
+                      aria-expanded={qrIndex === i}
+                      aria-label={
+                        qrIndex === i
+                          ? `Hide QR code for invite ${i + 1}`
+                          : `Show QR code for invite ${i + 1}`
+                      }
+                      className={`shrink-0 transition-colors ${
+                        qrIndex === i
+                          ? "text-primary-jade"
+                          : "text-surface-grey hover:text-primary-jade"
+                      }`}
+                    >
+                      <QrCodeIcon size={16} weight="bold" />
+                    </button>
+                    <CopyButtonIcon
+                      textToCopy={link}
+                      aria-label={`Copy invite link ${i + 1}`}
+                      checkedIconSize={16}
+                      className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
+                    />
+                  </div>
+                  {qrIndex === i && (
+                    <div className="border-paper-2 flex flex-col items-center gap-1.5 border-t pt-2">
+                      <div className="rounded-lg bg-white p-2">
+                        <QrCode value={link} size={168} />
+                      </div>
+                      <span className="text-surface-grey text-[11px]">
+                        Scan with a phone to open this invite
+                      </span>
+                    </div>
+                  )}
                 </li>
               );
             })}

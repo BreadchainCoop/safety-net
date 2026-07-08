@@ -3,20 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 3000",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "dev": "next dev --turbopack -p 3000",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "generate:abi": "node scripts/generate-abi.mjs"
+    "generate:abi": "node scripts/generate-abi.mjs",
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "start": "next start"
   },
   "dependencies": {
     "@breadcoop/ui": "^2.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@lifi/sdk": "^4.0.0",
     "@lifi/widget": "^4.1.0",
+    "@paulmillr/qr": "0.2.1",
     "@phosphor-icons/react": "^2.1.10",
     "@privy-io/react-auth": "^3.13.1",
     "@privy-io/wagmi": "^4.0.1",
