@@ -263,3 +263,19 @@ The web app ([`web/`](../web)) ships a working claim flow — `ClaimFluPanel` on
 The zkey and wasm are too large to commit; host them as release/IPFS assets and point the env
 vars at them. `web/scripts/link-flu-artifacts.mjs` copies a local build into `public/flu-demo/`
 for development.
+
+## Tested end-to-end
+
+Three layers, from CI-friendly to full browser (see [`web/scripts/README-flu-e2e.md`](../web/scripts/README-flu-e2e.md)):
+
+1. **Contract** — `test/integration/FluClaimProof.t.sol` replays a real Groth16 proof through the
+   whole `SafetyNet` + `ZkEmailFluVerifier` + Groth16 stack on-chain (part of `forge test`).
+2. **Web encoding** — `pnpm test:flu` asserts `web/src/lib/flu-claim.ts` reproduces the exact
+   commitment / packing / proof-encoding the contract test accepts, so the browser code produces
+   on-chain-valid proofs. No chain required.
+3. **Full UI** — `web/scripts/e2e-browser.mjs` (Playwright) drives the real React flow in
+   headless Chromium against a local anvil (chain id 100) with the full stack deployed
+   (`web/scripts/e2e-setup.sh`), using verify-mode's dev wallet: connect → register email
+   commitment → upload proof bundle → settle → the pool pays the 7-day payout and the panel shows
+   the cooldown. `web/scripts/e2e-anvil-claim.mjs` runs the same register+settle path headlessly
+   via the web lib and asserts the balance delta.

@@ -89,3 +89,43 @@ export function useEmailCommitment(): CommitmentState {
     isRegistered,
   };
 }
+
+type CooldownState = {
+  /** When the member last settled a flu claim on this net (0 = never). */
+  lastClaimAt: bigint | undefined;
+  /** The verifier's per-(net, member) cooldown in seconds. */
+  claimCooldown: bigint | undefined;
+  /** True while a fresh claim would revert with FluClaimCooldownActive. */
+  isCoolingDown: boolean;
+  /** Unix seconds when the next claim becomes possible (undefined if never claimed). */
+  nextClaimAt: bigint | undefined;
+};
+
+/** The connected member's flu-claim cooldown state on a given Safety Net. */
+export function useFluClaimCooldown(safetyNetId: bigint | undefined): CooldownState {
+  const verifier = useFluClaimVerifierAddress();
+  const { address } = useAccount();
+  const enabled = Boolean(verifier) && Boolean(address) && safetyNetId !== undefined;
+  const base = { address: verifier as Address, abi: fluVerifierAbi, chainId: CHAIN_ID } as const;
+
+  const { data: lastClaimAt } = useReadContract({
+    ...base,
+    functionName: "lastFluClaimAt",
+    args: [safetyNetId ?? 0n, address ?? zeroAddress],
+    query: { enabled, refetchInterval: REFETCH_MS },
+  });
+  const { data: claimCooldown } = useReadContract({
+    ...base,
+    functionName: "claimCooldown",
+    query: { enabled },
+  });
+
+  const last = lastClaimAt as bigint | undefined;
+  const cooldown = claimCooldown as bigint | undefined;
+  const nextClaimAt =
+    last !== undefined && last !== 0n && cooldown !== undefined ? last + cooldown : undefined;
+  const isCoolingDown =
+    nextClaimAt !== undefined && BigInt(Math.floor(Date.now() / 1000)) < nextClaimAt;
+
+  return { lastClaimAt: last, claimCooldown: cooldown, isCoolingDown, nextClaimAt };
+}
