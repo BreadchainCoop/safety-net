@@ -17,6 +17,7 @@ import { NetOverview } from "@/components/net/net-overview";
 import { MembersList } from "@/components/net/members-list";
 import { DepositPanel } from "@/components/net/deposit-panel";
 import { WithdrawPanel } from "@/components/net/withdraw-panel";
+import { ClaimFluPanel } from "@/components/net/claim-flu-panel";
 import { RequestsList } from "@/components/net/requests-list";
 import { InvitePanel } from "@/components/net/invite-panel";
 import { StartNetBanner } from "@/components/net/start-panel";
@@ -175,6 +176,7 @@ function NetDetail() {
                 <DepositReminder details={details} />
                 <AutoDepositToggle details={details} />
                 <WithdrawPanel details={details} />
+                <ClaimFluPanel details={details} />
               </>
             ) : (
               <div className="flex flex-col gap-3">

@@ -1,0 +1,25 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+ d=flu-demo.breadchain.xyz; h=Content-Type: MIME-Version: Message-ID: Date:
+ Subject: To: From; q=dns/txt; s=demo1; t=1783598400;
+ bh=Z9tt+QdiV0bvnFKN+2EsivxNFgArjY+5dpJVbUc4YKQ=;
+ b=o6ubaXeoeCfX5OvCSDZdORMAl+AN3//q99E19cA2mTFe/HW+v3FquI2avGa+lO3qJuYB99wPS
+ M9BB+pnSDX+2yPGm4c/1t57tX+gvjtEeWRkt+sX6LSgH7eW1lRx1XtEqrYIBjOWgJ5I92BpPshA
+ w3W5xbgt2I9cHJhP7HgvfJhyxkHvynruYjQiNR1kRSgdD7yOk5Rz1c0LankIIg5++4eO3hvSYz4
+ 1GsIdfoDjez978ggRwwI0spmlOAn4/6lQJkvOT1Ue81apd6mCn+dsnSSeZit3NdKfoykUOPb1qK
+ mjTTUOeJ6QrA4LmMKP4j5xPamVUyn3jP+JoGogGYkkWA==
+From: Dr Demo Results <results@flu-demo.breadchain.xyz>
+To: Alice Member <alice.member@example.com>
+Subject: Your test result is ready
+Date: Thu, 09 Jul 2026 12:00:00 +0000
+Message-ID: <flu-fixture-0001@flu-demo.breadchain.xyz>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+Dear Alice,
+
+Your recent respiratory panel has returned. Result: POSITIVE for
+influenza A (ICD-10 J10.1). Your provider has sent a prescription
+for Oseltamivir 75 MG (Tamiflu) to your preferred pharmacy.
+
+Rest up and stay hydrated,
+Demo Health

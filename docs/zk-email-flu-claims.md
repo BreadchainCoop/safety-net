@@ -190,53 +190,76 @@ dues costs. The payout routes through `_deduct`, so it is capped by the member's
 balance and pool solvency like any other payout, and it never creates a `Request` — the
 contest phase is skipped entirely.
 
+## Reference implementation (this repo)
+
+Rather than depend on the hosted registry (`registry.zk.email` / `conductor.zk.email`, which
+was fully down on 2026-07-08), this repo ships a self-hosted circom pipeline under
+[`circuits/`](../circuits/README.md) — so we hold the trusted-setup randomness and pin every
+artifact ourselves:
+
+- **`circuits/src/flu_claim.circom`** — `FluClaim(768, 704, 121, 17, 93)`: ZK Email
+  `EmailVerifier` (2048-bit RSA, full body-hash check, quoted-printable decoding) + the `To:`
+  regex (revealed as a Poseidon hash) + the flu-pattern regex (private, `=== 1`). ~3.7M
+  constraints — fits the 2^22 ceremony. Outputs the canonical 7-signal layout above.
+- **`circuits/src/regex/flu_pattern.json`** — the decomposed flu regex (`influenza`, ICD-10
+  `J09/J10/J11.x`, and the flu antivirals), compiled to circom with the classic zk-regex
+  compiler. Bare "flu" is deliberately excluded.
+- **`src/contracts/verifiers/FluClaimGroth16Verifier.sol`** — the snarkjs-generated Groth16
+  verifier (implements `IGroth16Verifier`). One per provider domain in production.
+- **`test/integration/FluClaimProof.t.sol`** — replays a **real** proof (generated over a
+  DKIM-signed fixture email) through the full `SafetyNet` + `ZkEmailFluVerifier` + Groth16
+  stack on-chain. This is the guardrail that the deployed signal layout, the 31-byte claimant
+  packing, and the `To:` Poseidon commitment all agree with the circuit.
+
+Pinned versions: `@zk-email/circuits@6.3.4`, `@zk-email/contracts@6.3.2` (v7 will break the
+registry interface to ERC-7969), `@zk-email/zk-regex-compiler@2.3.2`, `snarkjs@0.7.5`,
+`circom 2.2.2`.
+
+### Building the artifacts
+
+See [`circuits/README.md`](../circuits/README.md) — `npm run gen-regex && npm run compile &&
+npm run setup` produces the r1cs/wasm, runs the Groth16 ceremony **with our own contribution**,
+and exports the vkey + `FluClaimGroth16Verifier.sol`. The demo build here uses a committed
+throwaway DKIM key; a production per-domain build swaps in the provider's real DKIM key hash.
+
 ## Deployment runbook (Gnosis)
 
-The hosted registry (`registry.zk.email` / `conductor.zk.email`) is a build-time convenience
-only — and was observed fully down on 2026-07-08. Self-host everything:
-
 ```bash
-# 1. Compile the blueprint circuit locally (per provider domain)
-git clone https://github.com/zkemail/sdk-images && cd sdk-images/circom
-# blueprint JSON: senderDomain, decomposedRegexes (To: isHashed; flu pattern private),
-# externalInputs [{name: "claimantAddress", maxLength: 42}], masking OFF,
-# ignoreBodyHashCheck: false, removeSoftLinebreaks: true
-cargo run  # → r1cs, wasm, zkey (run your own contribution!), vkey, Groth16 verifier .sol
+# 1. Build the circuit + Groth16 verifier for a provider domain (see circuits/README.md).
 
 # 2. Deploy the stack (auto-wires SafetyNet.setFluClaimVerifier only when the deployer key
-#    owns the proxy; otherwise wiring is the owner's post-deploy action)
+#    owns the proxy; otherwise wiring is the owner's post-deploy action).
 SAFETY_NET_PROXY=0x63c3c299CD5C5479E6999189D7827490Ea71cEAe \
 ADMIN_ADDRESS=<admin> PRIVATE_KEY=<key> \
 forge script script/DeployZkEmailFlu.sol:DeployZkEmailFlu \
   --rpc-url https://rpc.gnosischain.com --broadcast \
   --verify --verifier blockscout --verifier-url https://gnosis.blockscout.com/api
 
-# 3. Deploy each per-domain Groth16 verifier (the .sol from step 1), then as admin:
+# 3. Deploy each per-domain FluClaimGroth16Verifier, then as admin:
 #    dkimRegistry.setDKIMPublicKeyHash(domain, poseidonLarge(modulus, 9, 242))
 #    verifier.setProvider(domain, groth16Verifier, true)   // after validating signal indices
 #    safetyNet.setFluClaimVerifier(verifier)               // if not wired at deploy
 ```
 
-Pinned versions: `@zk-email/sdk@2.0.11`, `@zk-email/contracts@6.3.2` (already a dependency;
-v7 will break the registry interface to ERC-7969), `@zk-email/circuits@6.3.4`,
-`zk-regex-circom@2.3.2`, `snarkjs@^0.7.5`.
+## Frontend (this repo)
 
-## Frontend integration sketch
+The web app ([`web/`](../web)) ships a working claim flow — `ClaimFluPanel` on the net page:
 
-```ts
-import { initZkEmailSdk } from "@zk-email/sdk";
+1. **Register email commitment** (`RegisterEmailPanel`): the member enters their provider
+   email; the browser computes `Poseidon(email)` (`web/src/lib/flu-claim.ts` → identical to the
+   circuit's `isHashed` To: reveal) and calls `registerEmailCommitment`. The plaintext address
+   never leaves the browser. It must age past the waiting period before it can claim.
+2. **Prove**, either path:
+   - **In-browser** (`web/src/lib/flu-claim-prover.ts`, dynamically imported): DKIM-verifies the
+     uploaded `.eml` with `@zk-email/helpers`, builds the circuit inputs, and runs
+     `snarkjs.groth16.fullProve` against the hosted circuit wasm + zkey
+     (`NEXT_PUBLIC_FLU_CIRCUIT_{WASM,ZKEY}_URL`). Desktop-only — the zkey is GB-scale. The node
+     builtins this pulls in are polyfilled client-side in `next.config.ts`.
+   - **CLI** (`circuits/scripts/prove-claim.mjs`): produces a proof-bundle JSON the panel
+     accepts via upload, for members who can't prove in-browser.
+3. **Settle**: `encodeFluClaimProof` ABI-encodes the bundle (swapping snarkjs `pi_b` pairs for
+   the EVM pairing) and calls `SafetyNet.claimFlu(netId, proof)`.
 
-const sdk = initZkEmailSdk();                       // artifacts pinned/self-hosted
-const blueprint = await sdk.getBlueprint("breadchain/FluDiagnosisKpOrg@v1");
-const prover = blueprint.createProver({ isLocal: true }); // in-browser WASM proving
-const proof = await prover.generateProof(emlFile, [
-  { name: "claimantAddress", value: address.toLowerCase(), maxLength: 42 },
-]);
-// encode IZkEmailFluVerifier.FluClaimProof from proof.props.proofData + publicOutputs
-// (snarkjs pi_b coordinate pairs are swapped for the Solidity verifier), then:
-// safetyNet.claimFlu(netId, encodedProof)
-```
-
-Members register their email commitment once, at join time:
-`verifier.registerEmailCommitment(poseidonHashOfEmail)` (hash computed with
-`@zk-email/helpers`, matching the circuit's `isHashed` To: reveal).
+The zkey and wasm are too large to commit; host them as release/IPFS assets and point the env
+vars at them. `web/scripts/link-flu-artifacts.mjs` copies a local build into `public/flu-demo/`
+for development.

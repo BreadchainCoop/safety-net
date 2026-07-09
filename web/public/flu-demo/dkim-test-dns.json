@@ -1,0 +1,7 @@
+{
+  "name": "demo1._domainkey.flu-demo.breadchain.xyz",
+  "txt": "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0H/JVE05fMD8ZGMnEWdFrFSpRPJNLUmQHaB8Nhb8XopMk3vwWDcc/pSA7A43hD7u9Y45gyALzGyVyDCx1Lvej+3yLAT3K6TaGMOxxUBmslZh9LCmLaxd+aycqvV8VUESx1JN/VzDmUeuRZ5ssEMBEDTxa343Grzf+G6zwc/oWAoAr36+tCmoHwuopsw007j5Ti6ka5Jasjw8io/QMSTMTEs8H4g9gq+66jnqVT8akxhJ0WCRPjl9CNc2QIyuv4yq7+2L2nVeZHE4kfzMrxwBLh2A3LmSgz4+91WspkI9xpCJ3ShBWkasFDMGvi/Fl4YVGoWqsC/CKddf3TjwwY4OjwIDAQAB",
+  "domain": "flu-demo.breadchain.xyz",
+  "selector": "demo1",
+  "toAddress": "alice.member@example.com"
+}

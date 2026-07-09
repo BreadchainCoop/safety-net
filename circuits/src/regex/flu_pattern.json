@@ -1,0 +1,8 @@
+{
+  "parts": [
+    {
+      "is_public": false,
+      "regex_def": "((i|I)nfluenza|INFLUENZA|J(09|10|11)\\.[0-9X]|(o|O)seltamivir|OSELTAMIVIR|(t|T)amiflu|TAMIFLU|(b|B)aloxavir|BALOXAVIR|(x|X)ofluza|XOFLUZA|(z|Z)anamivir|ZANAMIVIR|(r|R)elenza|RELENZA|(p|P)eramivir|PERAMIVIR|(r|R)apivab|RAPIVAB)"
+    }
+  ]
+}
