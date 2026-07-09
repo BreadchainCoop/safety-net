@@ -33,7 +33,8 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.5.0",
-    "@openzeppelin/contracts-upgradeable": "^5.5.0"
+    "@openzeppelin/contracts-upgradeable": "^5.5.0",
+    "@zk-email/contracts": "6.3.2"
   },
   "devDependencies": {
     "@commitlint/cli": "19.3.0",

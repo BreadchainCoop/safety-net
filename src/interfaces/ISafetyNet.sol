@@ -230,6 +230,17 @@ interface ISafetyNet {
   /// @param nonce The cancelled nonce
   event RequestNonceCancelled(uint256 indexed safetyNetId, address indexed owner, uint256 nonce);
 
+  /// @notice Emitted when the contract owner sets the flu claim verifier
+  /// @param verifier The new verifier address; zero disables flu claims
+  event FluClaimVerifierSet(address verifier);
+
+  /// @notice Emitted when a flu claim is settled instantly against a ZK Email proof
+  /// @param id Unique identifier of the Safety Net
+  /// @param member The member the claim paid out to
+  /// @param amount Amount paid out (FLU_PAYOUT_DAYS at the member's daily support rate)
+  /// @param nullifier The consumed email nullifier (one claim per email, ever)
+  event FluClaimSettled(uint256 indexed id, address indexed member, uint256 amount, bytes32 nullifier);
+
   /*///////////////////////////////////////////////////////////////
                             ERRORS
   //////////////////////////////////////////////////////////////*/
@@ -382,6 +393,17 @@ interface ISafetyNet {
   /// @notice Thrown when a Safety Net name exceeds `MAX_NAME_BYTES` bytes
   error NameTooLong();
 
+  /// @notice Thrown when claiming flu support while no flu claim verifier is configured
+  error FluClaimVerifierNotSet();
+
+  /// @notice Thrown when claiming flu support on a decommissionable Safety Net
+  /// @dev Once any member has missed a past epoch's dues the net can be wound down with a pro-rata
+  ///      split; full-rate flu claims must not front-run that haircut
+  error SafetyNetDecommissionable();
+
+  /// @notice Thrown when claiming flu support during the Safety Net's first epoch
+  error FluClaimWaitingPeriod();
+
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
@@ -483,6 +505,21 @@ interface ISafetyNet {
   /// @param requestId The ID of the request to contest
   function contest(uint256 requestId) external;
 
+  /// @notice Sets the ZK Email flu claim verifier used by {claimFlu}
+  /// @dev Owner-only. Setting the zero address disables flu claims
+  /// @param verifier The verifier contract (see IZkEmailFluVerifier)
+  function setFluClaimVerifier(address verifier) external;
+
+  /// @notice Settles a flu claim instantly against a ZK Email proof, skipping the contest phase
+  /// @dev The caller proves they received a DKIM-signed email from an allowlisted healthcare sender
+  ///      matching the flu-diagnosis pattern (see IZkEmailFluVerifier for the full check list). On
+  ///      success the member is paid `FLU_PAYOUT_DAYS` at their current daily support rate — their
+  ///      monthly contribution x their effective support ratio / 30 — deducted from their
+  ///      withdrawable balance and the pool under the usual solvency rules
+  /// @param id The Safety Net ID
+  /// @param proof ABI-encoded IZkEmailFluVerifier.FluClaimProof
+  function claimFlu(uint256 id, bytes calldata proof) external;
+
   /// @notice Checks if a request can be contested
   /// @param requestId The ID of the request to check
   function executeContestedWithdrawal(uint256 requestId) external;
@@ -498,6 +535,10 @@ interface ISafetyNet {
   /// @param id The Safety Net ID
   /// @return name The Safety Net's name, or the empty string if none was set
   function safetyNetNames(uint256 id) external view returns (string memory name);
+
+  /// @notice The ZK Email flu claim verifier; zero address when flu claims are disabled
+  /// @return verifier The verifier contract address
+  function fluClaimVerifier() external view returns (address verifier);
 
   /// @notice Retrieves a single Safety Net by ID
   /// @param id The Safety Net ID
