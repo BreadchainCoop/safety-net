@@ -157,6 +157,56 @@ healthcare list this can be broad — its only job is to attest inbox control, a
 comes from the key genuinely being that provider's (so a self-hosted attacker domain can't forge
 a "From: victim@gmail.com" binding).
 
+## Getting production data
+
+Two kinds of data seed a production deployment, and they have very different difficulty.
+
+### Binding-provider keys (easy — automatable, already fetched)
+
+The member's email provider (signer of email B) is a small, stable set of consumer providers whose
+real 2048-bit DKIM keys live in the public ZK Email archive. `circuits/scripts/fetch-dkim-keys.mjs`
+(`npm run fetch-keys -- --binding`) pulls them and computes the exact `poseidonLarge` hash that seeds
+the `DKIMRegistry`. Snapshot from `archive.prove.email` on 2026-07-10 (current selector shown; **register
+every current selector per domain**, not just the newest — different mail streams use different keys):
+
+| Provider | Selector | `poseidonLarge` key hash → `DKIMRegistry.setDKIMPublicKeyHash` |
+|---|---|---|
+| gmail.com | 20251104 | `0x280b10886d6d3cb6a9f870d942996b420bbfc51e3bd1f430e18690a6859b6d8f` |
+| googlemail.com | 20230601 | `0x0ea9c777dc7110e5a9e89b13f0cfc540e3845ba120b2b6dc24024d61488d4788` |
+| outlook.com / hotmail.com / live.com | selector1 | `0x05600a9308de2b1f42919b35d70ccc19f3b0add15c1f394a0dc161868b6cc71a` |
+| icloud.com | 1a1hai | `0x2dd9fd991d7c5fabe0f1829f236cc7d907a8d232f6091aa7bdb996d14c1f9570` |
+| yahoo.com | s2048 | `0x0ab563b6afca637f6a74620d5bb89433e74d705766145b1637ae0642cf97bcd4` |
+| proton.me | vr33…protonmail | `0x0113903211431b7bb7fbba4b2ca3372bfa81260d3c1514801cd3519cc068a3a2` |
+| fastmail.com | fm2 | `0x1efd44a6ae6113a72f8b8187101078f01ae08150dd703e7eefb2d6d4bf340ca1` |
+
+For each: `dkimRegistry.setDKIMPublicKeyHash(domain, keyHash)` then `verifier.setBindingProvider(domain, true)`.
+**Keys rotate** (gmail was on `20230601` months ago, now `20251104`) — re-run `fetch-keys` on a schedule
+and register new selectors before old ones age out, or fresh binding emails start failing. This is a
+liveness dependency only; a stale registry can't forge claims.
+
+### Healthcare-provider content (hard — needs a real sample email)
+
+`fetch-keys --provider` gets the *keys* for candidate senders (`kp.org`, `alerts.cvs.com`, `walgreens.com`,
+`healow.com`, `onemedical.com`, `khealth.com`, `plushcare.com`, `labcorp.com`, `questdiagnostics.com` all
+have current 2048-bit keys). But the keys are not the blocker — **whether the email actually carries flu
+content is.** Research (see the "verified doctor list" section) found most US patient email is
+deliberately PHI-free. So a provider domain must not be enabled until you have a real `.eml` proving it.
+
+To obtain and validate one (per provider):
+1. A member (or you) forwards a real, unmodified `.eml` from that sender — export the raw source, don't
+   forward through a client that re-signs (Gmail: "Show original" → "Download original"; Apple Mail:
+   "Save As → Raw Message Source").
+2. Verify it DKIM-passes with the org's own `d=` and that the diagnosis text (influenza / an ICD-10 J09–J11
+   code / a flu antiviral) is in the signed body or subject — not just a "log in to view" link. Run it
+   through the circuit: `node scripts/prove-claim.mjs <that>.eml <a binding>.eml <wallet>` — if it proves,
+   the content matches.
+3. Only then: register that sender's key hash + `verifier.setProvider(domain, true)`.
+
+Your own inbox is the fastest source of real samples — the **claude.ai Gmail connector** would let me
+search it for candidate senders and check whether their emails carry diagnosis content, but it currently
+**needs re-authorization** (authorize it in your claude.ai connector settings, then I can run a narrow
+metadata search). Failing that, collect a few sample `.eml`s from members and I'll validate each.
+
 ## On-chain enforcement
 
 In `SafetyNet.claimFlu` (before the proof is even looked at): caller is a member → net active →

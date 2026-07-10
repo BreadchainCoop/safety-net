@@ -5,6 +5,7 @@
   "description": "ZK Email flu-claim circuit for SafetyNet (canonical 7-signal layout)",
   "scripts": {
     "compile": "bash scripts/compile.sh",
+    "fetch-keys": "node scripts/fetch-dkim-keys.mjs",
     "finish": "bash scripts/finish-v2.sh",
     "gen-fixture": "node scripts/gen-v2-fixture.mjs",
     "gen-regex": "node scripts/gen-regex.mjs",
