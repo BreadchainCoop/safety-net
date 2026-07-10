@@ -2,25 +2,31 @@
 pragma solidity ^0.8.28;
 
 /// @title ZK Email Flu Claim Verifier Interface
-/// @notice Verifies ZK Email proofs that a Safety Net member received a DKIM-signed email from an
-///         allowlisted US healthcare sender whose content matched the flu-diagnosis pattern
-///         (the word "influenza", an ICD-10 influenza code J09/J10/J11, or a flu-specific
-///         antiviral prescription — never the bare word "flu"), enabling instant claim settlement
-///         with no contest/voting phase.
-/// @dev Built on the ZK Email circom/Groth16 blueprint stack. One Groth16 verifier is deployed per
-///      healthcare sender domain (a blueprint binds exactly one DKIM `d=` domain); all share the
-///      canonical public-signal layout below, which REQUIRES the blueprint to be compiled with
-///      header/body masking disabled:
-///        [0] pubkeyHash          Poseidon hash of the sender's DKIM RSA public key
-///        [1] headerHashHi        SHA-256 hash of the signed email header (high 128 bits)
-///        [2] headerHashLo        SHA-256 hash of the signed email header (low 128 bits)
-///        [3] toAddressHash       Poseidon hash of the To: recipient address (isHashed reveal)
-///        [4] proverEthAddress    Built-in blueprint input; unconstrained and unused (SDK sets 0)
-///        [5] claimantAddress[0]  External input: claimant address as a lowercase hex string,
-///        [6] claimantAddress[1]  zero-padded to 42 bytes and packed 31 bytes per field, little-endian
-///      The flu-diagnosis regex itself is enforced in-circuit and kept private — a valid proof from a
-///      domain's verifier attests the match without revealing which term matched.
-///      Full blueprint spec, provider list, and threat model: docs/zk-email-flu-claims.md.
+/// @notice Verifies ZK Email proofs that a Safety Net member (a) received a DKIM-signed email from an
+///         allowlisted US healthcare sender whose content matched the flu-diagnosis pattern, and
+///         (b) controls the inbox that email was sent to — binding the payout to their wallet — all
+///         without revealing the email address on-chain, and with no pre-registration.
+/// @dev Built on a single self-hosted FluClaimV2 circom/Groth16 circuit that verifies TWO DKIM-signed
+///      emails together:
+///        A (flu diagnosis): provider -> member, full body, matches the flu pattern.
+///        B (binding):       member -> anywhere, header-only, `From:` = the member, `Subject:` = the
+///                           claimant's lowercase 0x wallet address.
+///      The circuit asserts `To(A) == From(B)` privately (proving the same inbox received A and signed
+///      B) and reveals the wallet from B's subject. Because DKIM signs outbound mail, only the inbox
+///      owner can produce B — so possession of a leaked A alone is useless. Soundness against a
+///      forged B comes from checking B's DKIM key against an owner-curated registry of real consumer
+///      email-provider keys (gmail/outlook/…): an attacker signing a `From:` of "victim(at)gmail.com" with a
+///      domain they control fails that lookup.
+///
+///      Canonical public-signal layout (6 signals — must match circuits/src/flu_claim_v2.circom):
+///        [0] pubkeyHashA     provider DKIM key      (checked vs the healthcare provider allowlist)
+///        [1] pubkeyHashB     member-provider key    (checked vs the binding-provider allowlist)
+///        [2] headerHashHiA   SHA-256 of A's header  (nullifier material)
+///        [3] headerHashLoA
+///        [4] walletPacked0   claimant wallet as a lowercase 0x hex string (42 bytes), 31-byte LE
+///        [5] walletPacked1   packed — compared on-chain against the claimant
+///
+///      No email address (or hash of one) is ever published. Full spec: docs/zk-email-flu-claims.md.
 /// @author @RonTuretzky
 interface IZkEmailFluVerifier {
   /*///////////////////////////////////////////////////////////////
@@ -28,64 +34,49 @@ interface IZkEmailFluVerifier {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice A ZK Email flu claim proof, ABI-encoded into the opaque bytes SafetyNet passes through
-  /// @param domain The DKIM `d=` domain of the sending healthcare provider (e.g. "kp.org"); must be
-  ///        a registered, enabled provider. The DKIM registry lookup uses this exact string
+  /// @param providerDomain The DKIM `d=` domain of the healthcare sender of email A (e.g. "kp.org");
+  ///        must be an enabled provider. The DKIM registry lookup uses this exact string
+  /// @param bindingDomain The DKIM `d=` domain of the member's email provider that signed email B
+  ///        (e.g. "gmail.com"); must be an enabled binding provider
   /// @param a The Groth16 proof A point
   /// @param b The Groth16 proof B point
   /// @param c The Groth16 proof C point
-  /// @param signals The circuit public signals in the canonical flu blueprint layout (see interface dev docs)
+  /// @param signals The circuit public signals in the canonical layout (see interface dev docs)
   struct FluClaimProof {
-    string domain;
+    string providerDomain;
+    string bindingDomain;
     uint256[2] a;
     uint256[2][2] b;
     uint256[2] c;
-    uint256[7] signals;
-  }
-
-  /// @notice Configuration of an allowlisted healthcare sender domain
-  /// @param groth16Verifier The Groth16 verifier deployed from the domain's compiled flu blueprint
-  /// @param enabled Whether claims from this domain are currently accepted
-  struct Provider {
-    address groth16Verifier;
-    bool enabled;
+    uint256[6] signals;
   }
 
   /*///////////////////////////////////////////////////////////////
                             EVENTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Emitted when a provider domain is registered, updated, or disabled
+  /// @notice Emitted when a healthcare provider domain is enabled or disabled
   /// @param domainHash keccak256 of the domain string (mapping key)
   /// @param domain The DKIM `d=` domain
-  /// @param groth16Verifier The domain's Groth16 verifier contract
-  /// @param enabled Whether claims from this domain are accepted
-  event ProviderSet(bytes32 indexed domainHash, string domain, address groth16Verifier, bool enabled);
+  /// @param enabled Whether flu-diagnosis emails from this domain are accepted
+  event ProviderSet(bytes32 indexed domainHash, string domain, bool enabled);
 
-  /// @notice Emitted when a member registers the Poseidon commitment of their email address
-  /// @param member The member address
-  /// @param commitment Poseidon hash of the member's (lowercase) email address, as produced by the
-  ///        circuit's isHashed To: reveal
-  event EmailCommitmentRegistered(address indexed member, bytes32 commitment);
-
-  /// @notice Emitted when the owner clears a member's email commitment (squatting recovery)
-  /// @param member The member whose commitment was cleared
-  /// @param commitment The cleared commitment
-  event EmailCommitmentCleared(address indexed member, bytes32 commitment);
+  /// @notice Emitted when a binding email-provider domain is enabled or disabled
+  /// @param domainHash keccak256 of the domain string (mapping key)
+  /// @param domain The DKIM `d=` domain (e.g. "gmail.com")
+  /// @param enabled Whether binding emails signed by this domain are accepted
+  event BindingProviderSet(bytes32 indexed domainHash, string domain, bool enabled);
 
   /// @notice Emitted when the owner updates the per-member per-net claim cooldown
   /// @param claimCooldown The new cooldown in seconds
   event ClaimCooldownSet(uint256 claimCooldown);
 
-  /// @notice Emitted when the owner updates the email-commitment waiting period
-  /// @param commitmentDelay The new waiting period in seconds
-  event CommitmentDelaySet(uint256 commitmentDelay);
-
   /// @notice Emitted when a flu claim proof is successfully verified
   /// @param safetyNetId The Safety Net the claim settles against
   /// @param claimant The member the payout is bound to
-  /// @param domainHash keccak256 of the sender domain the email was proven from
-  /// @param nullifier The consumed email nullifier (keccak256 of the signed header hash)
-  event FluClaimVerified(uint256 indexed safetyNetId, address indexed claimant, bytes32 indexed domainHash, bytes32 nullifier);
+  /// @param providerHash keccak256 of the healthcare sender domain the diagnosis was proven from
+  /// @param nullifier The consumed email nullifier (keccak256 of the diagnosis email's header hash)
+  event FluClaimVerified(uint256 indexed safetyNetId, address indexed claimant, bytes32 indexed providerHash, bytes32 nullifier);
 
   /*///////////////////////////////////////////////////////////////
                             ERRORS
@@ -97,117 +88,90 @@ interface IZkEmailFluVerifier {
   /// @notice Thrown when verifyFluClaim is called by any address other than the SafetyNet proxy
   error OnlySafetyNet();
 
-  /// @notice Thrown when enabling a provider with a zero Groth16 verifier address
-  error InvalidGroth16Verifier();
-
-  /// @notice Thrown when the proof's domain is not a registered, enabled provider
+  /// @notice Thrown when the proof's provider domain is not an enabled healthcare sender
   error UnknownProvider();
 
-  /// @notice Thrown when the claimant has not registered an email commitment
-  error EmailCommitmentNotSet();
-
-  /// @notice Thrown when the claimant's email commitment is younger than the waiting period
-  error EmailCommitmentTooRecent();
-
-  /// @notice Thrown when registering a zero email commitment
-  error InvalidCommitment();
-
-  /// @notice Thrown when registering an email commitment already held by another address
-  /// @dev First-come uniqueness: a copied commitment value is worthless, defeating the
-  ///      copy-at-join-time bypass of the waiting period. Squatted commitments are recoverable
-  ///      via the owner's {clearEmailCommitment}
-  error CommitmentAlreadyRegistered();
+  /// @notice Thrown when the proof's binding domain is not an enabled email provider
+  error UnknownBindingProvider();
 
   /// @notice Thrown when the claimant already settled a flu claim within the cooldown window
   error FluClaimCooldownActive();
 
-  /// @notice Thrown when the proof's DKIM public key hash is not registered for the domain
-  error InvalidDkimKeyHash();
-
-  /// @notice Thrown when the proof's claimant-address external input does not match the claimant
+  /// @notice Thrown when the wallet proven inside email B's subject does not match the claimant
   error ClaimantMismatch();
 
-  /// @notice Thrown when the proof's To:-address hash does not match the claimant's email commitment
-  error RecipientMismatch();
+  /// @notice Thrown when the diagnosis email's DKIM key is not registered for the provider domain
+  error InvalidDkimKeyHash();
+
+  /// @notice Thrown when the binding email's DKIM key is not registered for the binding domain
+  error InvalidBindingDkimKeyHash();
 
   /// @notice Thrown when the Groth16 proof fails verification
   error InvalidProof();
 
-  /// @notice Thrown when the email's nullifier has already been consumed by a previous claim
+  /// @notice Thrown when the diagnosis email's nullifier has already been consumed
   error EmailAlreadyUsed();
 
   /*///////////////////////////////////////////////////////////////
                             EXTERNAL
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Verifies a flu claim proof for a claimant, consuming the email's nullifier
+  /// @notice Verifies a flu claim proof for a claimant, consuming the diagnosis email's nullifier
   /// @dev Only callable by the SafetyNet proxy (state-changing: nullifier + cooldown). Reverts on any
   ///      failed check; returns the consumed nullifier on success
   /// @param safetyNetId The Safety Net the claim settles against (scopes the claim cooldown)
-  /// @param claimant The member claiming; must match the address bound inside the proof
+  /// @param claimant The member claiming; must match the wallet proven inside email B
   /// @param proof ABI-encoded {FluClaimProof}
   /// @return nullifier The consumed email nullifier
   function verifyFluClaim(uint256 safetyNetId, address claimant, bytes calldata proof) external returns (bytes32 nullifier);
 
-  /// @notice Registers or updates the caller's email commitment
-  /// @dev The commitment is the Poseidon hash of the caller's email address exactly as the circuit's
-  ///      isHashed To: reveal computes it (lowercase, packed). Each commitment value can be held by
-  ///      only one address (first-come; see {CommitmentAlreadyRegistered}), and claims are only
-  ///      accepted once the commitment has aged past the waiting period — together the anti-theft
-  ///      measures for leaked/bought .eml files
-  /// @param commitment Poseidon hash of the caller's email address
-  function registerEmailCommitment(bytes32 commitment) external;
-
-  /// @notice Clears a member's email commitment, freeing its value for re-registration
-  /// @dev Owner-only recovery path for squatted commitments (an attacker front-running a member's
-  ///      registration to hold their commitment hostage). Clearing forces the member to re-register
-  ///      and sit out the waiting period again
-  /// @param member The member whose commitment is cleared
-  function clearEmailCommitment(address member) external;
-
-  /// @notice Registers, updates, or disables a healthcare provider domain
+  /// @notice Enables or disables a healthcare provider domain (sender of diagnosis emails)
   /// @param domain The DKIM `d=` domain (exact string used in DKIM registry lookups; subdomains distinct)
-  /// @param groth16Verifier The Groth16 verifier compiled from the domain's flu blueprint
-  /// @param enabled Whether claims from this domain are accepted
-  function setProvider(string calldata domain, address groth16Verifier, bool enabled) external;
+  /// @param enabled Whether diagnosis emails from this domain are accepted
+  function setProvider(string calldata domain, bool enabled) external;
+
+  /// @notice Enables or disables a binding email-provider domain (signer of the member's binding email)
+  /// @param domain The DKIM `d=` domain (e.g. "gmail.com")
+  /// @param enabled Whether binding emails signed by this domain are accepted
+  function setBindingProvider(string calldata domain, bool enabled) external;
 
   /// @notice Updates the per-member per-net claim cooldown
   /// @param claimCooldown The new cooldown in seconds
   function setClaimCooldown(uint256 claimCooldown) external;
 
-  /// @notice Updates the email-commitment waiting period
-  /// @param commitmentDelay The new waiting period in seconds
-  function setCommitmentDelay(uint256 commitmentDelay) external;
-
   /*///////////////////////////////////////////////////////////////
                             VIEW
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Returns a provider's configuration
+  /// @notice The SafetyNet proxy allowed to call verifyFluClaim
+  /// @return safetyNet The SafetyNet proxy address
+  // solhint-disable-next-line func-name-mixedcase
+  function SAFETY_NET() external view returns (address safetyNet);
+
+  /// @notice The single FluClaimV2 Groth16 verifier
+  /// @return groth16 The Groth16 verifier address
+  // solhint-disable-next-line func-name-mixedcase
+  function GROTH16_VERIFIER() external view returns (address groth16);
+
+  /// @notice The DKIM public-key-hash registry consulted per claim
+  /// @return dkimRegistry The DKIM registry address
+  // solhint-disable-next-line func-name-mixedcase
+  function DKIM_REGISTRY() external view returns (address dkimRegistry);
+
+  /// @notice Returns whether a healthcare provider domain is enabled
   /// @param domainHash keccak256 of the domain string
-  /// @return groth16Verifier The domain's Groth16 verifier
-  /// @return enabled Whether claims from this domain are accepted
-  function providers(bytes32 domainHash) external view returns (address groth16Verifier, bool enabled);
+  /// @return enabled True when diagnosis emails from this domain are accepted
+  function providerEnabled(bytes32 domainHash) external view returns (bool enabled);
+
+  /// @notice Returns whether a binding email-provider domain is enabled
+  /// @param domainHash keccak256 of the domain string
+  /// @return enabled True when binding emails signed by this domain are accepted
+  function bindingProviderEnabled(bytes32 domainHash) external view returns (bool enabled);
 
   /// @notice Returns whether an email nullifier has been consumed
   /// @param nullifier The email nullifier
   /// @return used True when the nullifier has been consumed
   function usedNullifiers(bytes32 nullifier) external view returns (bool used);
-
-  /// @notice Returns a member's registered email commitment (zero when unset)
-  /// @param member The member address
-  /// @return commitment The registered commitment
-  function emailCommitments(address member) external view returns (bytes32 commitment);
-
-  /// @notice Returns the address holding a commitment value (zero when unheld)
-  /// @param commitment The commitment value
-  /// @return holder The holding address
-  function commitmentHolders(bytes32 commitment) external view returns (address holder);
-
-  /// @notice Returns when a member last set their email commitment
-  /// @param member The member address
-  /// @return setAt The registration timestamp (zero when unset)
-  function emailCommitmentSetAt(address member) external view returns (uint256 setAt);
 
   /// @notice Returns when a member last settled a flu claim on a Safety Net
   /// @param safetyNetId The Safety Net ID
@@ -218,8 +182,4 @@ interface IZkEmailFluVerifier {
   /// @notice The per-member per-net claim cooldown in seconds
   /// @return cooldown The cooldown in seconds
   function claimCooldown() external view returns (uint256 cooldown);
-
-  /// @notice The email-commitment waiting period in seconds
-  /// @return delay The waiting period in seconds
-  function commitmentDelay() external view returns (uint256 delay);
 }

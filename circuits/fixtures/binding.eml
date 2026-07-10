@@ -1,0 +1,18 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+ d=gmail-demo.breadchain.xyz; h=Content-Type: MIME-Version: Message-ID:
+ Date: Subject: To: From; q=dns/txt; s=demo1; t=1783598700;
+ bh=8MvRJMFEpCAb2TYS/XbeftudLLCxcek6YmBqxJFulL8=;
+ b=CGjMwJ3D3TuUH1ruq53xslJEuUh6EpXDuuq4RiD309tcCx2ILwwazcu2UhemD1Nqgp/IikXn2
+ OAW6aT8KYTzSz9/o499uo3C9vzn4MyiQCHjwpamW+fcjvGidjaY6wt4ItNMAI2H9tpk5O7pQDad
+ kDkeN21EbM8G+yfbr4brlJxUqzVwxR4+KdDrk/xyXeWXMZEdvVUXs2Kz7VwRy3y3bX6h2SJTbbm
+ 1xZ0SC0Pd+uXezk2NYsPMgUxtq4pidiUjM+nhmm/IXt+pfBgkduu8WkG6DmXJZDqAqrT3E6QCCE
+ Scxp5AcD/uSGdbhL0KJ7KYlP91/TrfZ1UEvdnWlW+wRg==
+From: Alice Member <alice.member@gmail-demo.breadchain.xyz>
+To: Alice Member <alice.member@gmail-demo.breadchain.xyz>
+Subject: 0x1111111111111111111111111111111111111111
+Date: Thu, 09 Jul 2026 12:05:00 +0000
+Message-ID: <binding-0001@gmail-demo.breadchain.xyz>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+Proving I control this inbox for my Safety Net flu claim.

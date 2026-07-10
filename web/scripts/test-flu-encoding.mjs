@@ -1,20 +1,16 @@
-// Web-layer encoding test: proves web/src/lib/flu-claim.ts reproduces the exact
-// values the on-chain integration test accepts. The constants below are the
-// on-chain-accepted values from test/fixtures/FluClaimProofFixture.sol (which
-// test/integration/FluClaimProof.t.sol replays through the real Groth16 verifier
-// + ZkEmailFluVerifier + SafetyNet). If the browser code drifts from the circuit,
+// Web-layer encoding test (design C): proves web/src/lib/flu-claim.ts reproduces the exact values
+// the on-chain integration test accepts. The constants below are the on-chain-accepted values from
+// test/fixtures/FluClaimV2Fixture.sol (replayed through the real verifier + ZkEmailFluVerifier +
+// SafetyNet by test/integration/FluClaimV2Proof.t.sol). If the browser code drifts from the circuit,
 // this test fails without needing a chain.
 //
-// Run: pnpm test:flu   (uses tsx to load the TS lib directly)
+// Run: pnpm test:flu   (compiles the TS lib to .flu-test/ first — see run-flu-encoding-test.sh)
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodeAbiParameters } from "viem";
-// flu-claim.ts is compiled to .flu-test/flu-claim.js by the test:flu script
-// (Node 20 can't strip TS types, and the dynamic circomlibjs import breaks
-// under tsx's transform). The compiled JS is behaviourally identical.
 import {
-  computeEmailCommitment,
+  checkProofBundle,
   encodeFluClaimProof,
   packClaimantAddress,
   parseProofBundle,
@@ -22,75 +18,63 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// From test/fixtures/FluClaimProofFixture.sol — the values the on-chain test accepts.
-const FIXTURE_EMAIL = "alice.member@example.com"; // the .eml's To: address
+// From test/fixtures/FluClaimV2Fixture.sol — values the on-chain test accepts.
 const CLAIMANT = "0x1111111111111111111111111111111111111111";
-const EMAIL_COMMITMENT = "0x1f238691b95f2244d0e65d6ce002298687af140e8192781bf477ba94b3e11612";
-const DOMAIN = "flu-demo.breadchain.xyz";
+const PROVIDER_DOMAIN = "flu-demo.breadchain.xyz";
+const BINDING_DOMAIN = "gmail-demo.breadchain.xyz";
 
 const bundle = parseProofBundle(readFileSync(join(here, "../src/lib/__fixtures__/flu-proof-bundle.json"), "utf8"));
 
 let failures = 0;
 const check = (name, cond, extra = "") => {
-  if (cond) {
-    console.log(`  ok   ${name}`);
-  } else {
-    console.error(`  FAIL ${name}${extra ? ` — ${extra}` : ""}`);
-    failures++;
-  }
+  console.log(`  ${cond ? "ok  " : "FAIL"} ${name}${!cond && extra ? ` — ${extra}` : ""}`);
+  if (!cond) failures++;
 };
 
-console.log("flu-claim.ts encoding vs on-chain fixture:");
+console.log("flu-claim.ts encoding vs on-chain fixture (design C):");
 
-// 1. The email commitment the browser computes must equal the circuit's
-//    toAddressHash (signals[3]) AND the value the on-chain test registers.
-const commitment = await computeEmailCommitment(FIXTURE_EMAIL);
-check("computeEmailCommitment matches on-chain EMAIL_COMMITMENT", commitment === EMAIL_COMMITMENT,
-  `got ${commitment}`);
-check("commitment matches proof signals[3]", BigInt(commitment) === BigInt(bundle.publicSignals[3]));
+// 1. The bundle's domains match the fixture.
+check("provider domain matches", bundle.providerDomain === PROVIDER_DOMAIN, `got ${bundle.providerDomain}`);
+check("binding domain matches", bundle.bindingDomain === BINDING_DOMAIN, `got ${bundle.bindingDomain}`);
 
-// 2. The claimant packing must equal the proof's bound external input (signals[5..6]).
+// 2. The wallet packing must equal the wallet the circuit revealed from B's subject (signals[4..5]).
 const [lo, hi] = packClaimantAddress(CLAIMANT);
-check("packClaimantAddress lo matches signals[5]", lo === BigInt(bundle.publicSignals[5]),
-  `got ${lo}`);
-check("packClaimantAddress hi matches signals[6]", hi === BigInt(bundle.publicSignals[6]),
-  `got ${hi}`);
+check("packClaimantAddress lo matches signals[4]", lo === BigInt(bundle.publicSignals[4]), `got ${lo}`);
+check("packClaimantAddress hi matches signals[5]", hi === BigInt(bundle.publicSignals[5]), `got ${hi}`);
 
-// 3. The bundle's domain matches the fixture provider.
-check("bundle domain matches fixture", bundle.domain === DOMAIN, `got ${bundle.domain}`);
+// 3. checkProofBundle passes for the bound claimant and fails for a different wallet.
+check("checkProofBundle accepts the bound claimant", checkProofBundle(bundle, CLAIMANT) === null);
+check(
+  "checkProofBundle rejects a different wallet",
+  checkProofBundle(bundle, "0x2222222222222222222222222222222222222222") !== null,
+);
 
-// 4. encodeFluClaimProof must produce bytes that decode to the fixture proof —
-//    with the snarkjs pi_b coordinate pairs swapped for the EVM pairing (this is
-//    exactly what FluClaimProofFixture.b() encodes on-chain).
+// 4. encodeFluClaimProof must decode to the fixture proof — with the pi_b pair swap for the EVM pairing.
 const encoded = encodeFluClaimProof(bundle);
 const [decoded] = decodeAbiParameters(
   [
     {
       type: "tuple",
       components: [
-        { name: "domain", type: "string" },
+        { name: "providerDomain", type: "string" },
+        { name: "bindingDomain", type: "string" },
         { name: "a", type: "uint256[2]" },
         { name: "b", type: "uint256[2][2]" },
         { name: "c", type: "uint256[2]" },
-        { name: "signals", type: "uint256[7]" },
+        { name: "signals", type: "uint256[6]" },
       ],
     },
   ],
   encoded,
 );
-check("encoded domain round-trips", decoded.domain === DOMAIN);
+check("encoded provider domain round-trips", decoded.providerDomain === PROVIDER_DOMAIN);
+check("encoded binding domain round-trips", decoded.bindingDomain === BINDING_DOMAIN);
 check("encoded a[0] matches pi_a[0]", decoded.a[0] === BigInt(bundle.proof.pi_a[0]));
 check("encoded b applies the pi_b pair swap", decoded.b[0][0] === BigInt(bundle.proof.pi_b[0][1]));
 check("encoded c[1] matches pi_c[1]", decoded.c[1] === BigInt(bundle.proof.pi_c[1]));
 check(
   "encoded signals round-trip",
-  decoded.signals.every((s, i) => s === BigInt(bundle.publicSignals[i])),
-);
-
-// 5. checkProofBundle logic: the packed claimant must be self-consistent.
-check(
-  "packed claimant is deterministic",
-  packClaimantAddress(CLAIMANT).every((v, i) => v === [lo, hi][i]),
+  decoded.signals.length === 6 && decoded.signals.every((s, i) => s === BigInt(bundle.publicSignals[i])),
 );
 
 if (failures > 0) {

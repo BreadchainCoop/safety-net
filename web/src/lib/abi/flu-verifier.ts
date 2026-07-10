@@ -15,6 +15,11 @@ export const fluVerifierAbi = [
         "internalType": "address"
       },
       {
+        "name": "_groth16Verifier",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "_dkimRegistry",
         "type": "address",
         "internalType": "address"
@@ -25,6 +30,19 @@ export const fluVerifierAbi = [
   {
     "type": "function",
     "name": "DKIM_REGISTRY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "GROTH16_VERIFIER",
     "inputs": [],
     "outputs": [
       {
@@ -50,6 +68,25 @@ export const fluVerifierAbi = [
   },
   {
     "type": "function",
+    "name": "bindingProviderEnabled",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "claimCooldown",
     "inputs": [],
     "outputs": [
@@ -57,89 +94,6 @@ export const fluVerifierAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "clearEmailCommitment",
-    "inputs": [
-      {
-        "name": "_member",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "commitmentDelay",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "commitmentHolders",
-    "inputs": [
-      {
-        "name": "commitment",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "holder",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "emailCommitmentSetAt",
-    "inputs": [
-      {
-        "name": "member",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "setAt",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "emailCommitments",
-    "inputs": [
-      {
-        "name": "member",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "commitment",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -183,7 +137,7 @@ export const fluVerifierAbi = [
   },
   {
     "type": "function",
-    "name": "providers",
+    "name": "providerEnabled",
     "inputs": [
       {
         "name": "domainHash",
@@ -192,11 +146,6 @@ export const fluVerifierAbi = [
       }
     ],
     "outputs": [
-      {
-        "name": "groth16Verifier",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "enabled",
         "type": "bool",
@@ -207,21 +156,26 @@ export const fluVerifierAbi = [
   },
   {
     "type": "function",
-    "name": "registerEmailCommitment",
-    "inputs": [
-      {
-        "name": "_commitment",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
+    "name": "renounceOwnership",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
+    "name": "setBindingProvider",
+    "inputs": [
+      {
+        "name": "_domain",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_enabled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -240,30 +194,12 @@ export const fluVerifierAbi = [
   },
   {
     "type": "function",
-    "name": "setCommitmentDelay",
-    "inputs": [
-      {
-        "name": "_commitmentDelay",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setProvider",
     "inputs": [
       {
         "name": "_domain",
         "type": "string",
         "internalType": "string"
-      },
-      {
-        "name": "_groth16Verifier",
-        "type": "address",
-        "internalType": "address"
       },
       {
         "name": "_enabled",
@@ -337,6 +273,31 @@ export const fluVerifierAbi = [
   },
   {
     "type": "event",
+    "name": "BindingProviderSet",
+    "inputs": [
+      {
+        "name": "domainHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "domain",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ClaimCooldownSet",
     "inputs": [
       {
@@ -344,57 +305,6 @@ export const fluVerifierAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "CommitmentDelaySet",
-    "inputs": [
-      {
-        "name": "commitmentDelay",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "EmailCommitmentCleared",
-    "inputs": [
-      {
-        "name": "member",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "commitment",
-        "type": "bytes32",
-        "indexed": false,
-        "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "EmailCommitmentRegistered",
-    "inputs": [
-      {
-        "name": "member",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "commitment",
-        "type": "bytes32",
-        "indexed": false,
-        "internalType": "bytes32"
       }
     ],
     "anonymous": false
@@ -416,7 +326,7 @@ export const fluVerifierAbi = [
         "internalType": "address"
       },
       {
-        "name": "domainHash",
+        "name": "providerHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -466,12 +376,6 @@ export const fluVerifierAbi = [
         "internalType": "string"
       },
       {
-        "name": "groth16Verifier",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
         "name": "enabled",
         "type": "bool",
         "indexed": false,
@@ -487,22 +391,7 @@ export const fluVerifierAbi = [
   },
   {
     "type": "error",
-    "name": "CommitmentAlreadyRegistered",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "EmailAlreadyUsed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmailCommitmentNotSet",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmailCommitmentTooRecent",
     "inputs": []
   },
   {
@@ -517,17 +406,12 @@ export const fluVerifierAbi = [
   },
   {
     "type": "error",
-    "name": "InvalidCommitment",
+    "name": "InvalidBindingDkimKeyHash",
     "inputs": []
   },
   {
     "type": "error",
     "name": "InvalidDkimKeyHash",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidGroth16Verifier",
     "inputs": []
   },
   {
@@ -564,11 +448,6 @@ export const fluVerifierAbi = [
   },
   {
     "type": "error",
-    "name": "RecipientMismatch",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "StringsInsufficientHexLength",
     "inputs": [
       {
@@ -582,6 +461,11 @@ export const fluVerifierAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownBindingProvider",
+    "inputs": []
   },
   {
     "type": "error",

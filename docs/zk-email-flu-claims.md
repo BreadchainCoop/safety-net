@@ -3,42 +3,67 @@
 Instant, contest-free settlement of flu claims against a zero-knowledge proof of a real
 diagnosis email — no vote, no committee, fixed pre-agreed payout.
 
-A member proves, without revealing the email, that they received a DKIM-signed email from an
-allowlisted US healthcare sender whose content matched the flu-diagnosis pattern. The contract
-pays out `FLU_PAYOUT_DAYS` (7) at the member's daily support rate immediately.
+A member proves, **without revealing their email address at all**, that (a) they received a
+DKIM-signed email from an allowlisted US healthcare sender whose content matched the
+flu-diagnosis pattern, and (b) they control the inbox it was sent to — binding the payout to
+their wallet. The contract pays out `FLU_PAYOUT_DAYS` (7) at the member's daily support rate
+immediately. There is no pre-registration and nothing about the email (not even a hash) is
+stored on-chain.
+
+This is **design C** (two-email in-circuit binding). It supersedes an earlier design that
+pre-registered a Poseidon hash of the member's email as an anti-theft commitment — which leaked
+a dictionary-attackable wallet↔email link and required a registration step. C removes both.
 
 ```
-member's inbox                        Gnosis Chain
-┌──────────────┐   .eml    ┌────────────────────────────────┐
-│ flu email    │──────────▶│ browser: ZK proof (@zk-email/  │
-│ from kp.org  │           │ sdk, local WASM proving)       │
-└──────────────┘           └───────────────┬────────────────┘
-                                           │ claimFlu(id, proof)
-                                           ▼
-     SafetyNet proxy ──▶ ZkEmailFluVerifier ──▶ per-domain Groth16 verifier
-     (payout via         (nullifier, bindings,   (proves DKIM sig + regex
-      _deduct)            cooldown, allowlist)    match, in zero knowledge)
+member's inbox                              Gnosis Chain
+┌───────────────────┐            ┌────────────────────────────────────┐
+│ A: flu email      │  .eml ───▶ │ browser: ONE ZK proof over BOTH     │
+│    provider→me    │            │ emails (snarkjs, local proving)     │
+│ B: binding email  │  .eml ───▶ │  · both DKIM sigs valid             │
+│    me→me, subject │            │  · flu pattern matched (A, private) │
+│    = my wallet    │            │  · To(A)==From(B) (private)         │
+└───────────────────┘            │  · wallet = Subject(B)              │
+                                 └──────────────────┬─────────────────┘
+                                                    │ claimFlu(id, proof)
+                                                    ▼
+     SafetyNet proxy ──▶ ZkEmailFluVerifier ──▶ FluClaimV2 Groth16 verifier (one, shared)
+     (payout via         (nullifier, wallet,      (two DKIM verifications + regex
+      _deduct)            cooldown, allowlists)     + address equality, in zero knowledge)
                                   │
-                                  └──▶ DKIMRegistry (domain → RSA key hashes)
+                                  └──▶ DKIMRegistry (provider + email-provider key hashes)
 ```
+
+## The binding trick — proving inbox control without revealing the email
+
+Nothing in the diagnosis email contains the member's wallet, and possession of a leaked `.eml`
+doesn't prove you own the inbox. C solves both without pre-registration: since DKIM signs
+*outbound* mail, the member proves inbox control by **sending themselves a one-line email whose
+subject is their wallet address**. Their provider (Gmail/Outlook/…) DKIM-signs it — which only
+the account holder can cause. The circuit then verifies both emails together and asserts, in
+zero knowledge, that the flu email's `To:` equals the binding email's `From:` (same inbox) —
+never revealing the address. Soundness against a *forged* binding email comes from checking B's
+DKIM key against an owner-curated registry of real email-provider keys: an attacker signing a
+fake "From: victim(at)gmail.com" with a domain they control isn't gmail, so the lookup fails.
 
 ## What exactly is proven
 
-The circuit (a ZK Email "blueprint", compiled per sender domain) proves, in zero knowledge:
+The single **FluClaimV2** circuit (`circuits/src/flu_claim_v2.circom`, provider-agnostic — one
+Groth16 verifier for all providers) proves, in zero knowledge:
 
-1. **DKIM signature validity** — the member holds an email whose RSA-SHA256 DKIM signature
-   verifies against the public key committed to in `signals[0]`, including the body-hash
-   (`bh=`) check over the full body (never `ignoreBodyHashCheck`). Appending content to a
-   length-limited (`l=`) signature fails this full-body hash, closing the 2024 `l=` attack.
-2. **Sender domain** — the DKIM `d=` domain equals the blueprint's fixed domain (one blueprint,
-   one Groth16 verifier, one domain).
-3. **Flu-diagnosis match** — a body/subject decomposed regex matched. The match is enforced
-   in-circuit and kept private (no reveal): a valid proof attests "this email matches the flu
-   pattern" without disclosing which term matched or any other content.
-4. **Recipient** — the `To:` address, revealed only as a Poseidon hash (`isHashed` reveal,
-   `signals[3]`).
-5. **Claimant binding** — the claimant's wallet address is baked into the proof as an external
-   input (`signals[5..6]`), so a proof observed in the mempool pays only the intended member.
+1. **DKIM validity of A** — RSA-SHA256 over the diagnosis email's header + `bh=` full-body hash
+   (never `ignoreBodyHashCheck` for A), closing the 2024 `l=` append attack. Key hash in `signals[0]`.
+2. **DKIM validity of B** — RSA-SHA256 over the binding email's header (header-only,
+   `ignoreBodyHashCheck`, since the wallet lives in the signed `Subject:`). Key hash in `signals[1]`.
+3. **Flu-diagnosis match** — a private, in-circuit regex over A's decoded body; a valid proof
+   attests the match without disclosing which term matched.
+4. **Same inbox** — `To(A) == From(B)`, compared privately over the packed address bytes and
+   **never output**. This is the anti-theft binding: only the inbox owner can produce B.
+5. **Wallet** — extracted from B's `Subject:` and output packed (`signals[4..5]`); the contract
+   checks it equals the claimant, so a proof observed in the mempool pays only the intended member.
+
+Provider domains (A's healthcare sender, B's email provider) are checked **on-chain** against the
+DKIM registry + allowlists — not baked into the circuit — so one circuit + verifier serves every
+provider.
 
 ### The flu-diagnosis pattern
 
@@ -58,25 +83,24 @@ transactional template (e.g. an exact result-notification subject prefix) once a
 is captured — patient-typed text echoed back by a provider (appointment "visit reason" fields)
 is attacker-controlled and must never be the matched region.
 
-### Canonical public-signal layout
+### Canonical public-signal layout (6 signals)
 
-All provider blueprints share one layout (7 signals). It **requires** `enableHeaderMasking`
-and `enableBodyMasking` to be `false` (masking prepends thousands of signals and shifts every
-index):
+One layout for the single FluClaimV2 circuit (`circuits/src/flu_claim_v2.circom`):
 
 | Index | Signal | Contract check |
 |---|---|---|
-| 0 | `pubkeyHash` — Poseidon of the DKIM RSA modulus (`poseidonLarge(modulus, 9, 242)`) | `DKIMRegistry.isDKIMPublicKeyHashValid(domain, hash)` |
-| 1–2 | `headerHash` hi/lo — SHA-256 of the signed header, two 128-bit halves | nullifier = `keccak256(hi, lo)`; one claim per email, ever |
-| 3 | `toAddressHash` — Poseidon hash of the `To:` address (`isHashed` reveal) | must equal the member's pre-registered email commitment |
-| 4 | `proverEthAddress` — built-in blueprint input | unused (the SDK cannot set it; always 0) |
-| 5–6 | `claimantAddress` external input — the claimant's address as a lowercase `0x…` hex string, zero-padded to 42 bytes, packed 31 bytes per field little-endian | must equal `_packedClaimantAddress(claimant)` |
+| 0 | `pubkeyHashA` — Poseidon of A's DKIM RSA modulus (`poseidonLarge(modulus, 9, 242)`) | `DKIMRegistry.isDKIMPublicKeyHashValid(providerDomain, hash)` |
+| 1 | `pubkeyHashB` — Poseidon of B's DKIM RSA modulus | `DKIMRegistry.isDKIMPublicKeyHashValid(bindingDomain, hash)` |
+| 2–3 | `headerHash` hi/lo — SHA-256 of A's signed header, two 128-bit halves | nullifier = `keccak256(hi, lo)`; one claim per diagnosis email, ever |
+| 4–5 | `walletPacked` — the claimant's address from B's `Subject:` as a lowercase `0x…` hex string, 42 bytes packed 31/field little-endian | must equal `_packedClaimantAddress(claimant)` |
 
-> **Load-bearing**: validate a candidate verifier against a real `proof.props.publicOutputs`
-> array before `setProvider(..., true)`. The layout above is derived from the blueprint
-> template with masking off; a template change or a re-ordered blueprint silently breaks
-> index assumptions. The verifier is cheap to redeploy and swap via
-> `SafetyNet.setFluClaimVerifier`.
+Private (never output): both full email addresses (compared in-circuit), A's body, the matched
+flu term. The provider/binding domain strings travel in calldata (`FluClaimProof.providerDomain`
+/ `.bindingDomain`) and key the DKIM registry lookups.
+
+> **Load-bearing**: the layout is fixed by the circuit's output-declaration order; validate a
+> candidate verifier against a real `proof.publicSignals` array before enabling providers. The
+> verifier is cheap to redeploy and swap via `SafetyNet.setFluClaimVerifier`.
 
 ## Where the "verified doctor list" comes from
 
@@ -123,6 +147,16 @@ Excluded for now: `teladoc.com` (1024-bit keys on every selector), `amazon.com` 
 Pharmacy signs with the generic amazon.com key used by all Amazon mail — allowlisting it means
 trusting every Amazon email stream to never contain a matching term).
 
+### The binding-provider list (email B's signer)
+
+C additionally needs an owner-curated allowlist of the **member's** email providers — whoever
+DKIM-signs the binding email B. These are consumer mail providers (`gmail.com`, `outlook.com`,
+`icloud.com`, `yahoo.com`, …) whose keys are well-known and stable in the ZK Email archive.
+Enabled via `setBindingProvider(domain, true)` + `DKIMRegistry.setDKIMPublicKeyHash`. Unlike the
+healthcare list this can be broad — its only job is to attest inbox control, and its soundness
+comes from the key genuinely being that provider's (so a self-hosted attacker domain can't forge
+a "From: victim@gmail.com" binding).
+
 ## On-chain enforcement
 
 In `SafetyNet.claimFlu` (before the proof is even looked at): caller is a member → net active →
@@ -131,51 +165,40 @@ full-rate claims cannot front-run decommission's pro-rata haircut) → the net i
 first epoch** (Broodfonds-style waiting period; combined with the clean-dues gate, a claimant
 has necessarily contributed for a full epoch before claiming).
 
-In `ZkEmailFluVerifier.verifyFluClaim`, in order: provider enabled → email commitment
-registered and aged ≥ `commitmentDelay` (7 days) → `To:` hash matches the commitment →
-per-(net, member) cooldown (`claimCooldown`, 90 days) elapsed → claimant address matches the
-in-proof binding → DKIM key hash registered for the domain → Groth16 proof verifies →
-nullifier unused (then consumed).
+In `ZkEmailFluVerifier.verifyFluClaim`, in order: provider (A) enabled → binding provider (B)
+enabled → per-(net, member) cooldown (`claimCooldown`, 90 days) elapsed → claimant wallet from
+B's subject matches the caller → A's DKIM key registered under `providerDomain` → B's DKIM key
+registered under `bindingDomain` → Groth16 proof verifies → nullifier unused (then consumed).
 
-- **Nullifier** (`keccak256(headerHashHi, headerHashLo)`): one email settles one claim, ever,
-  across all nets.
-- **Cooldown** replaces email-freshness: the stock blueprint circuit exposes no DKIM
-  timestamp, so instead of proving the email is recent, a member can settle at most one flu
-  claim per net per 90 days (one flu season bout; a single illness produces multiple provable
-  emails — result, prescription, billing).
-- **Email commitment**: members register `Poseidon(their email address)` (computed with
-  `@zk-email/helpers`, identical to the circuit's `isHashed` To: reveal) — ideally at join
-  time. Two properties make a bought/leaked `.eml` unusable by other members: commitment
-  values are **first-come unique** (a copied value reverts `CommitmentAlreadyRegistered`), and
-  a freshly (re)bound commitment must age 7 days before it can claim. A squatted commitment
-  (someone front-running a member's very first registration) is recoverable via the owner's
-  `clearEmailCommitment`.
+- **Nullifier** (`keccak256(headerHashHi, headerHashLo)` over A's header): one diagnosis email
+  settles one claim, ever, across all nets.
+- **Cooldown** replaces email-freshness: the circuit exposes no DKIM timestamp, so instead of
+  proving the email is recent, a member can settle at most one flu claim per net per 90 days
+  (one flu-season bout; a single illness produces multiple provable emails).
+- **Inbox binding is cryptographic, not registered.** There is no `registerEmailCommitment`, no
+  stored email hash, no waiting period on a commitment — control is proven fresh at claim time
+  by email B, and a leaked diagnosis `.eml` is useless without the ability to send from that
+  inbox.
 
-### Residual risks (accepted for v1, documented honestly)
+### Residual risks (documented honestly)
 
-- **Collusion**: a member whose friend genuinely has the flu can have the friend generate a
-  proof bound to the member's address — if the member pre-registered the friend's email
-  commitment at join time. No email-proof scheme prevents willing collusion; the 90-day
-  cooldown and 7-day payout bound the damage, and the group remains small and invite-only.
-- **Commitment linkability**: the commitment is the *unsalted* Poseidon hash of the member's
-  email address (a stock-blueprint constraint — the `isHashed` To: reveal has no salt input),
-  registered on-chain and visible in claim calldata. Anyone can dictionary-test guessable
-  addresses against the public `emailCommitments` mapping and link wallets to email
-  identities. The email *content* and diagnosis stay private; the wallet↔email link may not.
-- **Commitment squatting**: first-come uniqueness means an attacker who learns a member's
-  email address before that member's first registration could register its hash first. The
-  owner's `clearEmailCommitment` recovers the value; register at join time to shrink the
-  window.
-- **Content false positives**: an allowlisted domain might email `influenza` in a
-  non-diagnosis context (e.g. a lab newsletter). Mitigation is per-domain template anchoring
-  at blueprint time and conservative domain enablement, not on-chain logic.
-- **Trusted setup**: each blueprint's Groth16 zkey must be generated by the deployer
-  (self-run `sdk-images` pipeline) — do not accept a zkey produced unilaterally by a hosted
-  service for a money-moving circuit.
-- **DKIM key custody**: some org selectors are ESP-managed (HubSpot/SendGrid manage the
-  private key even when `d=` is the org's own). Key rotation is a *liveness* dependency: a
-  stale registry can't forge claims, only block new ones until the owner registers the new
-  key hash.
+- **Collusion**: a member whose friend genuinely has the flu could get the friend to send *both*
+  emails (the friend controls the inbox) bound to the member's wallet. No email-proof scheme
+  prevents willing collusion; the 90-day cooldown, 7-day capped payout, and the small invite-only
+  group bound the damage.
+- **Member-provider trust**: the binding rests on the member's email provider DKIM-signing
+  outbound mail correctly and its key being in the registry. A provider that lets a third party
+  send as a user (or a compromised account) breaks the binding — the standard DKIM trust
+  assumption, now on the consumer-provider side too. Keep the binding-provider list to
+  reputable providers.
+- **Content false positives**: an allowlisted healthcare domain might email `influenza` in a
+  non-diagnosis context. Mitigation is conservative domain enablement + (optionally) per-domain
+  subject anchoring, not on-chain logic.
+- **Trusted setup**: the FluClaimV2 Groth16 zkey must be generated by the deployer (self-run
+  `snarkjs` ceremony with our own contribution) — never accept a zkey produced unilaterally by a
+  third party for a money-moving circuit.
+- **DKIM key custody / rotation**: a *liveness* dependency for both the provider and binding
+  registries — a stale registry can't forge claims, only block new ones until keys are updated.
 
 ## Payout definition
 
@@ -197,72 +220,70 @@ was fully down on 2026-07-08), this repo ships a self-hosted circom pipeline und
 [`circuits/`](../circuits/README.md) — so we hold the trusted-setup randomness and pin every
 artifact ourselves:
 
-- **`circuits/src/flu_claim.circom`** — `FluClaim(768, 704, 121, 17, 93)`: ZK Email
-  `EmailVerifier` (2048-bit RSA, full body-hash check, quoted-printable decoding) + the `To:`
-  regex (revealed as a Poseidon hash) + the flu-pattern regex (private, `=== 1`). ~3.7M
-  constraints — fits the 2^22 ceremony. Outputs the canonical 7-signal layout above.
+- **`circuits/src/flu_claim_v2.circom`** — `FluClaimV2(768, 704, 640, 121, 17, 93, 42)`: two ZK
+  Email `EmailVerifier`s (A full-body + quoted-printable; B header-only), the `To:`/`From:`
+  regexes with an in-circuit address equality, a subject-wallet extraction, and the private
+  flu-pattern regex. ~5.7M constraints — needs the 2^23 ceremony. Outputs the 6-signal layout above.
 - **`circuits/src/regex/flu_pattern.json`** — the decomposed flu regex (`influenza`, ICD-10
   `J09/J10/J11.x`, and the flu antivirals), compiled to circom with the classic zk-regex
   compiler. Bare "flu" is deliberately excluded.
 - **`src/contracts/verifiers/FluClaimGroth16Verifier.sol`** — the snarkjs-generated Groth16
-  verifier (implements `IGroth16Verifier`). One per provider domain in production.
-- **`test/integration/FluClaimProof.t.sol`** — replays a **real** proof (generated over a
-  DKIM-signed fixture email) through the full `SafetyNet` + `ZkEmailFluVerifier` + Groth16
-  stack on-chain. This is the guardrail that the deployed signal layout, the 31-byte claimant
-  packing, and the `To:` Poseidon commitment all agree with the circuit.
+  verifier (implements `IGroth16Verifier`). One verifier for all providers.
+- **`test/integration/FluClaimV2Proof.t.sol`** — replays a **real** two-email proof through the
+  full `SafetyNet` + `ZkEmailFluVerifier` + Groth16 stack on-chain, the guardrail that the
+  deployed signal layout, the 31-byte wallet packing, and the address-equality all agree with
+  the circuit.
 
-Pinned versions: `@zk-email/circuits@6.3.4`, `@zk-email/contracts@6.3.2` (v7 will break the
-registry interface to ERC-7969), `@zk-email/zk-regex-compiler@2.3.2`, `snarkjs@0.7.5`,
-`circom 2.2.2`.
+Pinned versions: `@zk-email/circuits@6.3.4`, `@zk-email/contracts@6.3.2`,
+`@zk-email/zk-regex-compiler@2.3.2`, `snarkjs@0.7.5`, `circom 2.2.2`.
 
 ### Building the artifacts
 
-See [`circuits/README.md`](../circuits/README.md) — `npm run gen-regex && npm run compile &&
-npm run setup` produces the r1cs/wasm, runs the Groth16 ceremony **with our own contribution**,
-and exports the vkey + `FluClaimGroth16Verifier.sol`. The demo build here uses a committed
-throwaway DKIM key; a production per-domain build swaps in the provider's real DKIM key hash.
+See [`circuits/README.md`](../circuits/README.md): `npm run gen-regex`, `circom` compile,
+download the 2^23 ptau, then `scripts/setup-v2.sh` runs the Groth16 ceremony **with our own
+contribution** and exports the vkey + `FluClaimGroth16Verifier.sol`. `scripts/gen-v2-fixture.mjs`
++ `scripts/prove-v2.sh` produce the real proof + the Solidity test fixture. The demo build uses
+committed throwaway DKIM keys for both the provider and binding domains.
 
 ## Deployment runbook (Gnosis)
 
 ```bash
-# 1. Build the circuit + Groth16 verifier for a provider domain (see circuits/README.md).
+# 1. Build the FluClaimV2 circuit + Groth16 verifier (see circuits/README.md).
 
-# 2. Deploy the stack (auto-wires SafetyNet.setFluClaimVerifier only when the deployer key
-#    owns the proxy; otherwise wiring is the owner's post-deploy action).
+# 2. Deploy the stack (deploys the verifier + DKIM registry + ZkEmailFluVerifier; auto-wires
+#    SafetyNet.setFluClaimVerifier only when the deployer owns the proxy).
 SAFETY_NET_PROXY=0x63c3c299CD5C5479E6999189D7827490Ea71cEAe \
 ADMIN_ADDRESS=<admin> PRIVATE_KEY=<key> \
 forge script script/DeployZkEmailFlu.sol:DeployZkEmailFlu \
   --rpc-url https://rpc.gnosischain.com --broadcast \
   --verify --verifier blockscout --verifier-url https://gnosis.blockscout.com/api
 
-# 3. Deploy each per-domain FluClaimGroth16Verifier, then as admin:
-#    dkimRegistry.setDKIMPublicKeyHash(domain, poseidonLarge(modulus, 9, 242))
-#    verifier.setProvider(domain, groth16Verifier, true)   // after validating signal indices
-#    safetyNet.setFluClaimVerifier(verifier)               // if not wired at deploy
+# 3. As admin, seed the registries + allowlists:
+#    dkimRegistry.setDKIMPublicKeyHash(providerDomain, poseidonLarge(modulus))  // each healthcare sender
+#    dkimRegistry.setDKIMPublicKeyHash(bindingDomain, poseidonLarge(modulus))   // each email provider (gmail…)
+#    verifier.setProvider(providerDomain, true)
+#    verifier.setBindingProvider(bindingDomain, true)
+#    safetyNet.setFluClaimVerifier(verifier)   // if not wired at deploy
 ```
 
 ## Frontend (this repo)
 
-The web app ([`web/`](../web)) ships a working claim flow — `ClaimFluPanel` on the net page:
+The web app ([`web/`](../web)) ships a **guided wizard** — `ClaimFluPanel` on the net page. No
+registration; the member's email address never leaves the browser:
 
-1. **Register email commitment** (`RegisterEmailPanel`): the member enters their provider
-   email; the browser computes `Poseidon(email)` (`web/src/lib/flu-claim.ts` → identical to the
-   circuit's `isHashed` To: reveal) and calls `registerEmailCommitment`. The plaintext address
-   never leaves the browser. It must age past the waiting period before it can claim.
-2. **Prove**, either path:
-   - **In-browser** (`web/src/lib/flu-claim-prover.ts`, dynamically imported): DKIM-verifies the
-     uploaded `.eml` with `@zk-email/helpers`, builds the circuit inputs, and runs
-     `snarkjs.groth16.fullProve` against the hosted circuit wasm + zkey
-     (`NEXT_PUBLIC_FLU_CIRCUIT_{WASM,ZKEY}_URL`). Desktop-only — the zkey is GB-scale. The node
-     builtins this pulls in are polyfilled client-side in `next.config.ts`.
-   - **CLI** (`circuits/scripts/prove-claim.mjs`): produces a proof-bundle JSON the panel
-     accepts via upload, for members who can't prove in-browser.
-3. **Settle**: `encodeFluClaimProof` ABI-encodes the bundle (swapping snarkjs `pi_b` pairs for
-   the EVM pairing) and calls `SafetyNet.claimFlu(netId, proof)`.
+1. **Upload the diagnosis email** (A). The app reads its `To:` locally to pre-fill the next step.
+2. **Prove that inbox is yours** — the app opens the member's mail client (`mailto:`) pre-filled
+   to send themselves a one-line email whose subject is their wallet address, with
+   provider-specific "how to save the sent .eml" tips, then they upload that email (B). The app
+   pre-checks `From(B) == To(A)` and `Subject(B) == wallet` before proving.
+3. **Prove & settle** — `web/src/lib/flu-claim-prover.ts` (dynamically imported) DKIM-verifies
+   both emails, builds the combined inputs, and runs `snarkjs.groth16.fullProve` against the
+   hosted wasm + zkey (`NEXT_PUBLIC_FLU_CIRCUIT_{WASM,ZKEY}_URL`; node builtins polyfilled in
+   `next.config.ts`). A CLI-bundle upload is the escape hatch. `encodeFluClaimProof` then calls
+   `SafetyNet.claimFlu(netId, proof)`.
 
 The zkey and wasm are too large to commit; host them as release/IPFS assets and point the env
-vars at them. `web/scripts/link-flu-artifacts.mjs` copies a local build into `public/flu-demo/`
-for development.
+vars at them. `web/scripts/link-flu-artifacts.mjs` copies a local build into `public/flu-demo/`.
 
 ## Tested end-to-end
 

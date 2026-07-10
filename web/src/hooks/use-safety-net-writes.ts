@@ -2,7 +2,6 @@
 
 import type { Address, ContractFunctionArgs, Hex } from "viem";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
-import { fluVerifierAbi } from "@/lib/abi/flu-verifier";
 import { ADDRESSES } from "@/lib/config";
 import { useTx } from "@/hooks/use-tx";
 
@@ -151,21 +150,4 @@ export function useClaimFlu() {
       args: [id, proof],
     });
   return { claimFlu, ...tx };
-}
-
-/**
- * Registers the caller's email commitment on the flu verifier. Members do this
- * once (ideally at join time); the commitment must age past the verifier's
- * waiting period before it can back a claim.
- */
-export function useRegisterEmailCommitment(verifier: Address) {
-  const tx = useTx();
-  const registerEmailCommitment = (commitment: Hex) =>
-    tx.run({
-      address: verifier,
-      abi: fluVerifierAbi,
-      functionName: "registerEmailCommitment",
-      args: [commitment],
-    });
-  return { registerEmailCommitment, ...tx };
 }

@@ -2,3 +2,4 @@ node_modules/
 build/
 fixtures/dkim-test-key.pem
 reference/
+fixtures/dkim-binding-key.pem

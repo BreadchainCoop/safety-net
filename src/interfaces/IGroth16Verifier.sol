@@ -12,12 +12,12 @@ interface IGroth16Verifier {
   /// @param _pA The proof's A point
   /// @param _pB The proof's B point
   /// @param _pC The proof's C point
-  /// @param _pubSignals The circuit's public signals (canonical flu blueprint layout, 7 signals)
+  /// @param _pubSignals The circuit's public signals (FluClaimV2 layout, 6 signals)
   /// @return _valid True when the proof is valid for the given public signals
   function verifyProof(
     uint256[2] calldata _pA,
     uint256[2][2] calldata _pB,
     uint256[2] calldata _pC,
-    uint256[7] calldata _pubSignals
+    uint256[6] calldata _pubSignals
   ) external view returns (bool _valid);
 }
