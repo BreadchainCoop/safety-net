@@ -51,7 +51,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BreadchainCoop/etherform
-          ref: main
+          # Pinned to the etherform commit with the verify-blockscout.sh fix
+          # (etherform#55: forge read RPC_URL as ETH_RPC_URL never — constructor
+          # args now derived offline from the broadcast, bounded polling,
+          # redirect-safe hosts). A SHA pin keeps deploys reproducible.
+          ref: 180aa91926a02ce2045f9a7e3ed08be9395ecfab
           sparse-checkout: scripts
           path: .etherform
 
