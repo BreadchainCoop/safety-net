@@ -1,7 +1,8 @@
 {
-  "rules": {
-    "ordering": "off",
-    "one-contract-per-file": "off",
-    "no-console": "off"
-  }
+    "rules": {
+        "no-console": "off",
+        "reason-string": "off",
+        "no-empty-blocks": "off",
+        "use-natspec": "off"
+    }
 }

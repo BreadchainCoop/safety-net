@@ -1,0 +1,67 @@
+# SafetyNet Subgraph Manifest
+# Indexes the SafetyNet UUPS proxy on Gnosis (chain 100).
+# Docs: https://thegraph.com/docs/en/developing/creating-a-subgraph/
+
+specVersion: 1.3.0
+
+indexerHints:
+  prune: auto
+
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum
+    name: SafetyNet
+    network: gnosis
+    source:
+      # SafetyNet proxy on Gnosis. graph-node reads logs by address; the
+      # implementation ABI only decodes them (standard UUPS pattern).
+      address: "0x63c3c299CD5C5479E6999189D7827490Ea71cEAe"
+      abi: SafetyNet
+      startBlock: 47031243
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - SafetyNet
+        - Member
+        - Deposit
+        - Withdrawal
+        - Request
+        - Contest
+        - ActivityItem
+      abis:
+        - name: SafetyNet
+          file: ./abis/SafetyNet.json
+      # NOTE on pre-upgrade events: older testnet logs before the current ABI
+      # used different signatures for RequestCreated / SafetyNetCreated. Those
+      # are not indexed. We index from startBlock 47000324 (current proxy) with
+      # the current signatures only; pre-upgrade test events are skipped.
+      eventHandlers:
+        - event: SafetyNetCreated(indexed uint256,indexed address,uint256,uint256,uint256,address[],address,uint256,uint256,uint256,uint256,uint256,uint256,string)
+          handler: handleSafetyNetCreated
+        - event: SafetyNetStarted(indexed uint256,uint256)
+          handler: handleSafetyNetStarted
+        - event: SafetyNetDecommissioned(indexed uint256)
+          handler: handleSafetyNetDecommissioned
+        - event: InviteRedeemed(indexed uint256,indexed address)
+          handler: handleInviteRedeemed
+        - event: FundsDeposited(indexed uint256,indexed address,uint256)
+          handler: handleFundsDeposited
+        - event: FundsWithdrawn(indexed uint256,indexed address,uint256)
+          handler: handleFundsWithdrawn
+        - event: RequestCreated(indexed uint256,indexed uint256,address,uint256,uint256,string)
+          handler: handleRequestCreated
+        - event: WithdrawalPending(indexed uint256,indexed address,uint256)
+          handler: handleWithdrawalPending
+        - event: WithdrawalContested(indexed uint256,indexed address,uint256)
+          handler: handleWithdrawalContested
+        - event: WithdrawalVetoed(indexed uint256,indexed address,uint256)
+          handler: handleWithdrawalVetoed
+        - event: WithdrawalAutoExecuted(indexed uint256,indexed address,uint256)
+          handler: handleWithdrawalAutoExecuted
+        - event: RequestNonceCancelled(indexed uint256,indexed address,uint256)
+          handler: handleRequestNonceCancelled
+      file: ./src/mapping.ts

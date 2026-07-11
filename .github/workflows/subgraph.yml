@@ -1,0 +1,52 @@
+name: Subgraph
+
+# CI/CD for the SafetyNet subgraph (subgraph/), via Breadchain's reusable
+# subgraphform workflow. Runs codegen + build + matchstick tests on every PR
+# and push that touches subgraph/**; deploys to The Graph Studio when the
+# GRAPH_DEPLOY_KEY secret is present on the deploy branch.
+#
+# --- Deploy-branch gotcha (documented limitation) ---
+# The reusable workflow's deploy job is hardcoded to fire only on
+# `github.ref == 'refs/heads/main'` (and only when deploy-on-main is true), OR
+# on pull_request when deploy-on-pr is true. This repo's default branch is
+# `dev`, not `main`. Options:
+#   1. (chosen here) Trigger the workflow on push to both `main` and `dev`, and
+#      keep deploy-on-main=true. Real deploys happen only when a `main` branch
+#      exists and receives the change (e.g. a release/mirror branch). Pushes to
+#      `dev` still run full build + test, but the deploy job is skipped by the
+#      reusable workflow's ref check — no deploy from dev without upstream
+#      changes to subgraphform. This is intentional: PRs/dev get validated,
+#      production deploys are gated to `main`.
+#   2. Alternatively set deploy-on-pr=true to deploy from a labeled PR — not
+#      enabled here to avoid deploying on every PR.
+# If/when subgraphform gains a configurable deploy-branch input, switch to it.
+#
+# GRAPH_DEPLOY_KEY: NOT configured yet. Until it is set as a repo secret, the
+# build-and-test job still runs on PRs (it needs no secret). The deploy job
+# will fail auth without the key — it only runs on `main`, so PRs/dev are
+# unaffected. See subgraph/README.md for how to obtain and set the key.
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "subgraph/**"
+      - ".github/workflows/subgraph.yml"
+  pull_request:
+    paths:
+      - "subgraph/**"
+      - ".github/workflows/subgraph.yml"
+
+jobs:
+  subgraph:
+    # Pinned to a commit SHA per subgraphform's README recommendation.
+    uses: BreadchainCoop/subgraphform/.github/workflows/_subgraph-cicd.yml@b9c8ff3510380fad98b610bd8c0f855d1b9f331c
+    with:
+      subgraph-name: safety-net
+      working-directory: subgraph
+      deploy-on-main: true
+      deploy-on-pr: false
+      run-tests: true
+      run-lint: true
+    secrets:
+      GRAPH_DEPLOY_KEY: ${{ secrets.GRAPH_DEPLOY_KEY }}

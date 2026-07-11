@@ -1,0 +1,84 @@
+name: Deploy Web App to GitHub Pages
+
+on:
+  push:
+    branches: [dev, RonTuretzky/solidity-frontend-full-app]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static export
+        working-directory: web
+        env:
+          NEXT_PUBLIC_BASE_PATH: /safety-net
+          # Baked into the bundle so the client can tell when it's running a
+          # stale (cached) build vs. the one currently deployed (build-id.txt).
+          NEXT_PUBLIC_BUILD_ID: ${{ github.sha }}
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ vars.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
+          NEXT_PUBLIC_SAFETYNET_ADDRESS: ${{ vars.NEXT_PUBLIC_SAFETYNET_ADDRESS }}
+          # Privy embedded wallets go live when this repo variable is set. Leave
+          # it UNSET to keep the RainbowKit path; the app is byte-identical then.
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ vars.NEXT_PUBLIC_PRIVY_APP_ID }}
+          # Gas sponsorship is ON by default; set this repo var to "false" only
+          # for a Privy app without a Gnosis gas-sponsorship policy.
+          NEXT_PUBLIC_PRIVY_SPONSOR_GAS: ${{ vars.NEXT_PUBLIC_PRIVY_SPONSOR_GAS }}
+          # Activity feed reads the subgraph when set, else falls back to logs.
+          NEXT_PUBLIC_SUBGRAPH_URL: ${{ vars.NEXT_PUBLIC_SUBGRAPH_URL }}
+        run: pnpm build
+
+      # Version signal for the client refresh banner (see version-check.tsx).
+      # Served at /safety-net/build-id.txt; must match NEXT_PUBLIC_BUILD_ID above.
+      - name: Emit build id
+        working-directory: web
+        run: echo "${{ github.sha }}" > out/build-id.txt
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          # The Pages deploy backend intermittently fails its status polls
+          # ("Deployment failed, try again later" after error_count is hit).
+          # Give it a longer window and far more tolerance for transient poll
+          # errors so a flaky backend doesn't fail an otherwise-good deploy.
+          timeout: 900000
+          error_count: 50

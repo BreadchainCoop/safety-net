@@ -1,56 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-
-import {SafetyNetFuzzBase} from "./SafetyNetFuzzBase.t.sol";
-import {ISafetyNet} from "src/interfaces/ISafetyNet.sol";
-import {MockERC20} from "test/mocks/MockERC20.sol";
+import {SafetyNetFuzzBase} from './SafetyNetFuzzBase.t.sol';
+import {ISafetyNet} from 'src/interfaces/ISafetyNet.sol';
+import {MockERC20} from 'test/mocks/MockERC20.sol';
 
 contract SafetyNetFuzz_Create is SafetyNetFuzzBase {
-  function testFuzz_LotsOfSafetyNetCreations(uint8 nRaw, uint8 consensusBase) public {
-    uint256 n = bound(uint256(nRaw), 5, 50);
-    uint256 cBase = 30 + (uint256(consensusBase) % 40);
+  function testFuzz_LotsOfSafetyNetCreations(uint8 safetyNetCountRaw, uint8 contestBase) public {
+    uint256 safetyNetCount = bound(uint256(safetyNetCountRaw), 5, 50);
+    uint256 contestBasePercentage = 30 + (uint256(contestBase) % 40);
 
-    uint256 success;
+    uint256 successfulCreations;
 
-    for (uint256 i = 0; i < n; i++) {
-      ISafetyNet.SafetyNet memory cfg = safeCfg;
-      cfg.safetyNetStart = block.timestamp + 1;
-      cfg.consensusThreshold = uint256((cBase + i) % 100);
-      if (cfg.consensusThreshold < 1) cfg.consensusThreshold = 1;
-      cfg.autoThreshold = SAFE_AUTO_THRESHOLD + i * 1e15;
-      cfg.members = _threeMembers();
+    for (uint256 i = 0; i < safetyNetCount; i++) {
+      ISafetyNet.SafetyNet memory config = _safeCfg;
+      config.contestThreshold = uint256((contestBasePercentage + i) % 100);
+      if (config.contestThreshold < 1) config.contestThreshold = 1;
+      config.autoThreshold = _SAFE_AUTO_THRESHOLD + i * 1e15;
 
-      uint256 id = safetyNet.create(cfg);
-      assertEq(id, success, "id matches successes so far");
-      success++;
+      uint256 safetyNetId = _safetyNet.create('', config);
+      assertEq(safetyNetId, successfulCreations, 'safetyNetId matches successes so far');
+
+      // The owner is registered as the sole founding member of every new net
+      address[] memory members = _safetyNet.getMembers(safetyNetId);
+      assertEq(members.length, 1, 'owner is the sole member after create');
+      assertEq(members[0], _member1, 'sole member is the owner');
+      successfulCreations++;
     }
 
-    assertEq(safetyNet.nextId(), success, "nextId equals the number of successful creations");
+    assertEq(_safetyNet.nextId(), successfulCreations, 'nextId equals the number of successful creations');
   }
 
-  function test_Create_RevertsOnZeroAddressMember() public {
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.safetyNetStart = block.timestamp + 1;
-    cfg.members = _threeMembers();
-    cfg.members[0] = address(0);
+  function test_Create_RevertsOnNonEmptyMembers() public {
+    // Founding members can no longer be passed at creation; everyone joins via invites
+    ISafetyNet.SafetyNet memory config = _safeCfg;
+    config.members = _threeMembers();
 
-    vm.expectRevert(ISafetyNet.InvalidMemberAddress.selector);
-    safetyNet.create(cfg);
+    vm.expectRevert(ISafetyNet.InvalidMembers.selector);
+    _safetyNet.create('', config);
+  }
+
+  function test_Create_RevertsOnNonZeroStartTime() public {
+    // The start time is stamped by start(); passing one at creation is invalid
+    ISafetyNet.SafetyNet memory config = _safeCfg;
+    config.safetyNetStart = block.timestamp + 1;
+
+    vm.expectRevert(ISafetyNet.InvalidSafetyNetStartTime.selector);
+    _safetyNet.create('', config);
   }
 
   function test_Create_RevertsOnDisallowedToken_then_SucceedsWhenAllowed() public {
-    ISafetyNet.SafetyNet memory cfg = safeCfg;
-    cfg.safetyNetStart = block.timestamp + 1;
+    ISafetyNet.SafetyNet memory config = _safeCfg;
 
-    MockERC20 tmp = new MockERC20("Tmp", "TMP");
-    cfg.token = address(tmp);
+    MockERC20 temporaryToken = new MockERC20('Tmp', 'TMP');
+    config.token = address(temporaryToken);
 
     vm.expectRevert(ISafetyNet.TokenNotAllowed.selector);
-    safetyNet.create(cfg);
+    _safetyNet.create('', config);
 
-    safetyNet.setTokenAllowed(address(tmp), true);
-    uint256 idAllowed = safetyNet.create(cfg);
-    assertEq(idAllowed, 0, "first successful creation gets id 0");
+    _safetyNet.setTokenAllowed(address(temporaryToken), true);
+    uint256 allowedSafetyNetId = _safetyNet.create('', config);
+    assertEq(allowedSafetyNetId, 0, 'first successful creation gets id 0');
   }
 }

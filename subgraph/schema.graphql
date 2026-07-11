@@ -1,0 +1,119 @@
+enum ActivityType {
+  NET_CREATED
+  NET_STARTED
+  NET_DECOMMISSIONED
+  MEMBER_JOINED
+  DEPOSIT
+  WITHDRAWAL
+  REQUEST_CREATED
+  REQUEST_PENDING
+  REQUEST_CONTESTED
+  REQUEST_VETOED
+  REQUEST_EXECUTED
+  REQUEST_CANCELLED
+}
+
+enum RequestStatus {
+  PENDING
+  VETOED
+  EXECUTED
+  CANCELLED
+}
+
+type SafetyNet @entity(immutable: false) {
+  id: ID! # net id
+  name: String # human-readable name (may be empty/null)
+  owner: Bytes!
+  token: Bytes!
+  minimumMembers: BigInt!
+  maximumMembers: BigInt!
+  contestThreshold: BigInt!
+  initialDeposit: BigInt!
+  fixedDeposit: BigInt!
+  redeemRatio: BigInt!
+  autoThreshold: BigInt!
+  epochDuration: BigInt!
+  smallWithdrawsLimit: BigInt!
+  createdAt: BigInt!
+  startedAt: BigInt # null until SafetyNetStarted
+  decommissioned: Boolean!
+  decommissionedAt: BigInt
+  memberCount: Int!
+  totalBalance: BigInt! # totalDeposited - totalWithdrawn
+  totalDeposited: BigInt!
+  totalWithdrawn: BigInt!
+  members: [Member!]! @derivedFrom(field: "safetyNet")
+  requests: [Request!]! @derivedFrom(field: "safetyNet")
+  deposits: [Deposit!]! @derivedFrom(field: "safetyNet")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "safetyNet")
+  activity: [ActivityItem!]! @derivedFrom(field: "safetyNet")
+}
+
+type Member @entity(immutable: false) {
+  id: ID! # netId-address
+  safetyNet: SafetyNet!
+  address: Bytes!
+  joinedAt: BigInt!
+  isOwner: Boolean! # true when added at genesis (SafetyNetCreated), false when via InviteRedeemed
+  viaInvite: Boolean! # true if joined via InviteRedeemed
+  totalDeposited: BigInt!
+  totalWithdrawn: BigInt!
+  deposits: [Deposit!]! @derivedFrom(field: "member")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "member")
+}
+
+type Deposit @entity(immutable: true) {
+  id: ID! # txHash-logIndex
+  safetyNet: SafetyNet!
+  member: Member!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Withdrawal @entity(immutable: true) {
+  id: ID! # txHash-logIndex
+  safetyNet: SafetyNet!
+  member: Member!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Request @entity(immutable: false) {
+  id: ID! # request id
+  safetyNet: SafetyNet!
+  owner: Bytes!
+  amount: BigInt!
+  reason: String!
+  createdAt: BigInt!
+  status: RequestStatus!
+  contestCount: Int!
+  pendingAt: BigInt
+  resolvedAt: BigInt
+  contests: [Contest!]! @derivedFrom(field: "request")
+}
+
+type Contest @entity(immutable: true) {
+  id: ID! # txHash-logIndex
+  request: Request!
+  safetyNet: SafetyNet!
+  contester: Bytes! # event.transaction.from
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ActivityItem @entity(immutable: true) {
+  id: ID! # txHash-logIndex
+  safetyNet: SafetyNet!
+  type: ActivityType!
+  actor: Bytes! # member / redeemer / request owner / tx.from
+  amount: BigInt
+  reason: String
+  request: Request
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
