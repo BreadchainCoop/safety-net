@@ -1,6 +1,6 @@
 "use client";
 
-import type { Address, ContractFunctionArgs } from "viem";
+import type { Address, ContractFunctionArgs, Hex } from "viem";
 import { safetyNetAbi } from "@/lib/abi/safety-net";
 import { ADDRESSES } from "@/lib/config";
 import { useTx } from "@/hooks/use-tx";
@@ -133,4 +133,21 @@ export function useRedeemInvite() {
       args: [invite, signature],
     });
   return { redeemInvite, ...tx };
+}
+
+/**
+ * Settles a flu claim instantly against a ZK Email proof (skips the contest
+ * phase). `proof` is the ABI-encoded IZkEmailFluVerifier.FluClaimProof from
+ * `encodeFluClaimProof`.
+ */
+export function useClaimFlu() {
+  const tx = useTx();
+  const claimFlu = (id: bigint, proof: Hex) =>
+    tx.run({
+      address: ADDRESSES.safetyNet,
+      abi: safetyNetAbi,
+      functionName: "claimFlu",
+      args: [id, proof],
+    });
+  return { claimFlu, ...tx };
 }

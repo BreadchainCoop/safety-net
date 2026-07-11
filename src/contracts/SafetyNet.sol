@@ -8,6 +8,7 @@ import {ECDSA} from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import {Math} from '@openzeppelin/contracts/utils/math/Math.sol';
 
 import {ISafetyNet} from '../interfaces/ISafetyNet.sol';
+import {IZkEmailFluVerifier} from '../interfaces/IZkEmailFluVerifier.sol';
 import {ReentrancyGuard} from './utils/ReentrancyGuard.sol';
 
 /// @title SafetyNet
@@ -66,6 +67,20 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   /// @notice Maximum number of future epochs a member can prepay beyond the current epoch
   /// @dev Bounds the deposit allocation loop in {_deposit}; roughly one year of monthly epochs
   uint256 public constant MAX_PREPAY_EPOCHS = 12;
+
+  /// @notice Days of support paid out per verified flu claim
+  /// @dev An uncomplicated influenza course keeps an adult out of work ~3-7 days (CDC); one week of
+  ///      the member's daily support rate is the fixed, pre-agreed payout that lets a proven flu
+  ///      claim skip the contest phase entirely
+  uint256 public constant FLU_PAYOUT_DAYS = 7;
+
+  /// @notice Cap on the support ratio applied to flu payouts, tighter than MAXIMUM_REDEEM_RATIO
+  /// @dev Flu claims skip the contest window, so members cannot veto a serial claimer — the math
+  ///      itself must make systematic claiming unprofitable. With the verifier's 90-day cooldown
+  ///      (~4 claims/year), capping the ratio at 12 bounds a year of flu payouts at
+  ///      4 x 12 x 7/30 ~= 11.2 monthly contributions — less than the 12 contributions a year of
+  ///      dues costs — keeping the contest-free path EV-negative at every configurable redeemRatio
+  uint256 public constant FLU_MAX_SUPPORT_RATIO = 12;
 
   /// @notice Invite signing domain name used for EIP-712 signatures
   string private constant _INVITE_SIGNING_DOMAIN = 'SafetyNetInvite';
@@ -174,6 +189,11 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   ///      Stored only when a non-empty name is provided at creation; empty string otherwise
   mapping(uint256 id => string name) public safetyNetNames;
 
+  /// @inheritdoc ISafetyNet
+  /// @dev Appended at the end of the storage layout to preserve the upgradeable proxy's byte layout.
+  ///      Zero address (the default) disables {claimFlu} until the owner wires a verifier
+  address public fluClaimVerifier;
+
   /// @dev Require that msg.sender is a member of the given Safety Net
   modifier onlyMemberOf(uint256 _safetyNetId) {
     _onlyMemberOf(_safetyNetId);
@@ -199,6 +219,50 @@ contract SafetyNet is ISafetyNet, ReentrancyGuard, OwnableUpgradeable {
   function setTokenAllowed(address _token, bool _allowed) external override onlyOwner {
     allowedTokens[_token] = _allowed;
     emit TokenAllowed(_token, _allowed);
+  }
+
+  /// @inheritdoc ISafetyNet
+  function setFluClaimVerifier(address _verifier) external override onlyOwner {
+    fluClaimVerifier = _verifier;
+    emit FluClaimVerifierSet(_verifier);
+  }
+
+  /// @inheritdoc ISafetyNet
+  /// @dev The verifier performs every proof-side check (Groth16 validity, DKIM key + domain
+  ///      allowlist, claimant binding, email-commitment binding, nullifier, cooldown) and reverts
+  ///      on failure, so this function only handles membership, lifecycle, and payout accounting.
+  ///      The payout routes through {_deduct}, so the usual claim- and pool-solvency rules apply
+  function claimFlu(uint256 _id, bytes calldata _proof) external override nonReentrant onlyMemberOf(_id) {
+    SafetyNet memory _safetyNet = safetyNets[_id];
+
+    if (_safetyNet.owner == address(0)) revert NotCommissioned();
+    if (_safetyNet.safetyNetStart == 0) revert NotActive();
+    if (fluClaimVerifier == address(0)) revert FluClaimVerifierNotSet();
+
+    // Wind-down territory: once the net is decommissionable (any member missed any past epoch's
+    // dues — including the claimant), full-rate claims must not outrun decommission's pro-rata
+    // haircut. This also enforces that the claimant has kept dues current since the net started.
+    // O(epochs x members) SLOADs, acceptable for a rare path on Gnosis
+    if (isDecommissionable(_id)) revert SafetyNetDecommissionable();
+
+    // Broodfonds-style waiting period: no flu claims during the net's first epoch. Combined with
+    // the clean-dues gate above, a claimant has necessarily contributed for a full epoch first
+    if (getCurrentEpochIndex(_id) == 0) revert FluClaimWaitingPeriod();
+
+    bytes32 _nullifier = IZkEmailFluVerifier(fluClaimVerifier).verifyFluClaim(_id, msg.sender, _proof);
+
+    // FLU_PAYOUT_DAYS at the member's daily support rate, with the ratio additionally capped by
+    // FLU_MAX_SUPPORT_RATIO so systematic contest-free claiming stays EV-negative
+    uint256 _ratio = Math.min(getEffectiveRedeemRatio(_id, msg.sender), FLU_MAX_SUPPORT_RATIO);
+    uint256 _payout = (safetyNetMemberContribute[_id][msg.sender] * _ratio / DAYS_IN_A_MONTH) * FLU_PAYOUT_DAYS;
+    // A zero payout means the member's contribution is too small to support a daily rate
+    if (_payout == 0) revert InvalidAmountZero();
+
+    _deduct(_id, msg.sender, _payout);
+
+    emit FluClaimSettled(_id, msg.sender, _payout, _nullifier);
+
+    IERC20(_safetyNet.token).safeTransfer(msg.sender, _payout);
   }
 
   /// @inheritdoc ISafetyNet

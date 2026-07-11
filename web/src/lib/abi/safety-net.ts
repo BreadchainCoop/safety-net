@@ -47,6 +47,32 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "FLU_MAX_SUPPORT_RATIO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "FLU_PAYOUT_DAYS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAXIMUM_REDEEM_RATIO",
     "inputs": [],
     "outputs": [
@@ -181,6 +207,24 @@ export const safetyNetAbi = [
         "name": "_nonce",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimFlu",
+    "inputs": [
+      {
+        "name": "_id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_proof",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -536,6 +580,19 @@ export const safetyNetAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fluClaimVerifier",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1890,6 +1947,19 @@ export const safetyNetAbi = [
   },
   {
     "type": "function",
+    "name": "setFluClaimVerifier",
+    "inputs": [
+      {
+        "name": "_verifier",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setTokenAllowed",
     "inputs": [
       {
@@ -2036,6 +2106,50 @@ export const safetyNetAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "FluClaimSettled",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "member",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "nullifier",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FluClaimVerifierSet",
+    "inputs": [
+      {
+        "name": "verifier",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",
@@ -2572,6 +2686,16 @@ export const safetyNetAbi = [
   },
   {
     "type": "error",
+    "name": "FluClaimVerifierNotSet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FluClaimWaitingPeriod",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InsufficientPoolFunds",
     "inputs": []
   },
@@ -2772,6 +2896,11 @@ export const safetyNetAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SafetyNetDecommissionable",
+    "inputs": []
   },
   {
     "type": "error",

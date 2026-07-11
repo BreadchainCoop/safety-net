@@ -1,0 +1,18 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+ d=flu-demo.breadchain.xyz; h=Content-Type: MIME-Version: Message-ID: Date:
+ Subject: To: From; q=dns/txt; s=demo1; t=1783598400;
+ bh=4UHgqWLPahmXokRPMWrM691C7dvR/koROROOoUivXsY=;
+ b=mk6xFSRen2Kc2RWj7n6dW56E2+dG8lR1eRAnpMk3bCCQlv5cms/1T9dveQGTPGymC+5s1WZZY
+ uTg+gbZ5wcwp9FsdlQ4k1oNzz19TnLK8P8xw7ZlzpE/jc0zCqnFsi5gkt3SIYvOtL91B/u8Ls5r
+ CUD+NcHAjvimgS4PC3GDMHk9SyvdL9L5wkrkV5wwj4a0aLEprxaHzki1ZWodIrCs2GNAIuiIi12
+ 0+z0xAENybD1CGvf/5fSKsGq2vRZDE6gVC1z51q5hM57NvJd7xjMZkacmlC/GQzi2cYC8IwivIp
+ jVf7pRK9d1XqS6grG0AYfXnvwu5bhTlTXMv5BXLrWhWA==
+From: Dr Demo Results <results@flu-demo.breadchain.xyz>
+To: Alice Member <alice.member@gmail-demo.breadchain.xyz>
+Subject: Your test result is ready
+Date: Thu, 09 Jul 2026 12:00:00 +0000
+Message-ID: <flu-fixture-0001@flu-demo.breadchain.xyz>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+Result: POSITIVE for influenza A (ICD-10 J10.1). Oseltamivir 75 MG (Tamiflu) was prescribed.

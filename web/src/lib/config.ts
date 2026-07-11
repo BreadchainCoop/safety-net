@@ -122,7 +122,7 @@ export const WALLETCONNECT_PROJECT_ID = withDefault(
  * never capture them at module scope. For wagmi reads, subscribe through
  * `useAddresses()` (addresses-provider.tsx) so queries refetch on hydration.
  */
-export const ADDRESSES: { safetyNet: Address; delegated: Address } = {
+export const ADDRESSES: { safetyNet: Address; delegated: Address; fluVerifier: Address } = {
   safetyNet: withDefault(
     env.NEXT_PUBLIC_SAFETYNET_ADDRESS,
     "0x63c3c299CD5C5479E6999189D7827490Ea71cEAe",
@@ -135,7 +135,27 @@ export const ADDRESSES: { safetyNet: Address; delegated: Address } = {
     "0x88Fd6D424dd415780f42891F3f699D57Cd5D4C2C",
     "NEXT_PUBLIC_DELEGATED_ADDRESS",
   ) as Address,
+  // The ZkEmailFluVerifier extension: instant flu-claim settlement via ZK Email
+  // proofs. zeroAddress (the default) hides the flu-claim UI until a verifier is
+  // deployed and wired via SafetyNet.setFluClaimVerifier; the address is also
+  // read live from the contract (useFluClaimVerifierAddress).
+  fluVerifier: withDefault(
+    optional(process.env.NEXT_PUBLIC_FLU_VERIFIER_ADDRESS),
+    zeroAddress,
+    "NEXT_PUBLIC_FLU_VERIFIER_ADDRESS",
+  ) as Address,
 };
+
+/**
+ * URLs for the FluClaim proving artifacts (circuit wasm + Groth16 zkey). The
+ * zkey is GB-scale, so it is hosted separately (release asset / IPFS) rather
+ * than bundled. Unset → in-browser proving is disabled and the UI points the
+ * member at the CLI prover instead.
+ */
+export const FLU_ARTIFACTS = {
+  wasmUrl: optional(process.env.NEXT_PUBLIC_FLU_CIRCUIT_WASM_URL),
+  zkeyUrl: optional(process.env.NEXT_PUBLIC_FLU_CIRCUIT_ZKEY_URL),
+} as const;
 
 /**
  * Build-time env pins always win over the runtime manifest — verify-mode E2E

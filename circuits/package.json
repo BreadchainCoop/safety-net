@@ -1,0 +1,28 @@
+{
+  "name": "safety-net-circuits",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ZK Email flu-claim circuit for SafetyNet (canonical 7-signal layout)",
+  "scripts": {
+    "compile": "bash scripts/compile.sh",
+    "fetch-keys": "node scripts/fetch-dkim-keys.mjs",
+    "finish": "bash scripts/finish-v2.sh",
+    "gen-fixture": "node scripts/gen-v2-fixture.mjs",
+    "gen-regex": "node scripts/gen-regex.mjs",
+    "prove": "bash scripts/prove-v2.sh",
+    "setup": "bash scripts/setup-v2.sh"
+  },
+  "dependencies": {
+    "@zk-email/circuits": "6.3.4",
+    "@zk-email/helpers": "6.3.3",
+    "@zk-email/zk-regex-circom": "2.3.2",
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
+    "mailauth": "^4.8.4",
+    "snarkjs": "0.7.5"
+  },
+  "devDependencies": {
+    "@zk-email/zk-regex-compiler": "^2.3.2",
+    "zk-regex-apis": "^2.0.0"
+  }
+}

@@ -1,0 +1,3 @@
+# Large proving artifacts are hosted separately (release/IPFS), not committed.
+flu_claim.wasm
+*.zkey
