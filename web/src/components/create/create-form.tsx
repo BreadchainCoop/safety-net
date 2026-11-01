@@ -449,7 +449,7 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
         <div className="border-paper-2 flex flex-col gap-5 border-t pt-5">
           <Heading4 className="text-text-standard text-base">
             Advanced settings
-n          </Heading4>
+          </Heading4>
 
           <Field
             id={id("redeem-ratio")}
