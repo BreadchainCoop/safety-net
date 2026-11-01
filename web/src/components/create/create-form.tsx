@@ -857,7 +857,7 @@ function SupportRateNote({
       </strong>{" "}
       {sustained < ratio ? (
         <>
-          A group of {memberCount || "—"} sustainably backs about ×{sustained} ({" "}
+          A group of {memberCount || "—"} sustainably backs about ×{sustained} (
           {n * sustained} {symbol}/month) — support ramps toward the full rate
           as the group and its pool grow.
         </>
