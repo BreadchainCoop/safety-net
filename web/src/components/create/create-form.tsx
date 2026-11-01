@@ -218,6 +218,20 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
   const memberCount = watch("memberCount");
   const ratio = watch("redeemRatio");
 
+  // What Simple mode's auto-managed minimum actually is for the chosen size
+  // (same formula as the useEffect below) — shown in the info banner.
+  const simpleStartableAt = Math.max(
+    2,
+    Math.min(
+      DEFAULTS.minimumMembers,
+      Number.isFinite(memberCount) ? memberCount : DEFAULTS.memberCount,
+    ),
+  );
+  const shownMemberCount =
+    Number.isFinite(memberCount) && memberCount > 0
+      ? memberCount
+      : DEFAULTS.memberCount;
+
   // Simple mode manages minimumMembers for the user: the Broodfonds 25, but
   // never above the chosen group size (the schema cross-checks the two, and a
   // hidden failing field would block creation invisibly).
@@ -280,8 +294,8 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
 
       {mode === "simple" && (
         <p className="border-primary-jade/30 bg-primary-jade/5 text-surface-grey-2 rounded-xl border px-4 py-3 text-xs">
-          Using Broodfonds defaults: monthly dues, up to {DEFAULTS.memberCount}{" "}
-          members (startable once {DEFAULTS.minimumMembers} have joined), a
+          Using Broodfonds defaults: monthly dues, up to {shownMemberCount}{" "}
+          members (startable once {simpleStartableAt} have joined), a
           one-month join deposit, and ×{BROODFONDS_RATIO} monthly support when a
           member is in need — larger claims are reviewed by the group over{" "}
           {DEFAULTS.contestWindowDays} days. Switch to <strong>Advanced</strong>{" "}
@@ -405,7 +419,7 @@ function FormPanel({ onContinue }: { onContinue: () => void }) {
       <Field
         id={id("member-count")}
         label="Group size (max members)"
-        help="You'll be the first member. Everyone else joins through invite links before you start the net. Broodfonds caps groups at 50."
+        help="You'll be the first member. Everyone else joins through invite links before you start the net. Small trusted circles are welcome — even 2 people. Broodfonds caps groups at 50."
         error={errors.memberCount?.message}
       >
         <input
